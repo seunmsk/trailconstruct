@@ -552,6 +552,11 @@ main{max-width:1120px}
 .qty-total{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .qty-total b{font-family:var(--display);font-size:1.6rem;color:var(--steel)}
 .qty-note{margin:0;color:var(--warn);min-height:1em}
+
+.outcard{border-left:5px solid var(--crit)}
+.outlist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.outlist li{display:grid;grid-template-columns:1fr auto auto;gap:4px 10px;align-items:center;padding:8px 10px;border-radius:9px;background:var(--sunk)}
+@media (max-width:520px){.outlist li{grid-template-columns:1fr auto}.outlist li span:nth-child(2){grid-column:1/-1;order:3}}
 </style>
 </head>
 <body>
@@ -582,6 +587,33 @@ function daysSince(s){const d=parseD(s);if(!d)return null;const t=new Date();t.s
 const ls={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 const src=p=>p.url||("/_blob/"+p.id);
 
+/* ---------- foundation types ---------- */
+const FOUNDATIONS={
+  strip:{label:"Strip foundation",short:"strip",cast:"Strip foundation concrete cast"},
+  pad:{label:"Pad foundation (column footings)",short:"pad",cast:"Pad footings & ground beams cast"},
+  raft:{label:"Raft foundation",short:"raft",cast:"Raft slab & edge beams cast"},
+  pile:{label:"Pile foundation",short:"pile",cast:"Pile caps & ground beams cast"}
+};
+const foundationSelect=(id,val,attr)=>`<label class="f" for="${id}">Foundation type<select id="${id}" ${attr}><option value="">Not decided yet (soil test pending)</option>${Object.entries(FOUNDATIONS).map(([k,s])=>`<option value="${k}" ${val===k?"selected":""}>${s.label}</option>`).join("")}</select></label>`;
+
+/* ---------- approvals & outstanding items ---------- */
+const APPROVAL_IDS=new Set(["pre.3","pre.4","set.3","fdn.9","roof.6","hnd.3"]);
+function outstanding(p){
+  const pr=progress(p),c=p.checks||{};let far=-1;
+  pr.stages.forEach((s,i)=>{if(s.done>0)far=i;});
+  const out=[];pr.stages.forEach((s,i)=>{if(i<far)s.items.forEach(it=>{if(!c[it.id])out.push({stage:s,item:it,approval:APPROVAL_IDS.has(it.id)});});});
+  out.sort((a,b)=>(b.approval?1:0)-(a.approval?1:0));
+  return out;
+}
+function outstandingCard(p,limit){
+  const o=outstanding(p);if(!o.length)return "";
+  const ap=o.filter(x=>x.approval).length,show=o.slice(0,limit||8);
+  return `<section class="card outcard"><div class="card-h"><h3>Still outstanding from earlier stages</h3><span class="pill crit">${o.length}</span></div>
+  <p class="small muted">Work has moved on, but these haven't been ticked off yet.${ap?` ${ap} ${ap===1?"is an approval":"are approvals"}.`:""} You can keep building; we'll keep reminding you until they're done.</p>
+  <ul class="outlist">${show.map(x=>`<li><span>${esc(x.item.label)}</span><span class="small muted">${esc(x.stage.name)}</span>${x.approval?`<span class="pill active">Approval pending</span>`:"<span></span>"}</li>`).join("")}</ul>
+  ${o.length>show.length?`<p class="small muted">+ ${o.length-show.length} more in the Stages tab.</p>`:""}</section>`;
+}
+
 /* ---------- sewage systems ---------- */
 const SEWAGE={
   septic:{label:"Septic tank + soakaway (traditional)",short:"septic tank + soakaway",items:[["s0","Excavation for septic tank & soakaway"],["s1","Septic tank built & rendered (blockwork / reinforced)"],["s2","Septic tank cover slab cast"],["s3","Soakaway pit constructed"],["s4","Inspection chambers / manholes"],["s5","Connected to building soil & waste pipes"],["s6","Tested for leaks & flow"]]},
@@ -596,7 +628,12 @@ function stagesFor(p){
   const add=(id,group,name,weight,items)=>st.push({id,group,name,weight,items:items.map((l,i)=>Array.isArray(l)?{id:id+"."+l[0],label:l[1]}:{id:id+"."+i,label:l})});
   add("pre","Pre-construction","Site inspection, surveys & approvals",4,["Site inspection & title/survey plan checked","Topographic survey","Soil investigation (geotechnical test)","Architectural, structural & M&E drawings approved","Building permit obtained (LASPPPA)","Site clearing & hoarding","Site office, store & water source set up","Mobilisation of workers & equipment"]);
   add("set","Setting out","Setting out",2,["Profile boards erected","Building lines & grid pegged to drawings","Diagonals and levels checked","Setting-out approved by engineer / LASBCA stage inspection"]);
-  add("fdn","Foundation","Foundation & substructure",12,["Excavation of trenches / pits to depth","Blinding (lean concrete)","Foundation reinforcement fixed & inspected","Foundation concrete cast (strip / pad / raft)","Blockwork to DPC level (German floor)","Anti-termite treatment","Backfilling & compaction","Damp-proof membrane laid","Oversite concrete (ground floor slab)","Foundation stage certification"]);
+  {const ft=FOUNDATIONS[p.foundationType]?p.foundationType:"";const pile=ft==="pile";
+  add("fdn","Foundation",ft?"Foundation & substructure ("+FOUNDATIONS[ft].short+")":"Foundation & substructure",pile?15:12,[
+    ...(pile?[["p0","Piling contractor & rig mobilised"],["p1","Pile positions set out & checked"],["p2","Test piles installed & load / integrity tested"],["p3","Working piles bored / driven & concreted"],["p4","Pile heads cut down & cropped to level"]]:[]),
+    ["0",pile?"Excavation for pile caps & ground beams":"Excavation of trenches / pits to depth"],["1","Blinding (lean concrete)"],["2","Foundation reinforcement fixed & inspected"],
+    ["3",ft?FOUNDATIONS[ft].cast:"Foundation concrete cast (strip / pad / raft / pile caps)"],
+    ["4","Blockwork to DPC level (German floor)"],["5","Anti-termite treatment"],["6","Backfilling & compaction"],["7","Damp-proof membrane laid"],["8","Oversite concrete (ground floor slab)"],["9","Foundation stage certification"]]);}
   const lv=floors+1,w=30/lv;
   for(let k=0;k<lv;k++){const nm=levelName(k);
     if(k<floors)add("lv"+k,"Frame",nm+" walls & "+levelName(k+1)+" slab",w,["Columns reinforced & cast","Blockwork to lintel level","Lintels cast","Blockwork to beam level","Electrical & plumbing conduits laid before decking","Beam & slab formwork erected","Slab reinforcement inspected by engineer","Slab cast (decking) & curing","Formwork struck"]);
@@ -895,7 +932,7 @@ function signupView(){
     ${inp("pname","Project name","text","e.g. Palm Court Residences",1)}
     ${(()=>{const g=parseLatLng(d.gps);return locBlock("o",d.loc,g?g.lat:"",g?g.lng:"",`<input type="text" id="o-loc" data-onb="loc" value="${esc(d.loc||"")}" placeholder="Street, area, Lagos">`);})()}
     ${propFields("o",{propType:d.ptype,unitCount:d.unitn,blockCount:d.blocks,beds:d.beds},k=>`data-onb="${k}"`)}
-    ${sewageSelect("o-sew",d.sew,'data-onb="sew"')}
+    <div class="row">${foundationSelect("o-fdn",d.fdn,'data-onb="fdn"')}${sewageSelect("o-sew",d.sew,'data-onb="sew"')}</div>
     <div class="row"><label class="f" for="o-floors">Floors above ground<select id="o-floors" data-onb="floors">${[0,1,2,3,4,5,6,8,10,12,15,20].map(n=>`<option value="${n}" ${+d.floors===n?"selected":""}>${floorsOption(n)}</option>`).join("")}</select></label>${inp("budget","Budget (₦, optional)","number")}</div>
     ${durBlock("o",d.start,d.dur,d.target,k=>`data-onb="${k}"`)}
     ${!S.mapsKey||S.manualGps.o?`<div class="row">${inp("gps","Site GPS (lat, lng or Google Maps link)","text","e.g. 6.4561, 3.4318")}</div>`:""}
@@ -1037,7 +1074,7 @@ function devView(p){
         <div class="stat"><b class="num">${ago==null?"—":ago===0?"Today":ago+"d ago"}</b><span>Last site update</span></div>
         <div class="stat"><b class="num">${upAgo==null?"None":upAgo===0?"Today":upAgo+"d ago"}</b><span>Last investor update</span></div>
         <div class="stat"><b class="num">${ws.report?"In":"Due Fri"}</b><span>Weekly site report</span></div></div></section>
-    <section class="card"><h2>To do</h2>${todo.length?`<ul class="todo">${todo.map(([c,txt,btn])=>`<li class="${c}"><span>${txt}</span>${btn}</li>`).join("")}</ul>`:`<ul class="todo"><li class="ok"><span>All caught up.</span></li></ul>`}</section>
+    ${outstandingCard(p,6)}<section class="card"><h2>To do</h2>${todo.length?`<ul class="todo">${todo.map(([c,txt,btn])=>`<li class="${c}"><span>${txt}</span>${btn}</li>`).join("")}</ul>`:`<ul class="todo"><li class="ok"><span>All caught up.</span></li></ul>`}</section>
     <section class="card"><div class="card-h"><h2>Latest from site</h2><button class="link small" data-act="tab" data-role="developer" data-tab="site">See all</button></div>${logs.length?`<div class="list">${logs.slice(0,2).map(l=>logHTML(p,l)).join("")}</div>`:`<div class="empty">Nothing posted yet.</div>`}</section>`;
   }
   if(t==="site"){
@@ -1047,7 +1084,7 @@ function devView(p){
   if(t==="investor")body=composeView(p,pr,ups);
   if(t==="materials")body=materialsView(p,"developer");
   if(t==="payments")body=paymentsView(p,"developer");
-  if(t==="stages")body=`<section class="card"><div class="card-h"><h2>Stages</h2><span class="small muted">Tap a stage to open its checklist</span></div>${phaseStrip(pr)}${stageList(p)}</section>`;
+  if(t==="stages")body=outstandingCard(p,50)+`<section class="card"><div class="card-h"><h2>Stages</h2><span class="small muted">Tap a stage to open its checklist</span></div>${phaseStrip(pr)}${stageList(p)}</section>`;
   if(t==="budget"){
     const exps=expOf(p.id),spent=exps.reduce((a,e)=>a+(+e.amount||0),0),budget=+p.budget||0;
     body=`<section class="card"><h2>Budget</h2>
@@ -1063,7 +1100,7 @@ function devView(p){
   }
   if(t==="project"){
     body=(S.mode==="cf"?teamSection(p):"")+`<section class="card"><div class="card-h"><h2>Project details</h2>${S.canWrite?`<div class="actions"><button class="btn sm" data-act="edit-project">Edit</button><button class="btn sm" data-act="new-project">Add another project</button></div>`:""}</div>
-      <dl class="kv"><dt>Name</dt><dd>${esc(p.name)}</dd><dt>Location</dt><dd>${esc(p.location||"—")}</dd><dt>Property</dt><dd>${esc(unitsText(p)||"—")}</dd><dt>Floors</dt><dd>${floorsLabel(p.floors)}</dd><dt>Developer</dt><dd>${esc(p.client||"—")}</dd><dt>Budget</dt><dd>${+p.budget?naira(p.budget):"Not set"}</dd><dt>Start</dt><dd>${esc(fmtD(p.startDate)||"Not set")}</dd><dt>Target completion</dt><dd>${esc(fmtD(p.targetDate)||"Not set")}</dd><dt>Sewage</dt><dd>${esc((SEWAGE[p.sewageType]||SEWAGE.septic).label)}</dd><dt>Site GPS</dt><dd>${p.siteLat!=null&&p.siteLat!==""?esc((+p.siteLat).toFixed(5)+", "+(+p.siteLng).toFixed(5))+" · photos within "+(+p.siteRadius||200)+" m"+(p.strictGps?" · GPS required":""):"Not set. Add it so site photos can be checked."}</dd><dt>Funding</dt><dd>${p.payMode==="milestone"?"Milestone payments"+(+p.contractSum?" · "+naira(p.contractSum):""):"Paid up front"}</dd></dl></section>
+      <dl class="kv"><dt>Name</dt><dd>${esc(p.name)}</dd><dt>Location</dt><dd>${esc(p.location||"—")}</dd><dt>Property</dt><dd>${esc(unitsText(p)||"—")}</dd><dt>Floors</dt><dd>${floorsLabel(p.floors)}</dd><dt>Developer</dt><dd>${esc(p.client||"—")}</dd><dt>Budget</dt><dd>${+p.budget?naira(p.budget):"Not set"}</dd><dt>Start</dt><dd>${esc(fmtD(p.startDate)||"Not set")}</dd><dt>Target completion</dt><dd>${esc(fmtD(p.targetDate)||"Not set")}</dd><dt>Foundation</dt><dd>${esc(FOUNDATIONS[p.foundationType]?FOUNDATIONS[p.foundationType].label:"Not decided yet")}</dd><dt>Sewage</dt><dd>${esc((SEWAGE[p.sewageType]||SEWAGE.septic).label)}</dd><dt>Site GPS</dt><dd>${p.siteLat!=null&&p.siteLat!==""?esc((+p.siteLat).toFixed(5)+", "+(+p.siteLng).toFixed(5))+" · photos within "+(+p.siteRadius||200)+" m"+(p.strictGps?" · GPS required":""):"Not set. Add it so site photos can be checked."}</dd><dt>Funding</dt><dd>${p.payMode==="milestone"?"Milestone payments"+(+p.contractSum?" · "+naira(p.contractSum):""):"Paid up front"}</dd></dl></section>
     ${(p.team||[]).length?`<section class="card"><h2>Team</h2><div>${p.team.map(t=>`<div class="exp"><span>${esc(t.name)}</span><span class="pill ${t.role==="investor"?"ok":"active"}">${t.role==="investor"?"Investor":"Site engineer"}</span><span class="small muted">${esc(t.email||"")}</span><span></span></div>`).join("")}</div></section>`:""}
     <section class="card"><h2>Team access</h2><p class="muted">Share this page from its menu. Give site engineers <b>Contributor</b> access so they can post updates and photos. Investors can be <b>Viewers</b>: they only open the Investor workspace and see updates you send.</p></section>`;
   }
@@ -1101,6 +1138,7 @@ function engView(p){
   else ban=`<div class="banner due"><div><strong>Weekly report due Friday ${esc(fmtS(ymd(ws.w.fri)))}</strong><span class="small">${ws.left<=0?"Due today":ws.left+" day"+(ws.left===1?"":"s")+" left"} · ${wlogs.length} update${wlogs.length===1?"":"s"} this week</span></div>${t!=="weekly"?`<button class="btn amber" data-act="tab" data-role="engineer" data-tab="weekly">Write report</button>`:""}</div>`;
   if(t==="today"){
     const ob=outbox.get().filter(x=>x.pid===p.id),lastMine=logsOf(p.id).find(l=>l.by===me&&l.date===ymd(new Date()));
+    {const o=outstanding(p);if(o.length)ban+=`<div class="banner late"><div><strong>${o.length} item${o.length>1?"s":""} still outstanding from earlier stages</strong><span class="small">${esc(o.slice(0,2).map(x=>x.item.label).join(" · "))}${o.length>2?" …":""}</span></div><button class="btn" data-act="tab" data-role="engineer" data-tab="stages">View</button></div>`;}
     body=ban+(ob.length?`<div class="banner due"><div><strong>${ob.length} update${ob.length>1?"s":""} waiting for signal</strong><span class="small">Saved on this phone. They post automatically when you're back online.</span></div><button class="btn" data-act="flush">Try now</button></div>`:"")
       +(lastMine?`<div class="banner done"><div><strong>Today's update is posted</strong><span class="small">${esc(lastMine.work.slice(0,90))}</span></div>${waLink(`Site update, ${p.name} (${fmtS(lastMine.date)}): ${lastMine.work}${lastMine.issues?" Issue: "+lastMine.issues:""} Workers: ${lastMine.workers}. Photos on TrailConstruct.`,"Send to developer")}</div>`:"")
       +`<section class="card"><div><h2>Post today's update</h2><p class="small muted">${esc(p.name)} · now on ${esc(pr.current?pr.current.name:"handover")} · drafts save on this phone as you type</p></div>
@@ -1124,7 +1162,7 @@ function engView(p){
       <p class="small muted">This week's daily updates, photos and issues are attached automatically.</p><div><button class="btn pri" type="submit">Send to developer</button></div></form>`:""}</section>`);
   }
   if(t==="materials")body=materialsView(p,"engineer");
-  if(t==="stages")body=`<section class="card"><div class="card-h"><h2>Stage checklist</h2><span class="small muted">Tick items as they're finished</span></div>${stageList(p)}</section>`;
+  if(t==="stages")body=outstandingCard(p,50)+`<section class="card"><div class="card-h"><h2>Stage checklist</h2><span class="small muted">Tick items as they're finished</span></div>${stageList(p)}</section>`;
   if(t==="history"){const logs=logsOf(p.id);body=`<section class="card"><h2>All updates</h2>${logs.length?`<div class="list">${logs.slice(0,30).map(l=>logHTML(p,l)).join("")}</div>`:`<div class="empty">No updates yet.</div>`}</section>`;}
   return shell("engineer",tabs,body,true);
 }
@@ -1385,7 +1423,7 @@ function projectForm(p){p=p||{};
     <label class="f" for="pf-name">Project name<input type="text" id="pf-name" required value="${esc(p.name||"")}"></label>
     ${locBlock("pf",p.location,p.siteLat,p.siteLng,`<input type="text" id="pf-loc" value="${esc(p.location||"")}" placeholder="Street, area, Lagos" aria-label="Site address">`)}
     ${propFields("pf",p.propType?p:{...p,propType:""},()=>"")}${!p.propType&&p.units?`<p class="small muted">Currently: ${esc(p.units)}. Choose a type above to update it.</p>`:""}
-    ${sewageSelect("pf-sew",p.sewageType,"")}
+    <div class="row">${foundationSelect("pf-fdn",p.foundationType||"","")}${sewageSelect("pf-sew",p.sewageType,"")}</div>
     <label class="f" for="pf-client">Developer / company<input type="text" id="pf-client" value="${esc(p.client||"")}"></label>
     <div class="row"><label class="f" for="pf-floors">Floors above ground<select id="pf-floors">${[...Array(31).keys()].map(n=>`<option value="${n}" ${(+p.floors||0)===n?"selected":""}>${floorsOption(n)}</option>`).join("")}</select></label>
     <label class="f" for="pf-budget">Budget (₦)<input type="number" id="pf-budget" min="0" step="1" value="${esc(p.budget||"")}"></label></div>
@@ -1496,7 +1534,13 @@ document.addEventListener("click",async e=>{
   if(act==="ms-dispute"){modal(`<h2>Dispute this milestone</h2><form id="dis-form" data-id="${esc(t.dataset.id)}"><label class="f" for="ds-note">What's your concern?<textarea id="ds-note" required placeholder="e.g. Roof covering not finished on Block B"></textarea></label><div class="actions"><button class="btn pri" type="submit">Send dispute</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);return;}
   if(act==="ms-paid"){modal(`<h2>Confirm payment received</h2><form id="paid-form" data-id="${esc(t.dataset.id)}"><label class="f" for="pd-ref">Bank or escrow reference<input type="text" id="pd-ref" required placeholder="e.g. FT2611160023"></label><div class="actions"><button class="btn pri" type="submit">Confirm</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);return;}
   if(act==="ms-resubmit"){await store.update("milestones",t.dataset.id,{status:"requested",verification:null});toast("Resubmitted for verification.");return;}
-  if(act==="check"){store.update("projects",p.id,{checks:{[t.dataset.id]:t.checked}});return;}
+  if(act==="check"){const id=t.dataset.id,on=t.checked;
+    if(on){const pr=progress(p),si=pr.stages.findIndex(s=>s.items.some(i=>i.id===id)),c=p.checks||{};
+      const earlier=[];pr.stages.forEach((s,i)=>{if(i<si)s.items.forEach(it=>{if(!c[it.id])earlier.push({s,it,ap:APPROVAL_IDS.has(it.id)});});});
+      S.reminded=S.reminded||{};const key=p.id+":"+(pr.stages[si]||{}).id;
+      if(earlier.length&&!S.reminded[key]){S.reminded[key]=1;earlier.sort((a,b)=>(b.ap?1:0)-(a.ap?1:0));
+        setTimeout(()=>modal(`<h2>Before you move on</h2><p>You're ticking work in <b>${esc(pr.stages[si].name)}</b>, but ${earlier.length} item${earlier.length>1?"s":""} from earlier stages ${earlier.length>1?"are":"is"} not done yet:</p><ul class="outlist">${earlier.slice(0,8).map(x=>`<li><span>${esc(x.it.label)}</span><span class="small muted">${esc(x.s.name)}</span>${x.ap?`<span class="pill active">Approval pending</span>`:"<span></span>"}</li>`).join("")}</ul>${earlier.length>8?`<p class="small muted">+ ${earlier.length-8} more</p>`:""}<p class="small muted">You can carry on. We'll keep reminding you until they're ticked off.</p><div><button class="btn pri" data-act="close">OK, continue</button></div>`),150);}}
+    store.update("projects",p.id,{checks:{[id]:on}});return;}
   if(act==="del-exp"){store.del("expenses",t.dataset.id);return;}
   if(act==="del-update"){store.del("updates",t.dataset.id);toast("Update deleted.");return;}
   if(act==="use-report"){const r=S.reports.find(x=>x.id===t.dataset.id);if(!r)return;
@@ -1532,7 +1576,7 @@ document.addEventListener("submit",async e=>{
     const p0={floors:+d.floors||0,checks:{}},pr0=progress(p0),done=new Set(pr0.phases.slice(0,d.phase).map(x=>x.name));
     stagesFor(p0).forEach(s=>{if(done.has(s.group))s.items.forEach(i=>p0.checks[i.id]=true);});
     const nid="p-"+Date.now().toString(36);
-    try{await store.set("projects",nid,{name:(d.pname||"New project").trim(),location:(d.loc||"").trim(),propType:d.ptype||"",sewageType:d.sew||"septic",unitCount:+d.unitn||0,blockCount:+d.blocks||0,beds:d.beds||"",units:unitsText({propType:d.ptype,unitCount:d.unitn,blockCount:d.blocks,beds:d.beds}),client:(d.company||"").trim(),owner:(d.name||"").trim(),floors:+d.floors||0,budget:Math.max(0,+d.budget||0),startDate:d.start||"",durationMonths:d.dur&&d.dur!=="custom"?+d.dur:0,targetDate:finalTarget(d.start,d.dur,d.target),payMode:d.payMode==="milestone"?"milestone":"upfront",...(()=>{const g=parseLatLng(d.gps);return g?{siteLat:g.lat,siteLng:g.lng,siteRadius:200}:{};})(),contractSum:Math.max(0,+d.contract||0),checks:p0.checks,team:d.team,plan:{name:"Single site",billing:d.annual?"yearly":"monthly"},createdAt:new Date().toISOString()});
+    try{await store.set("projects",nid,{name:(d.pname||"New project").trim(),location:(d.loc||"").trim(),propType:d.ptype||"",sewageType:d.sew||"septic",foundationType:d.fdn||"",unitCount:+d.unitn||0,blockCount:+d.blocks||0,beds:d.beds||"",units:unitsText({propType:d.ptype,unitCount:d.unitn,blockCount:d.blocks,beds:d.beds}),client:(d.company||"").trim(),owner:(d.name||"").trim(),floors:+d.floors||0,budget:Math.max(0,+d.budget||0),startDate:d.start||"",durationMonths:d.dur&&d.dur!=="custom"?+d.dur:0,targetDate:finalTarget(d.start,d.dur,d.target),payMode:d.payMode==="milestone"?"milestone":"upfront",...(()=>{const g=parseLatLng(d.gps);return g?{siteLat:g.lat,siteLng:g.lng,siteRadius:200}:{};})(),contractSum:Math.max(0,+d.contract||0),checks:p0.checks,team:d.team,plan:{name:"Single site",billing:d.annual?"yearly":"monthly"},createdAt:new Date().toISOString()});
       S.pid=nid;ls.set("st.pid",nid);ls.set("st.role","developer");S.tab.developer="overview";
       if(S.mode==="cf"){await S.db.pull();const links=[];for(const m of d.team){try{const r=await cfApi("POST","/api/invites",{pid:nid,role:m.role,name:m.name,email:m.email});links.push({...m,code:r.code,emailed:r.emailed});}catch(e){}}
         if(links.length)setTimeout(()=>modal(`<h2>Your team is invited</h2><p class="small muted">${links.some(l=>l.emailed)?"We've emailed everyone who has an email address. You can also send the links on WhatsApp.":"Send each person their link on WhatsApp or copy it. They open it to join."}</p>${links.map(l=>`<div class="exp"><span>${esc(l.name)} · ${ROLE_LABEL[l.role]}${l.emailed?` · <span class="pill ok">Emailed</span>`:""}</span><span class="actions">${waLink(`You've been invited to follow ${d.pname} on TrailConstruct. Join here: ${location.origin}/?invite=${l.code}`,"WhatsApp")}<button class="btn sm" data-act="copy" data-text="${esc(location.origin+"/?invite="+l.code)}">Copy</button></span><span></span><span></span></div>`).join("")}<div><button class="btn pri" data-act="close">Done</button></div>`),400);}S.onb={step:0,d:{floors:2,phase:0,team:[],annual:false}};S.busy=false;toast("Project created. Welcome to TrailConstruct.");go("developer");}
@@ -1544,7 +1588,7 @@ document.addEventListener("submit",async e=>{
     catch(err){S.busy=false;render();showErr(up?"Couldn't create your account":"Couldn't sign you in",err.code==="conflict"?"That email already has an account. Choose Sign in instead.":err.message||"Please try again.");}return;}
   if(f.id==="inv-form"){const p=P();if(!p)return;try{const em=v("iv-email").trim();const r=await cfApi("POST","/api/invites",{pid:p.id,role:v("iv-role"),name:v("iv-name").trim(),email:em});delete S.team[p.id];toast(r.emailed?`Invite emailed to ${em}. You can also send the link on WhatsApp.`:"Invite link created. Send it on WhatsApp or copy it.");render();}catch(err){toast(err.message||"Couldn't create the invite.");}return;}
   if(f.id==="proj-form"){
-    const data={name:v("pf-name").trim(),location:(S.pfLoc||v("pf-loc")||(f.dataset.id&&P()?P().location||"":"")).trim(),propType:v("pf-ptype"),sewageType:v("pf-sew")||"septic",unitCount:+v("pf-unitn")||0,blockCount:+v("pf-blocks")||0,beds:v("pf-beds"),client:v("pf-client").trim(),floors:Math.max(0,parseInt(v("pf-floors"),10)||0),budget:Math.max(0,+v("pf-budget")||0),startDate:v("pf-start"),durationMonths:v("pf-dur")&&v("pf-dur")!=="custom"?+v("pf-dur"):0,targetDate:finalTarget(v("pf-start"),v("pf-dur"),v("pf-target")),units:"",payMode:v("pf-pay")||"upfront",contractSum:Math.max(0,+v("pf-contract")||0),siteRadius:+v("pf-rad")||200,strictGps:!!(document.getElementById("pf-strict")||{}).checked};
+    const data={name:v("pf-name").trim(),location:(S.pfLoc||v("pf-loc")||(f.dataset.id&&P()?P().location||"":"")).trim(),propType:v("pf-ptype"),sewageType:v("pf-sew")||"septic",foundationType:v("pf-fdn")||"",unitCount:+v("pf-unitn")||0,blockCount:+v("pf-blocks")||0,beds:v("pf-beds"),client:v("pf-client").trim(),floors:Math.max(0,parseInt(v("pf-floors"),10)||0),budget:Math.max(0,+v("pf-budget")||0),startDate:v("pf-start"),durationMonths:v("pf-dur")&&v("pf-dur")!=="custom"?+v("pf-dur"):0,targetDate:finalTarget(v("pf-start"),v("pf-dur"),v("pf-target")),units:"",payMode:v("pf-pay")||"upfront",contractSum:Math.max(0,+v("pf-contract")||0),siteRadius:+v("pf-rad")||200,strictGps:!!(document.getElementById("pf-strict")||{}).checked};
     data.units=data.propType?unitsText(data):((f.dataset.id&&P()?P().units:"")||"");
     {const g=parseLatLng(v("pf-gps"));if(v("pf-gps").trim()&&!g){toast("Couldn't read that location. Use \"6.4561, 3.4318\" or a Google Maps link.");return;}data.siteLat=g?g.lat:"";data.siteLng=g?g.lng:"";}
     if(f.dataset.id)await store.update("projects",f.dataset.id,data);
