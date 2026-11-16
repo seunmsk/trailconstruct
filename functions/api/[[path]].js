@@ -106,6 +106,26 @@ function allowedChange(role, col, existing, patch, isCreate) {
   return false;
 }
 
+
+// Creates the tables on first use, so no manual database setup is needed.
+const SCHEMA = [
+  "CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT, pass_hash TEXT NOT NULL, salt TEXT NOT NULL, iterations INTEGER NOT NULL, created_at INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL)",
+  "CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id)",
+  "CREATE TABLE IF NOT EXISTS members (project_id TEXT NOT NULL, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, role TEXT NOT NULL CHECK (role IN ('developer','engineer','investor')), created_at INTEGER NOT NULL, PRIMARY KEY (project_id, user_id))",
+  "CREATE INDEX IF NOT EXISTS members_user ON members(user_id)",
+  "CREATE TABLE IF NOT EXISTS invites (code TEXT PRIMARY KEY, project_id TEXT NOT NULL, role TEXT NOT NULL CHECK (role IN ('developer','engineer','investor')), name TEXT, email TEXT, created_by TEXT NOT NULL, created_at INTEGER NOT NULL, used_by TEXT, used_at INTEGER)",
+  "CREATE INDEX IF NOT EXISTS invites_project ON invites(project_id)",
+  "CREATE TABLE IF NOT EXISTS docs (col TEXT NOT NULL, id TEXT NOT NULL, pid TEXT NOT NULL, data TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (col, id))",
+  "CREATE INDEX IF NOT EXISTS docs_pid_col ON docs(pid, col, updated_at)",
+];
+let schemaReady = false;
+async function ensureSchema(env) {
+  if (schemaReady || !env.DB) return;
+  await env.DB.batch(SCHEMA.map((s) => env.DB.prepare(s)));
+  schemaReady = true;
+}
+
 export async function onRequest(ctx) {
   const { request: req, env } = ctx;
   const url = new URL(req.url);
@@ -114,6 +134,7 @@ export async function onRequest(ctx) {
   const iterations = parseInt(env.PBKDF2_ITERATIONS || "20000", 10);
 
   try {
+    await ensureSchema(env);
     // ---------- health check (no login needed; shows setup status only) ----------
     if (parts[0] === "health" && m === "GET") {
       const out = { database_connected: !!env.DB, photo_storage_connected: !!env.PHOTOS, tables: [], missing_tables: [] };

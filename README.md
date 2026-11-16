@@ -33,11 +33,9 @@ npx wrangler d1 create trailconstruct-db
 
 Paste the `database_id` it prints into `wrangler.toml`, replacing `PASTE-YOUR-D1-DATABASE-ID-HERE`.
 
-**2. Create the tables**
+**2. Tables**
 
-```bash
-npm run db:remote
-```
+The app creates its own tables the first time it runs. (You can also run `npm run db:remote` to create them by hand.)
 
 **3. Create photo storage**
 
@@ -63,7 +61,7 @@ Cloudflare dashboard → Workers & Pages → trailconstruct → Custom domains �
 
 Push this folder to a GitHub repo, then in Cloudflare: Workers & Pages → Create → Pages → Connect to Git.
 Build command: *(leave empty)*. Build output directory: `public`.
-Then under the project's Settings → Bindings, add a **D1 database** binding named `DB` (trailconstruct-db) and an **R2 bucket** binding named `PHOTOS` (trailconstruct-photos). Still run step 2 once to create the tables.
+Then under the project's Settings → Bindings, add a **D1 database** binding named `DB` (trailconstruct-db) and an **R2 bucket** binding named `PHOTOS` (trailconstruct-photos). The tables are created automatically on first use.
 
 ---
 
