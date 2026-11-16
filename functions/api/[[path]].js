@@ -126,6 +126,31 @@ async function ensureSchema(env) {
   schemaReady = true;
 }
 
+
+const escHtml = (s) => String(s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const ROLE_NAME = { developer: "a developer", engineer: "a site engineer", investor: "an investor" };
+// Sends the invite by email when an email service is set up (Resend). Returns true if sent.
+async function sendInviteEmail(env, { to, name, role, projectName, inviter, link }) {
+  if (!env.RESEND_API_KEY || !to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return false;
+  const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#15202a">
+  <div style="background:#1d3546;color:#fff;padding:18px 22px;border-bottom:4px solid #f0a500"><b style="font-size:20px">TrailConstruct</b><br><span style="font-size:13px;opacity:.8">Every stage, on record.</span></div>
+  <div style="padding:22px;border:1px solid #dfe2db;border-top:0">
+  <p>Hello${name ? " " + escHtml(name) : ""},</p>
+  <p><b>${escHtml(inviter || "Your developer")}</b> has added you to <b>${escHtml(projectName)}</b> on TrailConstruct as ${ROLE_NAME[role] || "a team member"}.</p>
+  <p>${role === "investor" ? "You'll be able to see the project's progress, site photos and download progress reports." : role === "engineer" ? "You'll post daily site updates and photos, and send a weekly report." : "You'll have full access to manage the project."}</p>
+  <p style="margin:26px 0"><a href="${link}" style="background:#f0a500;color:#1b1404;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Join the project</a></p>
+  <p style="font-size:13px;color:#5b6570">Or open this link: ${link}<br>If you weren't expecting this, you can ignore this email.</p></div></div>`;
+  try {
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
+      body: JSON.stringify({ from: env.EMAIL_FROM || "TrailConstruct <onboarding@resend.dev>", to: [to], subject: `You've been invited to ${projectName} on TrailConstruct`, html }),
+    });
+    if (!r.ok) console.error("email failed", r.status, await r.text());
+    return r.ok;
+  } catch (e) { console.error("email error", e); return false; }
+}
+
 export async function onRequest(ctx) {
   const { request: req, env } = ctx;
   const url = new URL(req.url);
@@ -136,7 +161,7 @@ export async function onRequest(ctx) {
   try {
     await ensureSchema(env);
     // ---------- public settings for the web app ----------
-    if (parts[0] === "config" && m === "GET") return json({ mapsKey: env.GOOGLE_MAPS_KEY || "" });
+    if (parts[0] === "config" && m === "GET") return json({ mapsKey: env.GOOGLE_MAPS_KEY || "", email: !!env.RESEND_API_KEY });
 
     // ---------- health check (no login needed; shows setup status only) ----------
     if (parts[0] === "health" && m === "GET") {
@@ -300,7 +325,10 @@ export async function onRequest(ctx) {
       const code = randCode(12);
       await env.DB.prepare("INSERT INTO invites (code, project_id, role, name, email, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
         .bind(code, pid, role, String(name).slice(0, 120), String(email).slice(0, 200), user.id, Date.now()).run();
-      return json({ code });
+      const proj = await env.DB.prepare("SELECT data FROM docs WHERE col = 'projects' AND id = ?").bind(pid).first();
+      const projectName = proj ? JSON.parse(proj.data).name || "a project" : "a project";
+      const emailed = await sendInviteEmail(env, { to: String(email).trim(), name: String(name).trim(), role, projectName, inviter: user.name, link: `${url.origin}/?invite=${code}` });
+      return json({ code, emailed });
     }
 
     return err(404, "Not found");

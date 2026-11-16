@@ -711,7 +711,7 @@ const STEPS=[
    mock:`<div class="mk"><div class="mk-h">New investor update</div><div class="mk-f"><span>Briefing</span><b>Tiling complete in both blocks. Fittings start Monday.</b></div><div class="mk-grid">${[1,0,1,1,0,1].map(s=>`<i class="${s?"on":""}">${s?"✓":""}</i>`).join("")}</div><div class="mk-row"><span class="mk-chip">4 photos selected</span><span class="mk-chip">Budget included</span></div><div class="mk-btn">Send to investor</div></div>`},
   {who:"Investor",t:"The investor is updated",c:"s3",d:"Investors open one clean page, at home or abroad, and know exactly where their money is on site.",
    pts:["Percent complete, the current stage and what's next","A schedule check: time used against work done","A gallery of every photo the developer has shared","A branded PDF report for records or co-investors"],
-   mock:`<div class="mk phone"><div class="mk-cover"><b>Banana Island</b><span>Finishes</span></div><div class="mk-ringrow"><span class="mk-ring">66%</span><div><small>Now</small><b>Finishes</b><small>Next</small><b>M&E second fix</b></div></div><div class="mk-strip">${[1,1,1,1,1,2,2,2,0,0,0].map(s=>`<i class="p${s}"></i>`).join("")}</div><div class="mk-btn">Download report (PDF)</div></div>`}
+   mock:`<div class="mk phone"><div class="mk-cover"><b>Palm Court Residences</b><span>Finishes</span></div><div class="mk-ringrow"><span class="mk-ring">66%</span><div><small>Now</small><b>Finishes</b><small>Next</small><b>M&E second fix</b></div></div><div class="mk-strip">${[1,1,1,1,1,2,2,2,0,0,0].map(s=>`<i class="p${s}"></i>`).join("")}</div><div class="mk-btn">Download report (PDF)</div></div>`}
 ];
 const FAQ=[
   ["Do investors see everything the engineers post?","No. Engineer updates go to the developer only. Investors see what the developer chooses to send: a briefing, selected photos and the PDF report."],
@@ -831,6 +831,23 @@ function propFields(prefix,v,attr){
     ${v.propType?`<p class="small muted" id="${prefix}-psum">Shows as: <b style="color:var(--ink)">${esc(unitsText(v))}</b></p>`:""}</div>`;
 }
 
+/* ---------- start date + duration -> target completion ---------- */
+const DURS=[6,9,12,15,18,24,30,36,48];
+function addMonths(ymdStr,n){const d=parseD(ymdStr);if(!d||!n)return "";const day=d.getDate();const t=new Date(d.getFullYear(),d.getMonth()+ +n,1);const last=new Date(t.getFullYear(),t.getMonth()+1,0).getDate();t.setDate(Math.min(day,last));return ymd(t);}
+function durNote(start,dur,target){
+  if(dur==="custom")return target?`Completion: <b style="color:var(--ink)">${esc(fmtD(target))}</b>`:"Pick the completion date.";
+  if(!dur)return "";
+  if(!start)return "Pick a start date to work out the completion date.";
+  return `Target completion: <b style="color:var(--ink)">${esc(fmtD(addMonths(start,dur)))}</b>`;
+}
+function durBlock(prefix,start,dur,target,attr){
+  return `<div class="row"><label class="f" for="${prefix}-start">Start date<input type="date" id="${prefix}-start" ${attr("start")} value="${esc(start||"")}"></label>
+    <label class="f" for="${prefix}-dur">Expected duration<select id="${prefix}-dur" ${attr("dur")}><option value="">Choose</option>${DURS.map(n=>`<option value="${n}" ${String(dur)===String(n)?"selected":""}>${n} months</option>`).join("")}<option value="custom" ${dur==="custom"?"selected":""}>Pick a date instead</option></select></label></div>
+    <label class="f" for="${prefix}-target" ${dur==="custom"?"":"hidden"} id="${prefix}-tlabel">Target completion date<input type="date" id="${prefix}-target" ${attr("target")} value="${esc(target||"")}"></label>
+    <p class="small muted" id="${prefix}-dnote">${durNote(start,dur,target)}</p>`;
+}
+function finalTarget(start,dur,target){return dur==="custom"?(target||""):dur?addMonths(start,dur):"";}
+
 /* ---------- SIGN UP / ONBOARDING ---------- */
 const ONB_STEPS=["Your account","Your project","Progress so far","Your team","Plan"];
 function signupView(){
@@ -840,16 +857,16 @@ function signupView(){
   const inp=(k,label,type,ph,req)=>`<label class="f" for="o-${k}">${label}<input type="${type||"text"}" id="o-${k}" data-onb="${k}" value="${esc(d[k]??"")}" ${ph?`placeholder="${esc(ph)}"`:""} ${req?"required":""}></label>`;
   let body="";
   if(st===0)body=`<h2>Create your developer account</h2><p class="muted small">You'll manage projects and invite your team. Engineers and investors don't need to sign up themselves.</p>
-    <div class="row">${inp("name","Full name","text","e.g. Seun Mosaku",1)}${inp("company","Company","text","e.g. Uriel Properties",1)}</div>
+    <div class="row">${inp("name","Full name","text","e.g. Adaeze Balogun",1)}${inp("company","Company","text","e.g. Okafor & Adebayo Homes",1)}</div>
     <div class="row">${inp("email","Work email","email","you@company.com",1)}${inp("phone","Phone (WhatsApp)","text","+234")}</div>
     ${S.mode==="cf"&&!S.me?`<label class="f" for="o-pass">Create a password<input type="password" id="o-pass" required minlength="8" autocomplete="new-password"></label>`:""}
     ${S.mode==="cf"&&S.me?`<p class="small muted">Signed in as ${esc(S.me.email)}. This project will be added to your account.</p>`:""}`;
   if(st===1)body=`<h2>Add your first project</h2><p class="muted small">You can add more projects later.</p>
-    ${inp("pname","Project name","text","e.g. Banana Island Semi-Detached",1)}
+    ${inp("pname","Project name","text","e.g. Palm Court Residences",1)}
     ${(()=>{const g=parseLatLng(d.gps);return locBlock("o",d.loc,g?g.lat:"",g?g.lng:"",`<input type="text" id="o-loc" data-onb="loc" value="${esc(d.loc||"")}" placeholder="Street, area, Lagos">`);})()}
     ${propFields("o",{propType:d.ptype,unitCount:d.unitn,blockCount:d.blocks,beds:d.beds},k=>`data-onb="${k}"`)}
     <div class="row"><label class="f" for="o-floors">Floors above ground<select id="o-floors" data-onb="floors">${[0,1,2,3,4,5,6,8,10,12,15,20].map(n=>`<option value="${n}" ${+d.floors===n?"selected":""}>${n===0?"Bungalow":"G+"+n}</option>`).join("")}</select></label>${inp("budget","Budget (₦, optional)","number")}</div>
-    <div class="row">${inp("start","Start date","date")}${inp("target","Target completion","date")}</div>
+    ${durBlock("o",d.start,d.dur,d.target,k=>`data-onb="${k}"`)}
     ${!S.mapsKey||S.manualGps.o?`<div class="row">${inp("gps","Site GPS (lat, lng or Google Maps link)","text","e.g. 6.4561, 3.4318")}</div>`:""}
     <div class="fund"><b class="small">How is this project funded?</b><div class="fund-opts"><button type="button" data-act="onb-pay" data-v="upfront" aria-pressed="${d.payMode!=="milestone"}"><b>Paid up front</b><span class="small muted">Fully funded. No payment tracking.</span></button><button type="button" data-act="onb-pay" data-v="milestone" aria-pressed="${d.payMode==="milestone"}"><b>Milestone payments</b><span class="small muted">Money released stage by stage after verification.</span></button></div>
     ${d.payMode==="milestone"?inp("contract","Contract sum (₦)","number","e.g. 450000000"):""}</div>`;
@@ -858,7 +875,7 @@ function signupView(){
     <div class="onb-prev">${ring(prev.overall,88)}<div><b>${esc(phases[d.phase]?phases[d.phase].name:"Complete")}</b><p class="small muted">Starting progress: ${Math.round(prev.overall*100)}%</p></div></div>`;
   if(st===3)body=`<h2>Invite your team</h2><p class="muted small">Optional. You can also share the project link later.</p>
     ${["engineer","investor"].map(r=>`<div class="team-block"><b>${r==="engineer"?"Site engineers":"Investors"}</b>${d.team.filter(t=>t.role===r).map(t=>`<div class="team-row"><span>${esc(t.name)}</span><span class="muted small">${esc(t.email)}</span><button type="button" class="link small" data-act="onb-rm" data-i="${d.team.indexOf(t)}">Remove</button></div>`).join("")}
-      <div class="row"><label class="f" for="t-${r}-n">Name<input type="text" id="t-${r}-n" placeholder="${r==="engineer"?"e.g. Eng. Wale":"e.g. Mrs Adeyemi"}"></label><label class="f" for="t-${r}-e">Email<input type="email" id="t-${r}-e"></label></div>
+      <div class="row"><label class="f" for="t-${r}-n">Name<input type="text" id="t-${r}-n" placeholder="${r==="engineer"?"e.g. Eng. Chinedu Afolabi":"e.g. Mrs Ngozi Adewale"}"></label><label class="f" for="t-${r}-e">Email<input type="email" id="t-${r}-e"></label></div>
       <div><button type="button" class="btn sm" data-act="onb-add" data-role="${r}">Add ${r==="engineer"?"engineer":"investor"}</button></div></div>`).join("")}`;
   if(st===4){const n=1,rate=25000;body=`<h2>Your plan</h2>
     <div class="billing" role="group" aria-label="Billing period"><button type="button" data-act="onb-bill" data-v="0" aria-pressed="${!d.annual}">Monthly</button><button type="button" data-act="onb-bill" data-v="1" aria-pressed="${!!d.annual}">Yearly <span class="save">2 months free</span></button></div>
@@ -878,11 +895,11 @@ function signupView(){
 /* ---------- GUIDED DEMO ---------- */
 const DEMO=[
   {who:"Developer",c:"s2",t:"Sign up and add your project",d:"Create a developer account, then add the site: name, location, units, number of floors, budget and dates. TrailConstruct builds the full stage checklist for that building automatically.",
-   m:`<div class="mk"><div class="mk-h">Add your first project</div><div class="mk-f"><span>Project name</span><b>Banana Island Semi-Detached</b></div><div class="mk-row"><div class="mk-f"><span>Location</span><b>Banana Island, Ikoyi</b></div><div class="mk-f"><span>Floors</span><b>G+2</b></div></div><div class="mk-f"><span>Units</span><b>4 semi-detached in 2 blocks</b></div><div class="mk-btn">Continue</div></div>`},
+   m:`<div class="mk"><div class="mk-h">Add your first project</div><div class="mk-f"><span>Project name</span><b>Palm Court Residences</b></div><div class="mk-row"><div class="mk-f"><span>Location</span><b>Ikota, Lekki</b></div><div class="mk-f"><span>Floors</span><b>G+2</b></div></div><div class="mk-f"><span>Units</span><b>4 semi-detached in 2 blocks</b></div><div class="mk-btn">Continue</div></div>`},
   {who:"Developer",c:"s2",t:"Mark where the site is today",d:"Tap the phase work is on now. Everything before it is ticked off, so a project that's already halfway starts at the right percentage.",
    m:`<div class="mk"><div class="mk-h">Where is the project now?</div><div class="mk-phases">${["Pre-construction","Setting out","Foundation","Frame","Roofing","M&E first fix","Plastering","Finishes"].map((x,i)=>`<span class="${i<7?"d":"c"}">${i<7?"✓ ":""}${x}</span>`).join("")}</div><div class="mk-ringrow"><span class="mk-ring">66%</span><div><small>Starting progress</small><b>Finishes</b></div></div></div>`},
   {who:"Developer",c:"s2",t:"Invite the site team and investors",d:"Add your site engineers and investors by name and email. Engineers and investors join free. Only the developer pays.",
-   m:`<div class="mk"><div class="mk-h">Invite your team</div><div class="mk-person"><i>WA</i><div><b>Eng. Wale</b><small>Site engineer</small></div></div><div class="mk-person"><i>HK</i><div><b>Eng. Hakeem</b><small>Site engineer</small></div></div><div class="mk-person inv"><i>AO</i><div><b>Mrs Adeyemi</b><small>Investor · London</small></div></div><div class="mk-btn">Create project</div></div>`},
+   m:`<div class="mk"><div class="mk-h">Invite your team</div><div class="mk-person"><i>EO</i><div><b>Eng. Emeka Ojo</b><small>Site engineer</small></div></div><div class="mk-person"><i>TN</i><div><b>Eng. Tunde Nwachukwu</b><small>Site engineer</small></div></div><div class="mk-person inv"><i>FE</i><div><b>Mrs Funmi Eze</b><small>Investor · London</small></div></div><div class="mk-btn">Create project</div></div>`},
   {who:"Site engineer",c:"s1",t:"The engineer posts from site every day",d:"At close of work the engineer logs the stage, the work done, workers on site, the weather and any issues, then adds photos from the phone. It takes about a minute.",
    m:STEPS[0].mock},
   {who:"Site engineer",c:"s1",t:"Request materials, log the store",d:"No more 'Oga, send money for cement' calls. The engineer raises a request, the developer approves it in one tap, and every delivery and every bag used goes into the site store log. Gaps are flagged.",
@@ -894,9 +911,9 @@ const DEMO=[
   {who:"Investor",c:"s3",t:"The investor sees clear progress",d:"Wherever they are, the investor opens one page: percent complete, now and next, a schedule check, milestones and a gallery of every photo shared. They can also ask for an update.",
    m:STEPS[2].mock},
   {who:"Investor",c:"s3",t:"Approve payment for verified work",d:"On milestone-funded projects, money moves only when a stage is complete, checked by an independent inspector and approved by the investor. The escrow partner then releases that stage's funds.",
-   m:`<div class="mk"><div class="mk-h">Roof on · ₦67,500,000</div><ol class="pipe"><li class="on"><i></i><span>Requested</span></li><li class="on"><i></i><span>Verified</span></li><li><i></i><span>Approved</span></li><li><i></i><span>Paid</span></li></ol><div class="mk-f"><span>Verified by</span><b>Engr. Bello, independent inspector</b></div><div class="mk-ph"><i></i><i></i><i></i><i></i></div><div class="mk-row"><div class="mk-btn">Approve release</div><div class="mk-btn" style="background:var(--sunk);color:var(--ink)">Dispute</div></div></div>`},
+   m:`<div class="mk"><div class="mk-h">Roof on · ₦67,500,000</div><ol class="pipe"><li class="on"><i></i><span>Requested</span></li><li class="on"><i></i><span>Verified</span></li><li><i></i><span>Approved</span></li><li><i></i><span>Paid</span></li></ol><div class="mk-f"><span>Verified by</span><b>Engr. Ifeanyi Lawal, independent inspector</b></div><div class="mk-ph"><i></i><i></i><i></i><i></i></div><div class="mk-row"><div class="mk-btn">Approve release</div><div class="mk-btn" style="background:var(--sunk);color:var(--ink)">Dispute</div></div></div>`},
   {who:"Investor",c:"s3",t:"Download the full PDF report",d:"Every update becomes a branded PDF with the briefing, progress by phase, budget (if included) and site photos. Ready for records, co-investors or the bank.",
-   m:`<div class="mk pdf"><div class="pdf-h"><b>TrailConstruct</b><small>Investor progress report</small></div><div class="pdf-b"><b>Banana Island Semi-Detached</b><small>Progress update, 16 Nov 2026</small><div class="pdf-big">66%<small> complete</small></div>${[["Foundation",100],["Frame",100],["Roofing",100],["Finishes",13],["Handover",0]].map(([n,v])=>`<div class="pdf-r"><span>${n}</span><i><i style="width:${v}%"></i></i></div>`).join("")}<div class="mk-ph"><i></i><i></i><i></i><i></i></div></div></div>`}
+   m:`<div class="mk pdf"><div class="pdf-h"><b>TrailConstruct</b><small>Investor progress report</small></div><div class="pdf-b"><b>Palm Court Residences</b><small>Progress update, 16 Nov 2026</small><div class="pdf-big">66%<small> complete</small></div>${[["Foundation",100],["Frame",100],["Roofing",100],["Finishes",13],["Handover",0]].map(([n,v])=>`<div class="pdf-r"><span>${n}</span><i><i style="width:${v}%"></i></i></div>`).join("")}<div class="mk-ph"><i></i><i></i><i></i><i></i></div></div></div>`}
 ];
 function demoView(){
   const i=S.demo.i,x=DEMO[i];
@@ -1064,7 +1081,7 @@ function engView(p){
         <label class="f" for="lg-weather">Weather<select id="lg-weather"><option>Sunny</option><option>Cloudy</option><option>Light rain</option><option>Heavy rain (work stopped)</option></select></label></div>
         <label class="f" for="lg-issues">Issues or delays (optional)<input type="text" id="lg-issues" placeholder="e.g. Waiting on sanitary fittings delivery" value="${esc(logDraft().issues||"")}"></label>
         ${S.assets||S.mode==="memory"?`<div class="cam"><label class="btn amber cam-btn" for="lg-cam">${ICON.cam} Take site photo</label><input type="file" id="lg-cam" accept="image/*" capture="environment" class="sr"><p class="small muted">Photos must be taken live${p.siteLat!=null&&p.siteLat!==""?`, within ${+p.siteRadius||200} m of the site`:""}. Each one is stamped with the date, time and GPS location.</p><div id="shots"></div></div>`:""}
-        <label class="f" for="lg-by">Your name<input type="text" id="lg-by" value="${esc(me)}" placeholder="e.g. Eng. Wale" required></label>
+        <label class="f" for="lg-by">Your name<input type="text" id="lg-by" value="${esc(me)}" placeholder="e.g. Eng. Chinedu Afolabi" required></label>
         <div><button class="btn pri" type="submit" ${S.busy?"disabled":""}>${S.busy?esc(S.busy):"Post update"}</button></div></form>`:`<div class="empty">You have view access only.</div>`}</section>`;
   }
   if(t==="weekly"){
@@ -1178,7 +1195,7 @@ function paymentsView(p,role){
   return sum+list+add;
 }
 function verifyForm(m){modal(`<h2>Record verification</h2><p class="small muted">Who inspected the work for "${esc(m.name)}"? Use an independent engineer or inspector, not the site team.</p>
-  <form id="ver-form" data-id="${m.id}"><label class="f" for="vf-by">Inspector name<input type="text" id="vf-by" required placeholder="e.g. Engr. Bello"></label><label class="f" for="vf-org">Organisation<input type="text" id="vf-org" placeholder="e.g. Eppcheck, or a COREN-registered consultant"></label>
+  <form id="ver-form" data-id="${m.id}"><label class="f" for="vf-by">Inspector name<input type="text" id="vf-by" required placeholder="e.g. Engr. Ifeanyi Lawal"></label><label class="f" for="vf-org">Organisation<input type="text" id="vf-org" placeholder="e.g. Eppcheck, or a COREN-registered consultant"></label>
   <label class="f" for="vf-date">Inspection date<input type="date" id="vf-date" value="${ymd(new Date())}"></label><label class="f" for="vf-note">Findings<textarea id="vf-note" placeholder="What was checked and confirmed"></textarea></label>
   <div class="actions"><button class="btn pri" type="submit">Save verification</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);}
 
@@ -1340,7 +1357,7 @@ function projectForm(p){p=p||{};
     <label class="f" for="pf-client">Developer / company<input type="text" id="pf-client" value="${esc(p.client||"")}"></label>
     <div class="row"><label class="f" for="pf-floors">Floors above ground<input type="number" id="pf-floors" min="0" max="30" value="${esc(p.floors??0)}"><span class="small" style="font-weight:400">0 = bungalow, 2 = G+2</span></label>
     <label class="f" for="pf-budget">Budget (₦)<input type="number" id="pf-budget" min="0" step="1" value="${esc(p.budget||"")}"></label></div>
-    <div class="row"><label class="f" for="pf-start">Start date<input type="date" id="pf-start" value="${esc(p.startDate||"")}"></label><label class="f" for="pf-target">Target completion<input type="date" id="pf-target" value="${esc(p.targetDate||"")}"></label></div>
+    ${durBlock("pf",p.startDate,p.durationMonths?String(p.durationMonths):(p.targetDate?"custom":""),p.targetDate,()=>"")}
     <div class="row"><label class="f" for="pf-gps" ${!S.mapsKey||S.manualGps.pf?"":"hidden"}>Site GPS (lat, lng or Google Maps link)<input type="text" id="pf-gps" value="${p.siteLat!=null&&p.siteLat!==""?esc(p.siteLat+", "+p.siteLng):""}" placeholder="e.g. 6.4561, 3.4318"></label><label class="f" for="pf-rad">Photo radius<select id="pf-rad">${[100,200,300,500].map(r=>`<option value="${r}" ${(+p.siteRadius||200)===r?"selected":""}>${r} m</option>`).join("")}</select></label></div>
     <label class="chk"><input type="checkbox" id="pf-strict" ${p.strictGps?"checked":""}> Reject photos that have no GPS location</label>
     <div class="row"><label class="f" for="pf-pay">Funding<select id="pf-pay"><option value="upfront" ${p.payMode!=="milestone"?"selected":""}>Paid up front</option><option value="milestone" ${p.payMode==="milestone"?"selected":""}>Milestone payments</option></select></label><label class="f" for="pf-contract">Contract sum (₦, for milestones)<input type="number" id="pf-contract" min="0" value="${esc(p.contractSum||"")}"></label></div>
@@ -1457,10 +1474,12 @@ function saveDraftFields(){const g=id=>document.getElementById(id);if(g("up-titl
 document.addEventListener("change",async e=>{
   if(e.target.dataset&&e.target.dataset.onb){const k=e.target.dataset.onb,d=S.onb.d;d[k]=e.target.value;if(k==="floors"){d.floors=+e.target.value;d.floorsTouched=true;}
     if(k==="ptype"){const t=ptype(d.ptype);if(t&&!d.floorsTouched)d.floors=t.fl;}
+    if(["start","dur","target"].includes(k)){const tl=document.getElementById("o-tlabel");if(tl)tl.hidden=d.dur!=="custom";const n=document.getElementById("o-dnote");if(n)n.innerHTML=durNote(d.start,d.dur,d.target);return;}
     if(k==="ptype"){setTimeout(()=>{const y=window.scrollY;render();window.scrollTo(0,y);},0);}
     else if(["unitn","blocks","beds"].includes(k)){const s=document.getElementById("o-psum");if(s)s.innerHTML=`Shows as: <b style="color:var(--ink)">${esc(unitsText({propType:d.ptype,unitCount:d.unitn,blockCount:d.blocks,beds:d.beds}))}</b>`;}return;}
   if(e.target.id==="lg-cam"){const f=e.target.files&&e.target.files[0];e.target.value="";const p=P();if(!f||!p)return;if(S.shots.length>=8){toast("8 photos per update. Post this one first.");return;}
     toast("Checking photo…");try{const r=await checkShot(p,f);if(!r.ok){modal(`<h2>Photo not accepted</h2><p>${esc(r.why)}</p><div><button class="btn pri" data-act="close">OK</button></div>`);return;}S.shots.push(r);renderShots();toast(r.v==="onsite"?"Verified on site.":"Photo added.");}catch(err){toast("Couldn't read that photo. Try again.");}return;}
+  if(["pf-start","pf-dur","pf-target"].includes(e.target.id)){const g=id=>(document.getElementById(id)||{}).value||"";const dur=g("pf-dur");const tl=document.getElementById("pf-tlabel");if(tl)tl.hidden=dur!=="custom";const n=document.getElementById("pf-dnote");if(n)n.innerHTML=durNote(g("pf-start"),dur,g("pf-target"));return;}
   if(["pf-ptype","pf-unitn","pf-blocks","pf-beds"].includes(e.target.id)){const g=id=>(document.getElementById(id)||{}).value||"";const txt=unitsText({propType:g("pf-ptype"),unitCount:g("pf-unitn"),blockCount:g("pf-blocks"),beds:g("pf-beds")});let s=document.getElementById("pf-psum");if(!s){s=document.createElement("p");s.id="pf-psum";s.className="small muted";document.querySelector(".propbox").appendChild(s);}s.innerHTML=`Shows as: <b style="color:var(--ink)">${esc(txt)}</b>`;return;}
   if(e.target.id==="proj"){S.pid=e.target.value;ls.set("st.pid",S.pid);render();return;}
   if(e.target.id==="up-files"){
@@ -1480,19 +1499,19 @@ document.addEventListener("submit",async e=>{
     const p0={floors:+d.floors||0,checks:{}},pr0=progress(p0),done=new Set(pr0.phases.slice(0,d.phase).map(x=>x.name));
     stagesFor(p0).forEach(s=>{if(done.has(s.group))s.items.forEach(i=>p0.checks[i.id]=true);});
     const nid="p-"+Date.now().toString(36);
-    try{await store.set("projects",nid,{name:(d.pname||"New project").trim(),location:(d.loc||"").trim(),propType:d.ptype||"",unitCount:+d.unitn||0,blockCount:+d.blocks||0,beds:d.beds||"",units:unitsText({propType:d.ptype,unitCount:d.unitn,blockCount:d.blocks,beds:d.beds}),client:(d.company||"").trim(),owner:(d.name||"").trim(),floors:+d.floors||0,budget:Math.max(0,+d.budget||0),startDate:d.start||"",targetDate:d.target||"",payMode:d.payMode==="milestone"?"milestone":"upfront",...(()=>{const g=parseLatLng(d.gps);return g?{siteLat:g.lat,siteLng:g.lng,siteRadius:200}:{};})(),contractSum:Math.max(0,+d.contract||0),checks:p0.checks,team:d.team,plan:{name:"Single site",billing:d.annual?"yearly":"monthly"},createdAt:new Date().toISOString()});
+    try{await store.set("projects",nid,{name:(d.pname||"New project").trim(),location:(d.loc||"").trim(),propType:d.ptype||"",unitCount:+d.unitn||0,blockCount:+d.blocks||0,beds:d.beds||"",units:unitsText({propType:d.ptype,unitCount:d.unitn,blockCount:d.blocks,beds:d.beds}),client:(d.company||"").trim(),owner:(d.name||"").trim(),floors:+d.floors||0,budget:Math.max(0,+d.budget||0),startDate:d.start||"",durationMonths:d.dur&&d.dur!=="custom"?+d.dur:0,targetDate:finalTarget(d.start,d.dur,d.target),payMode:d.payMode==="milestone"?"milestone":"upfront",...(()=>{const g=parseLatLng(d.gps);return g?{siteLat:g.lat,siteLng:g.lng,siteRadius:200}:{};})(),contractSum:Math.max(0,+d.contract||0),checks:p0.checks,team:d.team,plan:{name:"Single site",billing:d.annual?"yearly":"monthly"},createdAt:new Date().toISOString()});
       S.pid=nid;ls.set("st.pid",nid);ls.set("st.role","developer");S.tab.developer="overview";
-      if(S.mode==="cf"){await S.db.pull();const links=[];for(const m of d.team){try{const r=await cfApi("POST","/api/invites",{pid:nid,role:m.role,name:m.name,email:m.email});links.push({...m,code:r.code});}catch(e){}}
-        if(links.length)setTimeout(()=>modal(`<h2>Send your invite links</h2><p class="small muted">Each person opens their link to join.</p>${links.map(l=>`<div class="exp"><span>${esc(l.name)} · ${ROLE_LABEL[l.role]}</span><span class="actions">${waLink(`You've been invited to follow ${d.pname} on TrailConstruct. Join here: ${location.origin}/?invite=${l.code}`,"WhatsApp")}<button class="btn sm" data-act="copy" data-text="${esc(location.origin+"/?invite="+l.code)}">Copy</button></span><span></span><span></span></div>`).join("")}<div><button class="btn pri" data-act="close">Done</button></div>`),400);}S.onb={step:0,d:{floors:2,phase:0,team:[],annual:false}};S.busy=false;toast("Project created. Welcome to TrailConstruct.");go("developer");}
+      if(S.mode==="cf"){await S.db.pull();const links=[];for(const m of d.team){try{const r=await cfApi("POST","/api/invites",{pid:nid,role:m.role,name:m.name,email:m.email});links.push({...m,code:r.code,emailed:r.emailed});}catch(e){}}
+        if(links.length)setTimeout(()=>modal(`<h2>Your team is invited</h2><p class="small muted">${links.some(l=>l.emailed)?"We've emailed everyone who has an email address. You can also send the links on WhatsApp.":"Send each person their link on WhatsApp or copy it. They open it to join."}</p>${links.map(l=>`<div class="exp"><span>${esc(l.name)} · ${ROLE_LABEL[l.role]}${l.emailed?` · <span class="pill ok">Emailed</span>`:""}</span><span class="actions">${waLink(`You've been invited to follow ${d.pname} on TrailConstruct. Join here: ${location.origin}/?invite=${l.code}`,"WhatsApp")}<button class="btn sm" data-act="copy" data-text="${esc(location.origin+"/?invite="+l.code)}">Copy</button></span><span></span><span></span></div>`).join("")}<div><button class="btn pri" data-act="close">Done</button></div>`),400);}S.onb={step:0,d:{floors:2,phase:0,team:[],annual:false}};S.busy=false;toast("Project created. Welcome to TrailConstruct.");go("developer");}
     catch(err){S.busy=false;onErr(err);}
     return;
   }
   if(f.id==="auth-form"){const up=S.authMode==="up",body={name:up?v("au-name").trim():undefined,email:v("au-email").trim(),password:v("au-pass")};S.busy=true;render();
     try{const r=await cfApi("POST",up?"/api/auth/signup":"/api/auth/login",body);S.me=r.user;S.busy=false;await cfAfterAuth();}
     catch(err){S.busy=false;render();showErr(up?"Couldn't create your account":"Couldn't sign you in",err.code==="conflict"?"That email already has an account. Choose Sign in instead.":err.message||"Please try again.");}return;}
-  if(f.id==="inv-form"){const p=P();if(!p)return;try{const r=await cfApi("POST","/api/invites",{pid:p.id,role:v("iv-role"),name:v("iv-name").trim(),email:v("iv-email").trim()});delete S.team[p.id];toast("Invite link created.");render();}catch(err){toast(err.message||"Couldn't create the invite.");}return;}
+  if(f.id==="inv-form"){const p=P();if(!p)return;try{const em=v("iv-email").trim();const r=await cfApi("POST","/api/invites",{pid:p.id,role:v("iv-role"),name:v("iv-name").trim(),email:em});delete S.team[p.id];toast(r.emailed?`Invite emailed to ${em}. You can also send the link on WhatsApp.`:"Invite link created. Send it on WhatsApp or copy it.");render();}catch(err){toast(err.message||"Couldn't create the invite.");}return;}
   if(f.id==="proj-form"){
-    const data={name:v("pf-name").trim(),location:(S.pfLoc||v("pf-loc")||(f.dataset.id&&P()?P().location||"":"")).trim(),propType:v("pf-ptype"),unitCount:+v("pf-unitn")||0,blockCount:+v("pf-blocks")||0,beds:v("pf-beds"),client:v("pf-client").trim(),floors:Math.max(0,parseInt(v("pf-floors"),10)||0),budget:Math.max(0,+v("pf-budget")||0),startDate:v("pf-start"),targetDate:v("pf-target"),units:"",payMode:v("pf-pay")||"upfront",contractSum:Math.max(0,+v("pf-contract")||0),siteRadius:+v("pf-rad")||200,strictGps:!!(document.getElementById("pf-strict")||{}).checked};
+    const data={name:v("pf-name").trim(),location:(S.pfLoc||v("pf-loc")||(f.dataset.id&&P()?P().location||"":"")).trim(),propType:v("pf-ptype"),unitCount:+v("pf-unitn")||0,blockCount:+v("pf-blocks")||0,beds:v("pf-beds"),client:v("pf-client").trim(),floors:Math.max(0,parseInt(v("pf-floors"),10)||0),budget:Math.max(0,+v("pf-budget")||0),startDate:v("pf-start"),durationMonths:v("pf-dur")&&v("pf-dur")!=="custom"?+v("pf-dur"):0,targetDate:finalTarget(v("pf-start"),v("pf-dur"),v("pf-target")),units:"",payMode:v("pf-pay")||"upfront",contractSum:Math.max(0,+v("pf-contract")||0),siteRadius:+v("pf-rad")||200,strictGps:!!(document.getElementById("pf-strict")||{}).checked};
     data.units=data.propType?unitsText(data):((f.dataset.id&&P()?P().units:"")||"");
     {const g=parseLatLng(v("pf-gps"));if(v("pf-gps").trim()&&!g){toast("Couldn't read that location. Use \"6.4561, 3.4318\" or a Google Maps link.");return;}data.siteLat=g?g.lat:"";data.siteLng=g?g.lng:"";}
     if(f.dataset.id)await store.update("projects",f.dataset.id,data);

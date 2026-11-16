@@ -81,6 +81,24 @@ This key is used in the browser, so Google requires the website restriction abov
 
 ---
 
+## Invite emails (optional, recommended)
+
+Without this, invites are links the developer sends on WhatsApp or copies. With it, each engineer or investor with an email address also gets an email: "You've been added to [project] on TrailConstruct", with a **Join the project** button.
+
+The app uses **Resend** (resend.com) to send email.
+
+1. Sign up at resend.com.
+2. **Domains → Add domain** → your domain (e.g. `trailconstruct.com`). Resend shows a few DNS records. If your domain is on Cloudflare, add them in Cloudflare → your domain → DNS. Wait for Resend to show **Verified**.
+3. **API keys → Create API key** (sending access) and copy it.
+4. Cloudflare → Workers & Pages → trailconstruct → Settings → Variables and Secrets → add two **Secrets**:
+   - `RESEND_API_KEY` = the key
+   - `EMAIL_FROM` = `TrailConstruct <invites@trailconstruct.com>` (any address on your verified domain)
+5. Retry the latest deployment.
+
+Until a domain is verified, Resend only delivers to your own Resend account email, so other people won't receive invites yet.
+
+---
+
 ## Try it on your computer first
 
 ```bash
