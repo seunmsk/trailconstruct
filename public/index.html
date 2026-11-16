@@ -1,0 +1,1617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TrailConstruct</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: marketing home → sign-in → one focused workspace per role, tabbed. Concrete neutrals, steel-blue actions, hi-vis amber for attention. */
+:root{
+  --bg:#f1f2ee; --surface:#ffffff; --sunk:#f6f7f3; --ink:#15202a; --muted:#5b6570; --line:#dfe2db;
+  --steel:#2b4a5e; --steel-ink:#ffffff; --amber:#f0a500; --amber-soft:#fdf1d2;
+  --ok:#2c7a4b; --ok-soft:#e2f1e7; --warn:#99600a; --crit:#b8382b; --crit-soft:#f8e3e0;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"IBM Plex Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#11161a; --surface:#1a2127; --sunk:#151b20; --ink:#e6eae4; --muted:#98a2aa; --line:#2b343c;
+    --steel:#86b0c8; --steel-ink:#0f1a22; --amber:#f2b42e; --amber-soft:#3a2f14;
+    --ok:#5cc184; --ok-soft:#173022; --warn:#e0a640; --crit:#ef7466; --crit-soft:#3b1d1a; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11161a; --surface:#1a2127; --sunk:#151b20; --ink:#e6eae4; --muted:#98a2aa; --line:#2b343c;
+  --steel:#86b0c8; --steel-ink:#0f1a22; --amber:#f2b42e; --amber-soft:#3a2f14;
+  --ok:#5cc184; --ok-soft:#173022; --warn:#e0a640; --crit:#ef7466; --crit-soft:#3b1d1a; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5}
+h1,h2,h3{font-family:var(--display);font-weight:700;letter-spacing:.01em;margin:0;line-height:1.1;text-wrap:balance}
+h2{font-size:1.4rem} h3{font-size:1.15rem}
+p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .small{font-size:.86rem}
+.sr{position:absolute;left:-9999px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);background:var(--surface);padding:10px 16px;border-radius:9px;font-weight:600;cursor:pointer;text-decoration:none;color:var(--ink)}
+.btn:hover{border-color:var(--steel)}
+.btn.pri{background:var(--steel);border-color:var(--steel);color:var(--steel-ink)}
+.btn.amber{background:var(--amber);border-color:var(--amber);color:#1b1404}
+.btn.sm{padding:6px 11px;font-size:.86rem}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.link{border:0;background:none;padding:0;color:var(--steel);font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+
+.mark{width:22px;height:22px;flex:none;background:repeating-linear-gradient(135deg,var(--amber) 0 5px,#15202a 5px 10px);border-radius:5px}
+.brand{display:flex;align-items:center;gap:8px;font-family:var(--display);font-size:1.45rem;font-weight:700;color:var(--ink);text-decoration:none}
+
+/* ---------- home ---------- */
+.nav{max-width:1320px;margin:0 auto;padding-left:clamp(16px,4vw,56px);padding-right:clamp(16px,4vw,56px);padding-top:16px;padding-bottom:16px;position:relative;z-index:2;display:flex;align-items:center;gap:16px}
+.nav .sp{flex:1}
+.nav a.nl{color:var(--muted);text-decoration:none;font-weight:500}
+@media (max-width:560px){.nav a.nl{display:none}}
+.hero{max-width:1320px;margin:0 auto;padding-left:clamp(16px,4vw,56px);padding-right:clamp(16px,4vw,56px);padding-top:28px;padding-bottom:56px;position:relative;z-index:2;display:grid;gap:32px;align-items:center}
+@media (min-width:900px){.hero{grid-template-columns:1.1fr .9fr;padding-top:56px;gap:56px}}
+.hero h1{font-size:clamp(2.4rem,7vw,4rem);line-height:1}
+.hero h1 em{font-style:normal;background:linear-gradient(transparent 62%,var(--amber) 62%)}
+.lead{font-size:1.1rem;color:var(--muted);max-width:52ch;margin-top:14px}
+.hero .actions{margin-top:22px}
+.demo{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;display:grid;gap:14px;box-shadow:0 18px 40px -24px rgba(21,32,42,.35)}
+.demo-top{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.sec{max-width:1320px;margin:0 auto;padding-left:clamp(16px,4vw,56px);padding-right:clamp(16px,4vw,56px);padding-top:56px;padding-bottom:56px;position:relative;display:grid;gap:22px}
+.eyebrow{font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.roles3{display:grid;gap:14px}
+@media (min-width:800px){.roles3{grid-template-columns:repeat(3,1fr)}}
+.rcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;display:grid;gap:10px;align-content:start}
+.rcard .tag{display:inline-block;font-family:var(--display);font-size:1.6rem;font-weight:700}
+.rcard ul{margin:0;padding-left:18px;display:grid;gap:6px}
+.rcard .bar-top{height:5px;border-radius:9px;background:var(--steel);width:42px}
+.rcard:nth-child(2) .bar-top{background:var(--amber)}
+.rcard:nth-child(3) .bar-top{background:var(--ok)}
+.flow{display:grid;gap:12px;counter-reset:f}
+@media (min-width:800px){.flow{grid-template-columns:repeat(3,1fr)}}
+.flow li{list-style:none;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:6px}
+.flow li b{font-family:var(--display);font-size:1.25rem}
+.flow li::before{counter-increment:f;content:"Step " counter(f);font-size:.78rem;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.flow{padding:0;margin:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:6px 12px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:.9rem}
+.price{background:var(--steel);color:var(--steel-ink);border-radius:16px;padding:26px;display:grid;gap:12px}
+@media (min-width:800px){.price{grid-template-columns:1fr auto;align-items:center}}
+.price .big{font-family:var(--display);font-size:3rem;line-height:1}
+.price .btn{background:var(--amber);border-color:var(--amber);color:#1b1404}
+.hfoot{max-width:1320px;margin:0 auto;padding-left:clamp(16px,4vw,56px);padding-right:clamp(16px,4vw,56px);padding-top:24px;padding-bottom:48px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:.86rem;border-top:1px solid var(--line)}
+
+/* ---------- sign in ---------- */
+.auth{min-height:100%;display:grid;place-items:center;padding:24px 16px}
+.auth-box{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:24px;width:100%;max-width:440px;display:grid;gap:16px}
+.pick{display:grid;gap:10px}
+.pick button{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;align-items:center;text-align:left;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--sunk);cursor:pointer}
+.pick button:hover{border-color:var(--steel)}
+.pick .ic{grid-row:span 2;width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:1.1rem;background:var(--steel);color:var(--steel-ink)}
+.pick b{font-size:1rem}
+.note{background:var(--amber-soft);border:1px dashed var(--amber);border-radius:10px;padding:10px 12px;font-size:.86rem}
+
+/* ---------- app shell ---------- */
+.apphead{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.apphead-in{max-width:960px;margin:0 auto;padding:10px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.apphead .sp{flex:1}
+.who{font-size:.8rem;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--sunk);border:1px solid var(--line);color:var(--muted)}
+.proj{max-width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sunk);font-weight:600}
+.tabs{max-width:960px;margin:0 auto;padding:0 16px;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.tabs button{border:0;background:none;padding:10px 12px;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--amber)}
+.tabs .count{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:var(--amber);color:#1b1404;font-size:.72rem;line-height:18px;text-align:center}
+main{max-width:960px;margin:0 auto;padding:18px 16px 40px;display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+main.narrow{max-width:680px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:14px;min-width:0}
+.card-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+@media (min-width:800px){.grid2{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}}
+
+.pill{display:inline-flex;align-items:center;padding:2px 9px;border-radius:999px;font-size:.76rem;font-weight:600;white-space:nowrap;background:var(--sunk);color:var(--muted);border:1px solid var(--line)}
+.pill.ok{background:var(--ok-soft);color:var(--ok);border-color:transparent}
+.pill.active{background:var(--amber-soft);color:var(--warn);border-color:transparent}
+.pill.crit{background:var(--crit-soft);color:var(--crit);border-color:transparent}
+
+.bar{height:8px;background:var(--sunk);border:1px solid var(--line);border-radius:99px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--steel);border-radius:99px}
+.bar.over>i{background:var(--crit)}
+
+/* phases strip */
+.phases{display:grid;grid-template-columns:repeat(11,1fr);gap:3px}
+.phases i{height:10px;border-radius:3px;background:var(--line)}
+.phases i.done{background:var(--ok)}
+.phases i.active{background:var(--amber)}
+.ph-cap{display:flex;justify-content:space-between;gap:8px;font-size:.84rem;color:var(--muted);flex-wrap:wrap}
+
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (min-width:640px){.stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.stat{background:var(--sunk);border-radius:10px;padding:10px 12px;display:grid;gap:2px;min-width:0}
+.stat b{font-family:var(--display);font-size:1.45rem;line-height:1.1;overflow-wrap:anywhere}
+.stat span{font-size:.8rem;color:var(--muted)}
+
+.todo{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.todo li{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:10px;background:var(--sunk);border-left:4px solid var(--amber);flex-wrap:wrap}
+.todo li.ok{border-left-color:var(--ok)}
+.todo li.crit{border-left-color:var(--crit)}
+
+.banner{border-radius:14px;padding:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.banner.due{background:var(--amber-soft);border:1px solid var(--amber)}
+.banner.late{background:var(--crit-soft);border:1px solid var(--crit)}
+.banner.done{background:var(--ok-soft)}
+.banner strong{font-family:var(--display);font-size:1.3rem;display:block}
+
+/* stages */
+.stages{display:grid;gap:6px}
+.grp{font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;margin-top:10px}
+.stage{border:1px solid var(--line);border-radius:10px}
+.stage.active{border-left:4px solid var(--amber)}
+.stage.done{border-left:4px solid var(--ok)}
+.stage-h{width:100%;display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center;border:0;background:none;padding:10px 12px;text-align:left;cursor:pointer}
+.stage-h .bar{grid-column:1/-1}
+.checks{list-style:none;margin:0;padding:0 12px 12px;display:grid;gap:2px}
+.checks label{display:flex;gap:10px;align-items:flex-start;padding:6px 8px;border-radius:8px;cursor:pointer}
+.checks label:hover{background:var(--sunk)}
+.checks input{width:18px;height:18px;margin-top:2px;accent-color:var(--steel);flex:none}
+.done-t{color:var(--muted);text-decoration:line-through}
+
+/* logs & reports */
+.list{display:grid;gap:0}
+.log{border-top:1px solid var(--line);padding:12px 0;display:grid;gap:6px}
+.log:first-child{border-top:0;padding-top:0}
+.log-h{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.issue{background:var(--crit-soft);color:var(--crit);border-radius:8px;padding:6px 10px;font-size:.9rem}
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:6px}
+.photos.lg{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+.ph{position:relative;border:0;padding:0;background:var(--sunk);border-radius:9px;overflow:hidden;aspect-ratio:1;cursor:zoom-in}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.ph.sel{cursor:pointer;outline:0}
+.ph.sel[aria-pressed="true"]{box-shadow:0 0 0 3px var(--amber)}
+.ph .tick{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.45);border:2px solid #fff;display:grid;place-items:center;color:#fff;font-size:13px;font-weight:700}
+.ph.sel[aria-pressed="true"] .tick{background:var(--amber);color:#1b1404;border-color:var(--amber)}
+.ph .cap{position:absolute;left:0;right:0;bottom:0;padding:3px 6px;font-size:.7rem;background:linear-gradient(transparent,rgba(0,0,0,.65));color:#fff;text-align:left}
+.rep{border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:8px}
+.rep ul{margin:0;padding-left:18px}
+
+/* forms */
+form{display:grid;gap:12px}
+.row{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+label.f{display:grid;gap:4px;font-size:.84rem;font-weight:600;color:var(--muted)}
+input[type=text],input[type=number],input[type=date],input[type=email],select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--sunk);font-weight:400}
+textarea{min-height:90px;resize:vertical}
+.chk{display:flex;gap:10px;align-items:center;font-weight:500}
+.chk input{width:18px;height:18px;accent-color:var(--steel)}
+.upl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px;border:1px dashed var(--line);border-radius:10px;background:var(--sunk)}
+.upl input{max-width:100%}
+
+/* investor */
+.ihero{display:grid;grid-template-columns:auto minmax(0,1fr);gap:18px;align-items:center}
+@media (max-width:460px){.ihero{grid-template-columns:1fr;justify-items:start}.ihero>div{width:100%}}
+.ring text{font-family:var(--display);font-weight:700;fill:var(--ink)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:.92rem}
+.kv dt{color:var(--muted)} .kv dd{margin:0;font-weight:600}
+.upd{display:grid;gap:12px}
+.upd-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+.upd-row:first-child{border-top:0}
+
+.exp{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:8px 0;border-top:1px solid var(--line)}
+.exp:first-child{border-top:0}
+.empty{padding:18px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:10px}
+
+.modal{position:fixed;inset:0;background:rgba(10,14,18,.6);display:grid;place-items:center;padding:16px;z-index:20}
+.sheet{background:var(--surface);border-radius:14px;max-width:560px;width:100%;max-height:90vh;overflow:auto;padding:18px;display:grid;gap:12px}
+.sheet img{max-width:100%;border-radius:8px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;z-index:30;max-width:90vw}
+@media (prefers-reduced-motion:no-preference){.bar>i{transition:width .4s ease}}
+
+/* ---------- colour & life ---------- */
+:root{--deep:#1d3546;--sky:#e4eef5;--sky-ink:#24526e;--mint:#e2f1e7;--sand:#fdf1d2;--rose:#f9e6e1;--rose-ink:#9b3b26}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--deep:#0e1e29;--sky:#18303f;--sky-ink:#9fcbe6;--mint:#173022;--sand:#3a2f14;--rose:#3a221c;--rose-ink:#f0a08c}}
+:root[data-theme="dark"]{--deep:#0e1e29;--sky:#18303f;--sky-ink:#9fcbe6;--mint:#173022;--sand:#3a2f14;--rose:#3a221c;--rose-ink:#f0a08c}
+.band{background:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px) 0 0/28px 28px,linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px) 0 0/28px 28px,radial-gradient(1200px 500px at 85% -10%,#2f5a74 0,transparent 60%),var(--deep);color:#fff;padding-bottom:28px}
+.band .brand{color:#fff}
+.band .nav a.nl{color:rgba(255,255,255,.75)}
+.band .lead{color:rgba(255,255,255,.78)}
+.band .hero h1 em{background:linear-gradient(transparent 62%,var(--amber) 62%);color:#fff}
+.kicker{display:inline-block;margin-bottom:14px;padding:4px 10px;border-radius:999px;background:rgba(240,165,0,.16);color:#ffd36b;font-size:.82rem;font-weight:600}
+.btn.outline{background:transparent;border-color:rgba(255,255,255,.45);color:#fff}
+.btn.outline:hover{border-color:#fff}
+.band .demo{color:var(--ink)}
+.sh{font-size:2rem;margin-top:6px}
+.rcard{position:relative;overflow:hidden}
+.rcard::before{content:"";position:absolute;inset:0 0 auto 0;height:5px}
+.rcard.r1::before{background:var(--steel)} .rcard.r2::before{background:var(--amber)} .rcard.r3::before{background:var(--ok)}
+.ricon{width:44px;height:44px;border-radius:12px;display:grid;place-items:center}
+.r1 .ricon{background:var(--sky);color:var(--sky-ink)} .r2 .ricon{background:var(--sand);color:var(--warn)} .r3 .ricon{background:var(--mint);color:var(--ok)}
+.flow li{border-top:5px solid var(--line)}
+.flow li.f1{border-top-color:var(--steel)} .flow li.f2{border-top-color:var(--amber)} .flow li.f3{border-top-color:var(--ok)}
+.chip.c0{background:var(--sky);color:var(--sky-ink);border-color:transparent} .chip.c1{background:var(--sand);color:var(--warn);border-color:transparent}
+.chip.c2{background:var(--mint);color:var(--ok);border-color:transparent} .chip.c3{background:var(--rose);color:var(--rose-ink);border-color:transparent}
+.price{background:linear-gradient(135deg,var(--deep),#2b4a5e);color:#fff}
+
+/* app header in brand colour */
+.apphead{background:var(--deep);border-bottom:0;color:#fff}
+.apphead .brand{color:#fff}
+.apphead .who{background:rgba(255,255,255,.12);border-color:transparent;color:#fff}
+.apphead .btn.ghost{color:#fff}
+.apphead .proj{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:#fff}
+.apphead .proj option{color:#15202a}
+.tabs button{color:rgba(255,255,255,.65)}
+.tabs button[aria-selected="true"]{color:#fff;border-bottom-color:var(--amber)}
+
+/* tinted stats */
+.stat.t1{background:var(--sky)} .stat.t1 b{color:var(--sky-ink)}
+.stat.t2{background:var(--sand)} .stat.t2 b{color:var(--warn)}
+.stat.t3{background:var(--mint)} .stat.t3 b{color:var(--ok)}
+.stat.t4{background:var(--rose)} .stat.t4 b{color:var(--rose-ink)}
+main .stats>.stat:nth-child(1):not([class*=" t"]){background:var(--sky)}
+main .stats>.stat:nth-child(2):not([class*=" t"]){background:var(--sand)}
+main .stats>.stat:nth-child(3):not([class*=" t"]){background:var(--mint)}
+main .stats>.stat:nth-child(4):not([class*=" t"]){background:var(--rose)}
+
+/* investor cover */
+.cover{border-radius:16px;min-height:200px;display:grid;align-items:end;overflow:hidden;color:#fff;
+  background:linear-gradient(rgba(255,255,255,.06) 1px,transparent 1px) 0 0/24px 24px,linear-gradient(90deg,rgba(255,255,255,.06) 1px,transparent 1px) 0 0/24px 24px,linear-gradient(135deg,var(--deep),#2f5a74)}
+.cover.has{min-height:240px;background:linear-gradient(180deg,rgba(10,18,26,.05) 20%,rgba(10,18,26,.82)),var(--img) center/cover no-repeat,var(--deep)}
+.cover-in{padding:18px;display:grid;gap:6px;justify-items:start}
+.cover h1{font-size:clamp(1.8rem,6vw,2.4rem)}
+.cover p{opacity:.85}
+.pill.glass,.btn.glass{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;backdrop-filter:blur(6px)}
+.btn.glass{margin-top:6px}
+.sch{display:grid;grid-template-columns:auto 1fr auto;gap:8px 12px;align-items:center;font-size:.9rem}
+.bar.amberbar>i{background:var(--amber)}
+.ms{list-style:none;margin:0;padding:0;display:grid}
+.ms li{display:grid;grid-template-columns:26px 1fr auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.ms li:first-child{border-top:0}
+.ms-dot{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;border:2px solid var(--line);color:#fff}
+.ms .done .ms-dot{background:var(--ok);border-color:var(--ok)}
+.ms .active .ms-dot{background:var(--amber);border-color:var(--amber);box-shadow:0 0 0 4px var(--sand)}
+.ms .todo{color:var(--muted)}
+.ms .active span:nth-child(2){font-weight:600}
+.card.hl{border-left:5px solid var(--amber)}
+.card.ask{background:linear-gradient(135deg,var(--sand),var(--surface));display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.banner.due{background:linear-gradient(135deg,var(--sand),var(--surface))}
+
+/* ---------- home v3 ---------- */
+.band{position:relative;overflow:hidden}
+.bp{position:absolute;right:-40px;bottom:-10px;width:min(820px,95vw);height:auto;color:rgba(160,205,235,.22);z-index:1;pointer-events:none}
+@media (max-width:899px){.bp{opacity:.6;right:-120px}}
+.bp .dr *{stroke-dasharray:1;stroke-dashoffset:0}
+.bp .sway{transform-origin:600px 52px}
+@media (prefers-reduced-motion:no-preference){
+  .bp .dr *{animation:draw 2.8s ease-out both}
+  .bp .dr:nth-of-type(2) *{animation-delay:.2s}.bp .dr:nth-of-type(3) *{animation-delay:.5s}
+  .bp .tx{animation:fadein 1.2s 1.8s both}
+  .bp .sway{animation:sway 5s ease-in-out infinite}
+  .float{animation:float 6s ease-in-out infinite}
+  .ring-anim .ring circle:nth-of-type(2){animation:ringin 1.6s .3s cubic-bezier(.2,.8,.2,1) both}
+  .reveal.pop{animation:rise .7s cubic-bezier(.2,.8,.2,1) both}
+  #feed.in{animation:feedin .45s ease both}
+  .dot-live{animation:pulse 1.6s infinite}
+  .step-panel,.demo-stage,.phase-detail{animation:rise .5s cubic-bezier(.2,.8,.2,1) both}
+  .stp[aria-selected="true"] .stp-bar>i{animation:fill 7s linear both}
+  .btn{transition:transform .15s ease,box-shadow .15s ease,border-color .15s}
+  .btn:hover{transform:translateY(-1px)}
+  .rcard,.plan-card,.pain{transition:transform .25s ease,box-shadow .25s ease}
+  .rcard:hover,.plan-card:hover,.pain:hover{transform:translateY(-4px);box-shadow:0 18px 36px -24px rgba(21,32,42,.45)}
+}
+@keyframes draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+@keyframes sway{0%,100%{transform:rotate(-2.5deg)}50%{transform:rotate(2.5deg)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes ringin{from{stroke-dasharray:0 400}}
+@keyframes rise{from{transform:translateY(18px);opacity:.35}to{transform:none;opacity:1}}
+@keyframes feedin{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(44,122,75,.5)}70%{box-shadow:0 0 0 8px rgba(44,122,75,0)}100%{box-shadow:0 0 0 0 rgba(44,122,75,0)}}
+@keyframes fill{from{width:0}to{width:100%}}
+.hero h1{font-size:clamp(2.6rem,6.2vw,4.8rem)}
+.hero-note{margin-top:14px;font-size:.86rem;color:rgba(255,255,255,.6)}
+.btn.lg{padding:13px 22px;font-size:1.02rem}
+.play{font-size:.8em}
+.demo{max-width:520px;justify-self:end;width:100%}
+.demo-feed{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:var(--sunk);font-size:.86rem;overflow:hidden}
+.dot-live{width:9px;height:9px;border-radius:50%;background:var(--ok);flex:none}
+.strip{background:var(--surface);border-bottom:1px solid var(--line)}
+.strip-in{max-width:1320px;margin:0 auto;padding:22px clamp(16px,4vw,56px);display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+@media (min-width:800px){.strip-in{grid-template-columns:repeat(4,1fr)}}
+.strip-in div{display:grid;gap:2px}
+.strip-in b{font-family:var(--display);font-size:2.4rem;line-height:1;color:var(--steel)}
+.strip-in div:nth-child(2) b{color:var(--warn)}.strip-in div:nth-child(3) b{color:var(--ok)}.strip-in div:nth-child(4) b{color:var(--rose-ink)}
+.strip-in span{color:var(--muted);font-size:.9rem}
+.sec-h{display:grid;gap:6px;max-width:760px}
+.sec-h.center{justify-items:center;text-align:center;margin:0 auto}
+.sh{font-size:clamp(1.8rem,3.6vw,2.6rem)}
+.pains{display:grid;gap:16px}
+@media (min-width:800px){.pains{grid-template-columns:repeat(3,1fr)}}
+.pain{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px;display:grid;gap:10px;align-content:start}
+.pain b{font-family:var(--display);font-size:1.35rem}
+.pi{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:1.4rem}
+.pi.p1{background:var(--sky);color:var(--sky-ink)}.pi.p2{background:var(--sand);color:var(--warn)}.pi.p3{background:var(--mint);color:var(--ok)}
+.roles3{gap:18px}
+.rcard{padding:24px}
+.how{background:none}
+.steps{display:grid;gap:10px}
+@media (min-width:800px){.steps{grid-template-columns:repeat(3,1fr)}}
+.stp{position:relative;display:flex;gap:12px;align-items:center;text-align:left;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:var(--surface);cursor:pointer;overflow:hidden}
+.stp small{display:block;color:var(--muted);font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.stp b{font-family:var(--display);font-size:1.25rem}
+.stp-n{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:1.2rem;background:var(--sunk);flex:none}
+.stp[aria-selected="true"]{border-color:transparent;box-shadow:0 12px 30px -20px rgba(21,32,42,.5)}
+.stp.s1[aria-selected="true"]{background:var(--sky)}.stp.s2[aria-selected="true"]{background:var(--sand)}.stp.s3[aria-selected="true"]{background:var(--mint)}
+.stp.s1 .stp-n{color:var(--sky-ink)}.stp.s2 .stp-n{color:var(--warn)}.stp.s3 .stp-n{color:var(--ok)}
+.stp[aria-selected="true"] .stp-n{background:var(--surface)}
+.stp-bar{position:absolute;left:0;bottom:0;height:3px;width:100%;display:block}
+.stp-bar>i{display:block;height:100%;width:0;background:var(--ink);opacity:.35}
+.step-panel{display:grid;gap:28px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:clamp(18px,3vw,36px)}
+@media (min-width:860px){.step-panel{grid-template-columns:1.1fr .9fr}}
+.step-panel.s1{border-top:5px solid var(--steel)}.step-panel.s2{border-top:5px solid var(--amber)}.step-panel.s3{border-top:5px solid var(--ok)}
+.lead2{font-size:1.15rem;line-height:1.5}
+.ticks{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:10px}
+.ticks li{display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:start}
+.ticks li::before{content:"✓";width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--mint);color:var(--ok)}
+.sp-mock{display:grid;place-items:center;padding:18px;border-radius:16px;background:linear-gradient(rgba(43,74,94,.06) 1px,transparent 1px) 0 0/18px 18px,linear-gradient(90deg,rgba(43,74,94,.06) 1px,transparent 1px) 0 0/18px 18px,var(--sunk)}
+/* mockups */
+.mk{width:100%;max-width:340px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;display:grid;gap:10px;box-shadow:0 20px 40px -26px rgba(21,32,42,.55);font-size:.86rem}
+.mk.phone{max-width:280px;border-radius:26px;padding:12px;border:6px solid #15202a}
+.mk-h{font-family:var(--display);font-weight:700;font-size:1.15rem}
+.mk-f{display:grid;gap:2px;padding:8px 10px;border-radius:9px;background:var(--sunk)}
+.mk-f span,.mk small{color:var(--muted);font-size:.74rem}
+.mk-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(70px,1fr));gap:8px}
+.mk-ph,.mk-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.mk-grid{grid-template-columns:repeat(3,1fr)}
+.mk-ph i,.mk-grid i{aspect-ratio:1;border-radius:8px;background:linear-gradient(160deg,#9bb7c9,#56788f 60%,#c99a3c);display:grid;place-items:center;color:#fff;font-style:normal;font-weight:700}
+.mk-ph i:nth-child(2),.mk-grid i:nth-child(2n){background:linear-gradient(160deg,#c8b58f,#8a6d3b 60%,#3f5a6d)}
+.mk-ph i:nth-child(3),.mk-grid i:nth-child(3n){background:linear-gradient(160deg,#a7c4a9,#52745a 55%,#c7c0ad)}
+.mk-ph i.add{background:var(--sunk);color:var(--muted);border:1px dashed var(--line);font-size:1.2rem}
+.mk-grid i.on{box-shadow:0 0 0 3px var(--amber)}
+.mk-chip{display:inline-block;padding:3px 9px;border-radius:999px;background:var(--sand);color:var(--warn);font-weight:600;font-size:.74rem}
+.mk-btn{padding:9px;border-radius:9px;background:var(--steel);color:var(--steel-ink);text-align:center;font-weight:600}
+.mk-cover{border-radius:14px;padding:30px 12px 10px;display:grid;gap:2px;color:#fff;background:linear-gradient(180deg,transparent,rgba(10,18,26,.8)),linear-gradient(160deg,#9bb7c9,#56788f 60%,#c99a3c)}
+.mk-cover span{font-size:.72rem;opacity:.85}
+.mk-ringrow{display:flex;gap:12px;align-items:center}
+.mk-ringrow div{display:grid;line-height:1.25}
+.mk-ring{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:1.2rem;background:radial-gradient(var(--surface) 58%,transparent 59%),conic-gradient(var(--steel) 0 66%,var(--line) 66% 100%);flex:none}
+.mk-strip{display:grid;grid-template-columns:repeat(11,1fr);gap:2px}
+.mk-strip i{height:7px;border-radius:2px;background:var(--line)}.mk-strip i.p1{background:var(--ok)}.mk-strip i.p2{background:var(--amber)}
+.mk-banner{padding:9px 10px;border-radius:9px;background:var(--sand);color:var(--warn);font-weight:600}
+.mk-phases{display:flex;flex-wrap:wrap;gap:5px}
+.mk-phases span{padding:4px 8px;border-radius:999px;font-size:.74rem;background:var(--mint);color:var(--ok);font-weight:600}
+.mk-phases span.c{background:var(--amber);color:#1b1404}
+.mk-person{display:flex;gap:10px;align-items:center;padding:8px;border-radius:10px;background:var(--sunk)}
+.mk-person i{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:700;font-size:.78rem;background:var(--sky);color:var(--sky-ink)}
+.mk-person.inv i{background:var(--mint);color:var(--ok)}
+.mk-person div{display:grid;line-height:1.2}
+.mk.pdf{padding:0;overflow:hidden}
+.pdf-h{background:var(--steel);color:#fff;padding:12px 14px;display:grid;border-bottom:3px solid var(--amber)}
+.pdf-h small{color:rgba(255,255,255,.75)}
+.pdf-b{padding:12px 14px;display:grid;gap:7px}
+.pdf-big{font-family:var(--display);font-size:2rem;font-weight:700;color:var(--steel)}
+.pdf-r{display:grid;grid-template-columns:80px 1fr;gap:8px;align-items:center;font-size:.76rem}
+.pdf-r>i{height:6px;border-radius:4px;background:var(--line);overflow:hidden}.pdf-r>i>i{display:block;height:100%;background:var(--amber)}
+/* stages section */
+.stagesec{overflow:hidden}
+.plan-wrap{position:absolute;right:clamp(-120px,-4vw,0px);top:20px;width:min(560px,70vw);color:var(--steel);opacity:.09;pointer-events:none}
+.chip{cursor:pointer;font-weight:600}
+.chip[aria-pressed="true"]{box-shadow:0 0 0 2px var(--ink)}
+.phase-detail{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;display:grid;gap:6px;max-width:640px;position:relative}
+.phase-detail b{font-family:var(--display);font-size:1.4rem}
+.phase-detail ul{margin:6px 0 0;padding-left:18px;columns:2;column-gap:24px}
+@media (max-width:560px){.phase-detail ul{columns:1}}
+/* pricing */
+.pricing{background:none}
+.billing{display:inline-flex;padding:4px;border-radius:999px;background:var(--surface);border:1px solid var(--line);gap:4px;margin-top:10px}
+.billing button{border:0;background:none;padding:8px 16px;border-radius:999px;font-weight:600;cursor:pointer;color:var(--muted)}
+.billing button[aria-pressed="true"]{background:var(--steel);color:var(--steel-ink)}
+.save{font-size:.72rem;background:var(--amber);color:#1b1404;border-radius:999px;padding:1px 7px;margin-left:4px}
+.plans{display:grid;gap:18px}
+@media (min-width:860px){.plans{grid-template-columns:repeat(3,1fr);align-items:stretch}}
+.plan-card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:26px;display:grid;gap:12px;align-content:start}
+.plan-card .btn{margin-top:auto}
+.plan-card.hot{border:2px solid var(--amber);background:linear-gradient(180deg,var(--sand),var(--surface) 40%)}
+.badge{position:absolute;top:-12px;left:24px;background:var(--amber);color:#1b1404;font-size:.74rem;font-weight:700;padding:3px 10px;border-radius:999px}
+.plan-name{font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:.8rem;color:var(--muted)}
+.plan-price b{font-family:var(--display);font-size:2.6rem;line-height:1;display:block}
+.plan-price span{color:var(--muted);font-size:.88rem}
+.calc{display:grid;gap:18px;align-items:center;background:var(--deep);color:#fff;border-radius:20px;padding:24px}
+@media (min-width:760px){.calc{grid-template-columns:1.4fr 1fr}}
+.calc-row{display:flex;gap:14px;align-items:center;margin-top:10px}
+.calc-row input{flex:1;accent-color:var(--amber)}
+.calc-n{font-family:var(--display);font-size:2rem;min-width:2ch}
+.calc-out{display:grid;gap:2px;justify-items:start}
+.calc-out .muted{color:rgba(255,255,255,.7)}
+.calc-out b{font-family:var(--display);font-size:2.6rem;color:var(--amber);line-height:1.05}
+/* faq */
+.faq{display:grid;gap:10px;max-width:860px}
+.faq details{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:4px 18px}
+.faq summary{cursor:pointer;padding:14px 0;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:12px}
+.faq summary::after{content:"+";font-family:var(--display);font-size:1.5rem;line-height:1;color:var(--warn)}
+.faq details[open] summary::after{content:"–"}
+.faq details p{padding-bottom:14px}
+/* cta */
+.cta-band{position:relative;overflow:hidden;background:linear-gradient(135deg,var(--deep),#2b4a5e);color:#fff;margin-top:24px}
+.cta-band .bp{width:min(640px,90vw);opacity:.7}
+.cta-in{position:relative;z-index:2;max-width:1320px;margin:0 auto;padding:64px clamp(16px,4vw,56px);display:grid;gap:14px;justify-items:start}
+.cta-in h2{font-size:clamp(2rem,4.5vw,3.2rem)}
+.cta-in p{color:rgba(255,255,255,.78);max-width:52ch}
+/* onboarding */
+.onb{position:relative;min-height:100vh;background:var(--deep);padding:24px 16px;display:grid;place-items:start center;overflow:hidden}
+.onb .bp{opacity:.8}
+.onb-box{position:relative;z-index:2;width:100%;max-width:640px;background:var(--surface);border-radius:20px;padding:clamp(18px,4vw,32px);display:grid;gap:18px;margin-top:4vh;box-shadow:0 30px 60px -30px rgba(0,0,0,.6)}
+.onb-top{display:flex;justify-content:space-between;align-items:center}
+.onb-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.onb-steps li{display:grid;gap:6px;font-size:.74rem;color:var(--muted);font-weight:600}
+.onb-steps i{height:5px;border-radius:5px;background:var(--line)}
+.onb-steps li.done i{background:var(--ok)}.onb-steps li.cur i{background:var(--amber)}.onb-steps li.cur{color:var(--ink)}
+@media (max-width:520px){.onb-steps span{display:none}}
+.onb-body{display:grid;gap:14px}
+.onb-nav{border-top:1px solid var(--line);padding-top:14px}
+.phase-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.phase-pick button{display:flex;gap:8px;align-items:center;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--sunk);cursor:pointer;text-align:left;font-weight:600}
+.pp-dot{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;background:var(--surface);border:1px solid var(--line);flex:none}
+.phase-pick button.done{background:var(--mint);border-color:transparent;color:var(--ok)}.phase-pick button.done .pp-dot{background:var(--ok);color:#fff;border-color:var(--ok)}
+.phase-pick button.cur{background:var(--amber);border-color:var(--amber);color:#1b1404}.phase-pick button.cur .pp-dot{border-color:#1b1404}
+.onb-prev{display:flex;gap:14px;align-items:center;padding:12px;border-radius:12px;background:var(--sky)}
+.team-block{display:grid;gap:10px;padding:14px;border-radius:12px;background:var(--sunk)}
+.team-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center;padding:8px 10px;background:var(--surface);border-radius:8px}
+.summary{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr));padding:16px;border-radius:14px;background:var(--sunk)}
+.summary div{display:grid}
+.sum-total{grid-column:1/-1;border-top:1px solid var(--line);padding-top:10px}
+.sum-total b{font-family:var(--display);font-size:2.2rem;color:var(--steel)}
+/* product tour */
+.demo-page{position:relative;min-height:100vh;background:var(--deep);color:#fff;overflow:hidden;display:grid;grid-template-rows:auto 1fr auto}
+.demo-page .bp{opacity:.7}
+.demo-head{position:relative;z-index:2;display:flex;align-items:center;gap:12px;padding:16px clamp(16px,4vw,56px);flex-wrap:wrap}
+.demo-head .brand{color:#fff}.demo-head .sp{flex:1}
+.demo-body{position:relative;z-index:2;max-width:1320px;width:100%;margin:0 auto;padding:16px clamp(16px,4vw,56px) 24px;display:grid;gap:32px;align-items:center}
+@media (min-width:900px){.demo-body{grid-template-columns:1fr 1fr;gap:56px}}
+.demo-copy{display:grid;gap:14px;justify-items:start}
+.demo-copy h1{font-size:clamp(2rem,5vw,3.4rem)}
+.demo-copy .lead{color:rgba(255,255,255,.8);margin:0}
+.demo-count{color:rgba(255,255,255,.6);font-size:.86rem;margin:0}
+.who-tag{padding:4px 12px;border-radius:999px;font-weight:700;font-size:.8rem}
+.who-tag.s1{background:var(--sky);color:var(--sky-ink)}.who-tag.s2{background:var(--amber);color:#1b1404}.who-tag.s3{background:var(--mint);color:var(--ok)}
+.demo-stage{display:grid;place-items:center;padding:24px;border-radius:24px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:var(--ink);min-height:360px}
+.demo-stage .mk{max-width:360px}
+.demo-dots{position:relative;z-index:2;max-width:1320px;width:100%;margin:0 auto;padding:12px clamp(16px,4vw,56px) 28px;display:grid;grid-template-columns:repeat(10,1fr);gap:6px}
+.demo-dots button{border:0;background:none;padding:0;display:grid;gap:6px;text-align:left;cursor:pointer;color:rgba(255,255,255,.55);font-size:.72rem}
+.demo-dots i{height:5px;border-radius:5px;background:rgba(255,255,255,.2)}
+.demo-dots button.s1[aria-current="step"] i{background:var(--sky-ink)}.demo-dots button.s2[aria-current="step"] i{background:var(--amber)}.demo-dots button.s3[aria-current="step"] i{background:#5cc184}
+.demo-dots button[aria-current="step"]{color:#fff}
+@media (max-width:760px){.demo-dots span{display:none}}
+.apphead-in,.tabs{max-width:1120px}
+main{max-width:1120px}
+
+.btn.wa{background:#25D366;border-color:#25D366;color:#06301a}
+.req,.ms-card{border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;gap:8px;margin-top:8px}
+.ms-card.active{border-left:4px solid var(--amber)}.ms-card.ok{border-left:4px solid var(--ok)}.ms-card.crit{border-left:4px solid var(--crit)}
+.req-act{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.req-act input{max-width:170px}
+.tbl-wrap{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:.92rem}
+.tbl th{text-align:left;font-size:.76rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line)}
+.tbl td{padding:9px 8px;border-bottom:1px solid var(--line)}
+.tbl .r{text-align:right}
+.tbl tr.crit td{background:var(--crit-soft)}
+.seg{display:inline-flex;padding:4px;border-radius:10px;background:var(--sunk);border:1px solid var(--line);gap:4px;flex-wrap:wrap}
+.seg label{position:relative;cursor:pointer}.seg input{position:absolute;opacity:0}
+.seg span{display:block;padding:7px 12px;border-radius:7px;font-weight:600;font-size:.88rem;color:var(--muted)}
+.seg input:checked+span{background:var(--steel);color:var(--steel-ink)}
+.seg input:focus-visible+span{outline:3px solid var(--amber)}
+.pipe{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.pipe li{display:grid;gap:4px;font-size:.74rem;color:var(--muted);font-weight:600}
+.pipe i{height:6px;border-radius:4px;background:var(--line)}
+.pipe li.on i{background:var(--ok)}.pipe li.on{color:var(--ink)}.pipe li.bad i{background:var(--crit)}
+.paybar{display:flex;height:14px;border-radius:99px;background:var(--sunk);border:1px solid var(--line);overflow:hidden}
+.paybar .pb-paid{background:var(--ok)}.paybar .pb-fly{background:var(--amber)}
+.fund{display:grid;gap:10px;padding:14px;border-radius:12px;background:var(--sunk)}
+.fund-opts{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.fund-opts button{display:grid;gap:2px;text-align:left;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);cursor:pointer}
+.fund-opts button[aria-pressed="true"]{border:2px solid var(--steel);background:var(--sky)}
+.escrow{display:grid;gap:10px;counter-reset:e;padding:0;margin:0;list-style:none}
+@media (min-width:860px){.escrow{grid-template-columns:repeat(5,1fr)}}
+.escrow li{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:6px;position:relative}
+.escrow li::before{counter-increment:e;content:counter(e);width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:700;background:var(--sand);color:var(--warn)}
+.escrow li:last-child::before{background:var(--mint);color:var(--ok)}
+.escrow b{font-family:var(--display);font-size:1.15rem}
+.mk-stock{display:flex;justify-content:space-between;padding:7px 10px;border-radius:8px;background:var(--sunk)}.mk-stock.bad{background:var(--rose);color:var(--rose-ink)}
+
+.cam{display:grid;gap:10px;padding:14px;border-radius:12px;background:var(--sunk);border:1px dashed var(--line)}
+.cam-btn{justify-self:start;cursor:pointer}
+.ph.shot{cursor:default;position:relative}
+.ph .rm{position:absolute;top:4px;right:4px;width:26px;height:26px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-weight:700;cursor:pointer}
+.vb{position:absolute;left:5px;bottom:5px;padding:1px 7px;border-radius:999px;font-size:.68rem;font-weight:700;background:rgba(10,18,26,.7);color:#fff}
+.vb.ok{background:#2c7a4b}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="layer"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+(function(){
+"use strict";
+const S={db:null,assets:null,downloads:null,mode:"loading",canWrite:true,projects:[],logs:[],reports:[],updates:[],expenses:[],requests:[],matreqs:[],stock:[],milestones:[],
+  pid:null,view:"home",shots:[],tab:{developer:"overview",engineer:"today",investor:"overview"},open:{},loaded:{},slow:false,busy:false,
+  demo:{i:0,play:false},seen:new Set(),counted:new Set(),home:{step:0,projects:1,annual:false,phase:7,auto:true},onb:{step:0,d:{floors:2,phase:0,team:[],annual:false}},draft:{sel:[],extra:[],title:"",briefing:"",next:"",budget:false,fromReport:null}};
+const ROLE_LABEL={developer:"Developer",engineer:"Site Engineer",investor:"Investor"};
+
+/* ---------- helpers ---------- */
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const naira=n=>"₦"+Math.round(+n||0).toLocaleString("en-NG");
+const nairaS=n=>{n=+n||0;const f=(x,s)=>"₦"+(Math.round(x*10)/10).toLocaleString("en-NG")+s;return n>=1e9?f(n/1e9,"bn"):n>=1e6?f(n/1e6,"m"):naira(n);};
+const pad=n=>String(n).padStart(2,"0");
+const ymd=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const parseD=s=>{if(!s)return null;if(/^\d{4}-\d{2}-\d{2}$/.test(s)){const [y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d);}const d=new Date(s);return isNaN(d)?null:d;};
+const fmtD=s=>{const d=parseD(s);return d?d.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}):"";};
+const fmtS=s=>{const d=parseD(s);return d?d.toLocaleDateString("en-GB",{day:"numeric",month:"short"}):"";};
+const ordinal=n=>n+(["th","st","nd","rd"][(n%100>10&&n%100<14)?0:(n%10<4?n%10:0)]);
+const levelName=k=>k===0?"Ground floor":ordinal(k)+" floor";
+function weekOf(date){const d=new Date(date);d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));const fri=new Date(d);fri.setDate(d.getDate()+4);fri.setHours(18,0,0,0);return {mon:d,fri,key:ymd(d)};}
+function daysSince(s){const d=parseD(s);if(!d)return null;const t=new Date();t.setHours(0,0,0,0);const x=new Date(d);x.setHours(0,0,0,0);return Math.round((t-x)/864e5);}
+const ls={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const src=p=>p.url||("/_blob/"+p.id);
+
+/* ---------- Nigerian construction stage template ---------- */
+function stagesFor(p){
+  const floors=Math.max(0,Math.min(30,parseInt(p.floors,10)||0)),st=[];
+  const add=(id,group,name,weight,items)=>st.push({id,group,name,weight,items:items.map((l,i)=>({id:id+"."+i,label:l}))});
+  add("pre","Pre-construction","Site inspection, surveys & approvals",4,["Site inspection & title/survey plan checked","Topographic survey","Soil investigation (geotechnical test)","Architectural, structural & M&E drawings approved","Building permit obtained (LASPPPA)","Site clearing & hoarding","Site office, store & water source set up","Mobilisation of workers & equipment"]);
+  add("set","Setting out","Setting out",2,["Profile boards erected","Building lines & grid pegged to drawings","Diagonals and levels checked","Setting-out approved by engineer / LASBCA stage inspection"]);
+  add("fdn","Foundation","Foundation & substructure",12,["Excavation of trenches / pits to depth","Blinding (lean concrete)","Foundation reinforcement fixed & inspected","Foundation concrete cast (strip / pad / raft)","Blockwork to DPC level (German floor)","Anti-termite treatment","Backfilling & compaction","Damp-proof membrane laid","Oversite concrete (ground floor slab)","Foundation stage certification"]);
+  const lv=floors+1,w=30/lv;
+  for(let k=0;k<lv;k++){const nm=levelName(k);
+    if(k<floors)add("lv"+k,"Frame",nm+" walls & "+levelName(k+1)+" slab",w,["Columns reinforced & cast","Blockwork to lintel level","Lintels cast","Blockwork to beam level","Electrical & plumbing conduits laid before decking","Beam & slab formwork erected","Slab reinforcement inspected by engineer","Slab cast (decking) & curing","Formwork struck"]);
+    else add("lv"+k,"Frame",(floors?nm+" walls":"Walls")+" to roof level",w,["Columns reinforced & cast","Blockwork to lintel level","Lintels cast","Blockwork to roof beam level","Roof / ring beam cast"]);}
+  add("roof","Roofing","Roofing",8,["Wall plate fixed","Parapet / gable walls","Roof trusses & carcassing (treated timber or steel)","Fascia board fixed","Roof covering (long-span aluminium / stone-coated)","Gutters & downpipes","Roof stage inspection"]);
+  add("me1","M&E first fix","M&E first fix (rough-in)",8,["Chasing for electrical conduits","Conduits & cable pulling","Plumbing supply pipes (hot & cold)","Waste & soil pipes","AC copper piping & drain lines","Septic tank / bio-digester & soakaway","Borehole, pumping & overhead tank stand"]);
+  add("pls","Plastering","Frames, plastering & screeding",8,["Door & window frames fixed","Internal plastering","External rendering","Floor screeding","Ceiling framing (POP / PVC)"]);
+  add("fin","Finishes","Finishes, tiling & joinery",14,["Floor & wall tiling","Ceiling finish (POP / PVC)","Painting — undercoats","Doors hung & ironmongery","Windows glazed (aluminium / casement)","Kitchen cabinets & worktops","Wardrobes & built-in furniture","Staircase & balcony railings"]);
+  add("me2","M&E second fix","M&E second fix & fittings",7,["Sockets, switches & light fittings","Distribution board & meter connection","Sanitary fittings (WC, basin, shower, sink)","Water heaters","Generator / inverter & changeover","Water treatment & pumps","Fire alarm & extinguishers","Testing & commissioning"]);
+  add("ext","External works","External works",4,["Perimeter fence & gate","Gatehouse","External drainage","Driveway & walkways (stamped concrete / interlocking paving)","Landscaping","External lighting"]);
+  add("hnd","Handover","Snagging & handover",3,["Snag list compiled","Snags fixed","Final paint coat & cleaning","Certificate of Completion & Fitness for Habitation (LASBCA)","Handover, keys & manuals"]);
+  return st;
+}
+function progress(p){
+  const stages=stagesFor(p),c=p.checks||{};let tw=0,acc=0,current=null,next=null;
+  stages.forEach(s=>{const d=s.items.filter(i=>c[i.id]).length;s.done=d;s.pct=d/s.items.length;s.status=s.pct>=1?"done":d>0?"active":"todo";tw+=s.weight;acc+=s.weight*s.pct;});
+  let ci=-1;stages.forEach((s,i)=>{if(s.status==="active")ci=i;});if(ci<0)ci=stages.findIndex(s=>s.pct<1);current=ci>=0?stages[ci]:null;next=ci>=0?stages.slice(ci+1).find(s=>s.status==="todo")||stages.slice(ci+1).find(s=>s.pct<1)||null:null;
+  const map=new Map();stages.forEach(s=>{if(!map.has(s.group))map.set(s.group,{name:s.group,w:0,a:0});const g=map.get(s.group);g.w+=s.weight;g.a+=s.weight*s.pct;});
+  const phases=[...map.values()].map(g=>{const pct=g.a/g.w;return {name:g.name,pct,status:pct>=.999?"done":pct>0?"active":"todo"};});
+  return {stages,overall:tw?acc/tw:0,current,next,phases};
+}
+
+/* ---------- data layer ---------- */
+const queues={};
+function queue(key,fn){queues[key]=(queues[key]||Promise.resolve()).then(fn).catch(onErr);return queues[key];}
+function onErr(e){
+  if(e&&e.code==="invalid_argument"){S.canWrite=false;toast("You can view this project but not change it.");}
+  else if(e&&e.code==="quota_exceeded")toast("Storage is full. Delete old entries to add more.");
+  else toast("That didn't save. Check your connection and try again.");
+  render();
+}
+const store={
+  async add(col,data){if(S.db){await S.db.collection(col).add(data);return;}S[col].push({id:"m"+Math.random().toString(36).slice(2),...data});render();},
+  async set(col,id,data){if(S.db)return queue(col+"/"+id,()=>S.db.collection(col).doc(id).set(data));const i=S[col].findIndex(x=>x.id===id),r={id,...data};if(i<0)S[col].push(r);else S[col][i]=r;render();},
+  async update(col,id,data){if(S.db)return queue(col+"/"+id,()=>S.db.collection(col).doc(id).update(data));const r=S[col].find(x=>x.id===id);if(!r)return;for(const k in data){if(data[k]&&typeof data[k]==="object"&&!Array.isArray(data[k]))r[k]={...(r[k]||{}),...data[k]};else r[k]=data[k];}render();},
+  async del(col,id){if(S.db)return queue(col+"/"+id,()=>S.db.collection(col).doc(id).delete());S[col]=S[col].filter(x=>x.id!==id);render();}
+};
+async function uploadFile(file){
+  if(S.assets){const r=await S.assets.upload(file);return {id:r.id,url:r.url,takenAt:file.lastModified?new Date(file.lastModified).toISOString():null};}
+  return {id:"local-"+Math.random().toString(36).slice(2),url:URL.createObjectURL(file)};
+}
+function subscribe(col,q){
+  q.onSnapshot(snap=>{S[col]=snap.docs.map(d=>({id:d.id,...d.data()}));if(!snap.metadata.fromCache)S.loaded[col]=true;pickProject();render();},
+    err=>{S.loaded[col]=true;if(err&&err.code!=="revoked")toast("Couldn't load "+col+".");render();});
+}
+function pickProject(){if(!S.projects.length){S.pid=null;return;}if(!S.projects.find(p=>p.id===S.pid)){const s=ls.get("st.pid");S.pid=(S.projects.find(p=>p.id===s)||S.projects[0]).id;}}
+
+/* ---------- derived ---------- */
+const P=()=>S.projects.find(p=>p.id===S.pid);
+const byDateDesc=(a,b)=>(b.date||b.createdAt||"").localeCompare(a.date||a.createdAt||"")||(b.createdAt||"").localeCompare(a.createdAt||"");
+const logsOf=pid=>S.logs.filter(l=>l.pid===pid).sort(byDateDesc);
+const reportsOf=pid=>S.reports.filter(r=>r.pid===pid).sort((a,b)=>(b.weekStart||"").localeCompare(a.weekStart||""));
+const updatesOf=pid=>S.updates.filter(u=>u.pid===pid).sort(byDateDesc);
+const expOf=pid=>S.expenses.filter(e=>e.pid===pid).sort(byDateDesc);
+const stageName=(p,id)=>{const s=stagesFor(p).find(x=>x.id===id);return s?s.name:"General";};
+function sitePhotos(pid){const seen=new Set(),out=[];logsOf(pid).forEach(l=>(l.photos||[]).forEach(ph=>{if(seen.has(ph.id))return;seen.add(ph.id);out.push({...ph,cap:fmtS(l.date)+" · "+(l.by||"Site")});}));return out;}
+function weekStatus(pid){const w=weekOf(new Date()),r=reportsOf(pid).find(x=>x.weekStart===w.key),now=new Date();return {w,report:r,left:Math.ceil((w.fri-now)/864e5),late:!r&&now>w.fri};}
+
+/* ---------- small pieces ---------- */
+const bar=(pct,cls)=>`<div class="bar ${cls||""}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct*100)}"><i style="width:${Math.max(0,Math.min(100,pct*100)).toFixed(1)}%"></i></div>`;
+function ring(pct,size){size=size||132;const r=52,c=2*Math.PI*r,v=Math.max(0,Math.min(1,pct));
+  return `<svg class="ring" width="${size}" height="${size}" viewBox="0 0 128 128" role="img" aria-label="${Math.round(v*100)} percent complete"><circle cx="64" cy="64" r="${r}" fill="none" stroke="var(--line)" stroke-width="12"/><circle cx="64" cy="64" r="${r}" fill="none" stroke="var(--steel)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${(c*v).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 64 64)"/><text x="64" y="72" text-anchor="middle" font-size="30">${Math.round(v*100)}%</text></svg>`;}
+function phaseStrip(pr){let ci=-1;pr.phases.forEach((x,i)=>{if(x.status==="active")ci=i;});if(ci<0)ci=pr.phases.findIndex(x=>x.status!=="done");const cur=ci>=0?pr.phases[ci]:null;
+  return `<div style="display:grid;gap:6px"><div class="phases" aria-hidden="true">${pr.phases.map(x=>`<i class="${x.status}" title="${esc(x.name)}"></i>`).join("")}</div>
+  <div class="ph-cap"><span>${cur?`Phase ${ci+1} of ${pr.phases.length}: <b style="color:var(--ink)">${esc(cur.name)}</b>`:"All phases complete"}</span><span class="num">${Math.round(pr.overall*100)}% overall</span></div></div>`;}
+const photoGrid=(list,lg)=>list&&list.length?`<div class="photos ${lg?"lg":""}">${list.map(p=>`<button type="button" class="ph" data-act="photo" data-src="${esc(src(p))}" data-cap="${esc(p.cap||"")}"><img src="${esc(src(p))}" alt="Site photo" loading="lazy">${vBadge(p)}</button>`).join("")}</div>`:"";
+function logHTML(p,l){
+  return `<article class="log"><div class="log-h"><b>${esc(fmtD(l.date))}</b><span class="pill">${esc(stageName(p,l.stage))}</span>${l.weather?`<span class="pill">${esc(l.weather)}</span>`:""}${+l.workers?`<span class="pill num">${esc(l.workers)} workers</span>`:""}</div>
+  <p>${esc(l.work)}</p>${l.issues?`<div class="issue"><b>Issue:</b> ${esc(l.issues)}</div>`:""}${photoGrid(l.photos)}<p class="small muted">By ${esc(l.by||"Site engineer")}</p></article>`;
+}
+function stageList(p){
+  const pr=progress(p);let g="";
+  return `<div class="stages">${pr.stages.map(s=>{
+    let head="";if(s.group!==g){g=s.group;head=`<div class="grp">${esc(g)}</div>`;}
+    const open=S.open[s.id]??(pr.current&&pr.current.id===s.id);
+    const pill=s.status==="done"?`<span class="pill ok">Done</span>`:s.status==="active"?`<span class="pill active">In progress</span>`:`<span class="pill">Not started</span>`;
+    return head+`<div class="stage ${s.status}"><button type="button" class="stage-h" data-act="toggle-stage" data-id="${s.id}" aria-expanded="${open?"true":"false"}"><span><b>${esc(s.name)}</b> <span class="small muted num">${s.done}/${s.items.length}</span></span>${pill}${bar(s.pct)}</button>
+    ${open?`<ul class="checks">${s.items.map(i=>{const on=!!(p.checks||{})[i.id];return `<li><label><input type="checkbox" data-act="check" data-id="${i.id}" ${on?"checked":""} ${S.canWrite?"":"disabled"}><span class="${on?"done-t":""}">${esc(i.label)}</span></label></li>`;}).join("")}</ul>`:""}</div>`;}).join("")}</div>`;
+}
+function engReportHTML(p,r,forDev){
+  return `<div class="rep"><div class="card-h"><b>Week of ${esc(fmtS(r.weekStart))} – ${esc(fmtS(r.weekEnd))}</b>${r.status==="used"?`<span class="pill ok">Sent to investor</span>`:`<span class="pill active">New</span>`}</div>
+  <p class="small muted">From ${esc(r.by||"Site engineer")} · <span class="num">${r.logCount||0}</span> daily updates · avg <span class="num">${r.workersAvg||0}</span> workers</p>
+  ${r.summary?`<p>${esc(r.summary)}</p>`:""}${r.next?`<p class="small"><b>Next week:</b> ${esc(r.next)}</p>`:""}
+  ${r.issues&&r.issues.length?`<div class="small"><b>Issues:</b><ul>${r.issues.map(i=>`<li>${esc(i)}</li>`).join("")}</ul></div>`:""}
+  ${photoGrid(r.photos)}
+  ${forDev&&S.canWrite?`<div><button class="btn sm pri" data-act="use-report" data-id="${r.id}">Turn into investor update</button></div>`:""}</div>`;
+}
+
+/* ---------- HOME ---------- */
+const ICON={
+  eng:`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 18h20"/><path d="M4 18v-2a8 8 0 0 1 16 0v2"/><path d="M10 8V5h4v3"/></svg>`,
+  dev:`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/><path d="M9 10h.01M15 10h.01"/></svg>`,
+  inv:`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>`,
+  cam:`<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="4"/></svg>`
+};
+const BLUEPRINT=`<svg class="bp" viewBox="0 0 640 440" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4">
+  <g class="dr" stroke-dasharray="4 4" opacity=".55"><line pathLength="1" x1="120" y1="58" x2="120" y2="410"/><line pathLength="1" x1="250" y1="58" x2="250" y2="410"/><line pathLength="1" x1="380" y1="58" x2="380" y2="410"/></g>
+  <g class="dr"><circle pathLength="1" cx="120" cy="44" r="13"/><circle pathLength="1" cx="250" cy="44" r="13"/><circle pathLength="1" cx="380" cy="44" r="13"/></g>
+  <g class="tx" fill="currentColor" stroke="none" font-family="IBM Plex Mono, monospace" font-size="12" text-anchor="middle"><text x="120" y="48">A</text><text x="250" y="48">B</text><text x="380" y="48">C</text></g>
+  <g class="dr"><line pathLength="1" x1="30" y1="380" x2="620" y2="380" stroke-width="2"/>
+    <rect pathLength="1" x="120" y="170" width="260" height="210" stroke-width="2"/>
+    <line pathLength="1" x1="120" y1="240" x2="380" y2="240"/><line pathLength="1" x1="120" y1="310" x2="380" y2="310"/>
+    <polyline pathLength="1" points="104,172 250,112 396,172" stroke-width="2"/>
+    ${[0,1,2].map(f=>[145,205,305].map(x=>`<rect pathLength="1" x="${x}" y="${188+f*70}" width="${x===205?32:44}" height="34"/>`).join("")).join("")}
+    <rect pathLength="1" x="232" y="326" width="38" height="54"/>
+    <line pathLength="1" x1="396" y1="150" x2="396" y2="380"/><line pathLength="1" x1="428" y1="150" x2="428" y2="380"/>
+    ${[170,205,240,275,310,345].map(y=>`<line pathLength="1" x1="396" y1="${y}" x2="428" y2="${y}"/>`).join("")}
+    <polyline pathLength="1" points="396,380 428,345 396,310 428,275 396,240 428,205 396,170" opacity=".7"/>
+    <line pathLength="1" x1="500" y1="40" x2="500" y2="380"/><line pathLength="1" x1="520" y1="40" x2="520" y2="380"/>
+    <polyline pathLength="1" points="500,380 520,350 500,320 520,290 500,260 520,230 500,200 520,170 500,140 520,110 500,80 520,50" opacity=".7"/>
+    <line pathLength="1" x1="430" y1="40" x2="630" y2="40" stroke-width="2"/><line pathLength="1" x1="430" y1="52" x2="630" y2="52"/>
+    <polyline pathLength="1" points="430,40 510,6 630,40"/><rect pathLength="1" x="434" y="52" width="26" height="18"/>
+    <line pathLength="1" x1="40" y1="410" x2="120" y2="410" opacity="0"/>
+    <line pathLength="1" x1="120" y1="412" x2="380" y2="412"/><line pathLength="1" x1="120" y1="404" x2="120" y2="420"/><line pathLength="1" x1="380" y1="404" x2="380" y2="420"/>
+    <line pathLength="1" x1="70" y1="380" x2="104" y2="380"/><line pathLength="1" x1="70" y1="310" x2="104" y2="310"/><line pathLength="1" x1="70" y1="240" x2="104" y2="240"/><line pathLength="1" x1="70" y1="170" x2="104" y2="170"/></g>
+  <g class="sway"><line x1="600" y1="52" x2="600" y2="150"/><rect x="590" y="150" width="20" height="10"/><path d="M600 160 v8 a5 5 0 1 1 -5 5"/><rect x="578" y="176" width="44" height="22" stroke-dasharray="3 3"/></g>
+  <g class="tx" fill="currentColor" stroke="none" font-family="IBM Plex Mono, monospace" font-size="11"><text x="250" y="432" text-anchor="middle">13 500</text><text x="36" y="384">±0.00</text><text x="36" y="314">+3.00</text><text x="36" y="244">+6.00</text><text x="36" y="174">+9.00</text><text x="440" y="100">TOWER CRANE</text></g>
+</svg>`;
+const PLAN=`<svg class="plan" viewBox="0 0 520 360" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.2">
+  <rect x="20" y="20" width="480" height="320" stroke-width="3"/><line x1="200" y1="20" x2="200" y2="200"/><line x1="20" y1="200" x2="320" y2="200"/><line x1="320" y1="120" x2="320" y2="340"/><line x1="320" y1="120" x2="500" y2="120"/><line x1="410" y1="120" x2="410" y2="230"/><line x1="320" y1="230" x2="500" y2="230"/>
+  <path d="M200 150 a40 40 0 0 1 -40 40" stroke-dasharray="3 3"/><path d="M260 200 a36 36 0 0 0 36 -36" stroke-dasharray="3 3"/><path d="M320 270 a34 34 0 0 1 34 34" stroke-dasharray="3 3"/>
+  <rect x="345" y="140" width="45" height="70"/><circle cx="455" cy="175" r="18"/><rect x="40" y="40" width="70" height="90"/><rect x="230" y="40" width="70" height="40"/>
+  <g fill="currentColor" stroke="none" font-family="IBM Plex Mono, monospace" font-size="11"><text x="80" y="110">BEDROOM 1</text><text x="240" y="110">LIVING</text><text x="90" y="270">KITCHEN</text><text x="370" y="290">BED 2</text><text x="342" y="105">BATH</text><text x="428" y="105">WC</text></g>
+  <line x1="20" y1="354" x2="500" y2="354"/><line x1="20" y1="348" x2="20" y2="360"/><line x1="500" y1="348" x2="500" y2="360"/></svg>`;
+const STEPS=[
+  {who:"Site engineer",t:"The site reports",c:"s1",d:"At close of work the engineer opens TrailConstruct on their phone and logs the day in about a minute.",
+   pts:["Choose the stage, describe the work done, and add workers on site and the weather","Snap photos from the phone, stamped with the date and time","Tick checklist items as they finish, and the progress updates itself","A Friday reminder to send the weekly report. Late reports turn red for the developer"],
+   mock:`<div class="mk"><div class="mk-h">Post today's update</div><div class="mk-f"><span>Stage</span><b>Finishes, tiling & joinery</b></div><div class="mk-f"><span>Work done</span><b>Tiled master bedroom, Block A</b></div><div class="mk-row"><div class="mk-f"><span>Workers</span><b>14</b></div><div class="mk-f"><span>Weather</span><b>Sunny</b></div></div><div class="mk-ph"><i></i><i></i><i></i><i class="add">+</i></div><div class="mk-btn">Post update</div></div>`},
+  {who:"Developer",t:"The developer curates",c:"s2",d:"Every report lands on one dashboard. The developer decides what goes to the investor and how it reads.",
+   pts:["A to-do list for new reports, quiet sites and investor requests","Turn a weekly report into an investor update in one tap","Pick which photos go out, or upload your own and drone shots","Watch spending against progress so surprises show early"],
+   mock:`<div class="mk"><div class="mk-h">New investor update</div><div class="mk-f"><span>Briefing</span><b>Tiling complete in both blocks. Fittings start Monday.</b></div><div class="mk-grid">${[1,0,1,1,0,1].map(s=>`<i class="${s?"on":""}">${s?"✓":""}</i>`).join("")}</div><div class="mk-row"><span class="mk-chip">4 photos selected</span><span class="mk-chip">Budget included</span></div><div class="mk-btn">Send to investor</div></div>`},
+  {who:"Investor",t:"The investor is updated",c:"s3",d:"Investors open one clean page, at home or abroad, and know exactly where their money is on site.",
+   pts:["Percent complete, the current stage and what's next","A schedule check: time used against work done","A gallery of every photo the developer has shared","A branded PDF report for records or co-investors"],
+   mock:`<div class="mk phone"><div class="mk-cover"><b>Banana Island</b><span>Finishes</span></div><div class="mk-ringrow"><span class="mk-ring">66%</span><div><small>Now</small><b>Finishes</b><small>Next</small><b>M&E second fix</b></div></div><div class="mk-strip">${[1,1,1,1,1,2,2,2,0,0,0].map(s=>`<i class="p${s}"></i>`).join("")}</div><div class="mk-btn">Download report (PDF)</div></div>`}
+];
+const FAQ=[
+  ["Do investors see everything the engineers post?","No. Engineer updates go to the developer only. Investors see what the developer chooses to send: a briefing, selected photos and the PDF report."],
+  ["Does it work on a phone?","Yes. TrailConstruct is built phone-first, because that's where site engineers work. It opens in any browser, with no app to install."],
+  ["Who pays?","The developer pays ₦25,000 per project per month. Site engineers and investors join free."],
+  ["Can I track more than one site?","Yes. Add as many projects as you run and switch between them from the top of the dashboard."],
+  ["Which stages does it cover?","Eleven phases, from approvals and setting out through foundation, every floor of the frame, roofing, M&E, finishes, external works and handover. Each phase has its own checklist."],
+  ["What if the site has poor network?","Drafts save on the phone as the engineer types. With no signal, the update is kept on the phone and posts by itself when the network returns."],
+  ["How do milestone payments work?","The investor's money sits with a licensed escrow partner. When a stage is finished, it's independently verified, the investor approves, and only then is that stage's money released. Projects paid up front can turn this off."],
+  ["How does TrailConstruct stop materials going missing?","Engineers request materials and the developer approves them. Every delivery and every bag used goes into the site store log, and TrailConstruct flags any item where usage is higher than deliveries."],
+  ["Can photos be faked or reused?","Engineers take photos live in the app. Each photo is checked for when and where it was taken, so old photos and photos taken away from the site's GPS pin are rejected. Accepted photos are stamped with the date, time and location."],
+  ["Does it work with WhatsApp?","Yes. Reminders, site updates and investor updates can be sent to WhatsApp in one tap."]
+];
+function homeView(){
+  const demo={floors:2,checks:{}};stagesFor(demo).forEach(s=>{if(["pre","set","fdn","lv0","lv1","lv2","roof"].includes(s.id))s.items.forEach(i=>demo.checks[i.id]=true);});["me1.0","me1.1","pls.0","pls.1","pls.2","pls.3","fin.0","fin.1"].forEach(k=>demo.checks[k]=true);
+  const pr=progress(demo),items=stagesFor({floors:2}).reduce((a,s)=>a+s.items.length,0),st=S.home.step,step=STEPS[st];
+  const n=S.home.projects,annual=S.home.annual,rate=n>=5?22000:25000,monthly=n*rate,total=annual?monthly*10:monthly;
+  return `<div class="band">${BLUEPRINT}
+  <nav class="nav"><a class="brand" href="#home"><span class="mark" aria-hidden="true"></span>TrailConstruct</a><span class="sp"></span>
+    <a class="nl" href="#how" data-act="scroll" data-to="how">How it works</a><a class="nl" href="#pricing" data-act="scroll" data-to="pricing">Pricing</a><a class="nl" href="#faq" data-act="scroll" data-to="faq">FAQ</a><a class="nl" href="#demo">Product tour</a>
+    <a class="btn outline sm" href="#signin">Sign in</a><a class="btn amber sm" href="#signup">Get started</a></nav>
+  <section class="hero">
+    <div class="hero-copy"><span class="kicker">Construction tracking for Nigerian developers</span><h1>Know exactly where your building <em>stands</em>.</h1>
+      <p class="lead">From the first profile board to the last coat of paint, TrailConstruct keeps site engineers, developers and investors on the same page. No more chasing WhatsApp voice notes or blurry photos. Just clear progress you can trust.</p>
+      <div class="actions"><a class="btn amber lg" href="#signup">Start tracking a project</a><a class="btn outline lg" href="#demo"><span class="play" aria-hidden="true">▶</span> Take the product tour</a></div>
+      <p class="hero-note">₦25,000 per project per month · Investors and engineers join free</p></div>
+    <div class="demo float" aria-label="Example investor view">
+      <div class="demo-top"><div><h3>4 semi-detached duplexes</h3><p class="small muted">Ikoyi, Lagos · G+2 · example</p></div><span class="pill active">Finishes</span></div>
+      <div style="display:flex;gap:16px;align-items:center"><span class="${S.ringDone?"":"ring-anim"}">${ring(pr.overall,104)}</span><div class="small" style="display:grid;gap:4px"><span><b>Now:</b> tiling & interior fittings</span><span><b>Next:</b> M&E second fix</span><span class="muted">Last update 2 days ago · 6 photos</span></div></div>
+      ${phaseStrip(pr)}
+      <div class="demo-feed"><span class="dot-live"></span><span id="feed">${esc(FEED[0])}</span></div>
+    </div>
+  </section></div>
+  <section class="strip"><div class="strip-in">
+    <div><b class="num" data-count="11">11</b><span>construction phases tracked</span></div>
+    <div><b class="num" data-count="${items}">${items}</b><span>checklist items on a G+2 build</span></div>
+    <div><b class="num" data-count="3">3</b><span>sides connected on one platform</span></div>
+    <div><b class="num" data-count="1">1</b><span>minute to post a site update</span></div></div></section>
+  <section class="sec"><div class="sec-h"><p class="eyebrow">Why TrailConstruct</p><h2 class="sh">Building in Lagos runs on trust. TrailConstruct backs it up.</h2></div>
+    <div class="pains">
+      <div class="pain reveal"><span class="pi p1">?</span><b>"Is anything happening on my site?"</b><p class="muted">Investors in London, Houston or Abuja wait weeks for news and hear it second-hand. TrailConstruct gives them a live view and a proper report.</p></div>
+      <div class="pain reveal"><span class="pi p2">…</span><b>Updates lost in group chats</b><p class="muted">Voice notes, scattered photos and no record of who did what. Every update now lives in one place, by date and by stage.</p></div>
+      <div class="pain reveal"><span class="pi p3">₦</span><b>Money spent, progress unclear</b><p class="muted">Developers see spending next to work done, stage by stage, so overruns show up early, before they're a crisis.</p></div>
+    </div></section>
+  <section class="sec"><div class="sec-h"><p class="eyebrow">One platform, three sides</p><h2 class="sh">Everyone sees what they need. Nothing more.</h2></div>
+    <div class="roles3">
+      <div class="rcard r1 reveal"><span class="ricon">${ICON.eng}</span><span class="tag">Site engineers</span><p class="muted">Log the day's work from site, in a minute.</p>
+        <ul><li>Daily updates: work done, workers on site, weather, issues</li><li>Live photos stamped with time and GPS, checked against the site</li><li>Stage checklists from setting out to handover</li><li>Request materials and log deliveries and usage</li><li>Works with poor signal: drafts save on the phone</li></ul></div>
+      <div class="rcard r2 reveal"><span class="ricon">${ICON.dev}</span><span class="tag">Developers</span><p class="muted">Run every site from one dashboard and decide what investors see.</p>
+        <ul><li>All site reports in one place</li><li>Progress by stage, with budget against spend</li><li>Pick the best photos, write a briefing, send</li><li>Approve material requests and watch the site store</li><li>Alerts when a site goes quiet or an investor asks</li></ul></div>
+      <div class="rcard r3 reveal"><span class="ricon">${ICON.inv}</span><span class="tag">Investors</span><p class="muted">See progress at a glance, wherever you are.</p>
+        <ul><li>Percent complete, current stage and what's next</li><li>A gallery of site photos from every update</li><li>Schedule check: time used against work done</li><li>Approve milestone payments after verification</li><li>Download the full report as a PDF</li></ul></div>
+    </div></section>
+  <section class="sec how" id="how"><div class="sec-h"><p class="eyebrow">How it works</p><h2 class="sh">From the site to the investor, every week</h2></div>
+    <div class="steps" role="tablist">${STEPS.map((x,i)=>`<button role="tab" class="stp ${x.c}" data-act="hstep" data-i="${i}" aria-selected="${i===st}"><span class="stp-n">${i+1}</span><span><small>${esc(x.who)}</small><b>${esc(x.t)}</b></span><i class="stp-bar"><i></i></i></button>`).join("")}</div>
+    <div class="actions" style="justify-content:center"><a class="btn" href="#demo"><span class="play" aria-hidden="true">▶</span> See the full product tour</a></div>
+    <div class="step-panel ${step.c}" role="tabpanel"><div class="sp-copy"><p class="lead2">${esc(step.d)}</p><ul class="ticks">${step.pts.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div><div class="sp-mock">${step.mock}</div></div>
+  </section>
+  <section class="sec"><div class="sec-h"><p class="eyebrow">Optional · Milestone payments</p><h2 class="sh">Pay for verified work, not promises.</h2><p class="muted">For projects funded in stages, money moves only when the work is done and checked. Projects paid up front can switch this off.</p></div>
+    <ol class="escrow"><li class="reveal"><b>Investor funds escrow</b><span class="muted small">The money sits with a licensed bank partner, not with the developer.</span></li><li class="reveal"><b>Site completes the stage</b><span class="muted small">Checklist done, photos posted, and the developer requests release.</span></li><li class="reveal"><b>Independent check</b><span class="muted small">A licensed engineer or inspector confirms the work on site.</span></li><li class="reveal"><b>Investor approves</b><span class="muted small">One tap to approve, or raise a dispute and the money stays put.</span></li><li class="reveal"><b>Funds released</b><span class="muted small">The developer is paid for that stage. Every step is on record.</span></li></ol></section>
+  <section class="sec stagesec"><div class="plan-wrap">${PLAN}</div><div class="sec-h"><p class="eyebrow">Built for Nigerian sites</p><h2 class="sh">Every stage, from approvals to keys</h2></div>
+    <div class="chips">${pr.phases.map((x,i)=>`<button class="chip c${i%4}" data-act="phase-chip" data-i="${i}" aria-pressed="${S.home.phase===i}">${esc(x.name)}</button>`).join("")}</div>
+    <div class="phase-detail reveal">${(()=>{const g=pr.phases[S.home.phase].name,ss=stagesFor({floors:2}).filter(s=>s.group===g);return `<b>${esc(g)}</b><span class="muted small">${ss.reduce((a,s)=>a+s.items.length,0)} checklist items${ss.length>1?" across "+ss.length+" floors":""}</span><ul>${ss[0].items.slice(0,6).map(i=>`<li>${esc(i.label)}</li>`).join("")}</ul>`;})()}</div>
+    <p class="muted" style="max-width:66ch">Checklists follow how buildings go up in Lagos: LASPPPA permits, LASBCA stage inspections, German floor, decking for each floor, bio-digesters, stamped concrete and the Certificate of Completion and Fitness for Habitation.</p></section>
+  <section class="sec pricing" id="pricing"><div class="sec-h center"><p class="eyebrow">Pricing</p><h2 class="sh">Simple pricing. Pay per project.</h2><p class="muted">The developer pays. Site engineers and investors always join free.</p>
+    <div class="billing" role="group" aria-label="Billing period"><button data-act="billing" data-v="0" aria-pressed="${!annual}">Monthly</button><button data-act="billing" data-v="1" aria-pressed="${annual}">Yearly <span class="save">2 months free</span></button></div></div>
+    <div class="plans">
+      <div class="plan-card reveal"><span class="plan-name">Single site</span><div class="plan-price"><b class="num">${naira(annual?250000:25000)}</b><span>per project / ${annual?"year":"month"}</span></div><p class="muted small">For a developer running one or a few sites.</p>
+        <ul class="ticks"><li>Unlimited site engineers and investors</li><li>Daily updates, photos and stage checklists</li><li>Investor updates and PDF reports</li><li>Budget against progress</li></ul><a class="btn pri" href="#signup">Get started</a></div>
+      <div class="plan-card hot reveal"><span class="badge">Most popular</span><span class="plan-name">Portfolio</span><div class="plan-price"><b class="num">${naira(annual?220000:22000)}</b><span>per project / ${annual?"year":"month"}</span></div><p class="muted small">5 or more active projects.</p>
+        <ul class="ticks"><li>Everything in Single site</li><li>All sites on one dashboard</li><li>Priority support on WhatsApp</li><li>Help onboarding your site teams</li></ul><a class="btn amber" href="#signup">Get started</a></div>
+      <div class="plan-card reveal"><span class="plan-name">Enterprise</span><div class="plan-price"><b>Custom</b><span>for 20+ sites</span></div><p class="muted small">Construction firms and fund managers.</p>
+        <ul class="ticks"><li>Everything in Portfolio</li><li>Reports with your company branding</li><li>Independent site verification visits</li><li>Dedicated account manager</li></ul><a class="btn" href="#signup">Talk to us</a></div>
+    </div>
+    <div class="calc reveal"><div><label for="calc-n"><b>How many projects are you running?</b></label><div class="calc-row"><input type="range" id="calc-n" min="1" max="20" value="${n}"><b class="num calc-n">${n}</b></div></div>
+      <div class="calc-out"><span class="muted small">Your ${annual?"yearly":"monthly"} cost</span><b class="num" id="calc-total">${naira(total)}</b><span class="muted small" id="calc-note">${n>=5?"Portfolio rate applied":"Add "+(5-n)+" more for the Portfolio rate"}</span></div></div>
+  </section>
+  <section class="sec" id="faq"><div class="sec-h"><p class="eyebrow">Questions</p><h2 class="sh">Frequently asked</h2></div>
+    <div class="faq">${FAQ.map(([q,a])=>`<details class="reveal"><summary>${esc(q)}</summary><p class="muted">${esc(a)}</p></details>`).join("")}</div></section>
+  <section class="cta-band">${BLUEPRINT}<div class="cta-in"><h2>Every stage, on record. Put your next site on TrailConstruct.</h2><p>Set up a project in five minutes and send your first investor update this week.</p><div class="actions"><a class="btn amber lg" href="#signup">Get started</a><a class="btn outline lg" href="#demo">Take the product tour</a></div></div></section>
+  <footer class="hfoot"><span class="brand" style="font-size:1.1rem"><span class="mark" aria-hidden="true"></span>TrailConstruct</span><span>Every stage, on record. · Lagos, Nigeria</span></footer>`;
+}
+const FEED=["Eng. on site posted: tiling done in Block A","Developer sent an update with 4 photos","Investor downloaded the weekly PDF report","Checklist: sanitary fittings, Block B ✓","Weekly report received from site"];
+
+/* ---------- SIGN UP / ONBOARDING ---------- */
+const ONB_STEPS=["Your account","Your project","Progress so far","Your team","Plan"];
+function signupView(){
+  const o=S.onb,d=o.d,st=o.step;
+  const phases=progress({floors:+d.floors||0,checks:{}}).phases;
+  const prev=(()=>{const p={floors:+d.floors||0,checks:{}};const pr0=progress(p);const done=new Set(pr0.phases.slice(0,d.phase).map(x=>x.name));stagesFor(p).forEach(s=>{if(done.has(s.group))s.items.forEach(i=>p.checks[i.id]=true);});return progress(p);})();
+  const inp=(k,label,type,ph,req)=>`<label class="f" for="o-${k}">${label}<input type="${type||"text"}" id="o-${k}" data-onb="${k}" value="${esc(d[k]??"")}" ${ph?`placeholder="${esc(ph)}"`:""} ${req?"required":""}></label>`;
+  let body="";
+  if(st===0)body=`<h2>Create your developer account</h2><p class="muted small">You'll manage projects and invite your team. Engineers and investors don't need to sign up themselves.</p>
+    <div class="row">${inp("name","Full name","text","e.g. Seun Mosaku",1)}${inp("company","Company","text","e.g. Uriel Properties",1)}</div>
+    <div class="row">${inp("email","Work email","email","you@company.com",1)}${inp("phone","Phone (WhatsApp)","text","+234")}</div>
+    ${S.mode==="cf"&&!S.me?`<label class="f" for="o-pass">Create a password<input type="password" id="o-pass" required minlength="8" autocomplete="new-password"></label>`:""}
+    ${S.mode==="cf"&&S.me?`<p class="small muted">Signed in as ${esc(S.me.email)}. This project will be added to your account.</p>`:""}`;
+  if(st===1)body=`<h2>Add your first project</h2><p class="muted small">You can add more projects later.</p>
+    ${inp("pname","Project name","text","e.g. Banana Island Semi-Detached",1)}
+    <div class="row">${inp("loc","Location","text","Street, area, Lagos")}${inp("units","Units","text","e.g. 4 semi-detached in 2 blocks")}</div>
+    <div class="row"><label class="f" for="o-floors">Floors above ground<select id="o-floors" data-onb="floors">${[0,1,2,3,4,5,6,8,10,12,15,20].map(n=>`<option value="${n}" ${+d.floors===n?"selected":""}>${n===0?"Bungalow":"G+"+n}</option>`).join("")}</select></label>${inp("budget","Budget (₦, optional)","number")}</div>
+    <div class="row">${inp("start","Start date","date")}${inp("target","Target completion","date")}</div>
+    <div class="row">${inp("gps","Site GPS (lat, lng or Google Maps link)","text","Open the site in Google Maps, copy the link")}</div>
+    <div class="fund"><b class="small">How is this project funded?</b><div class="fund-opts"><button type="button" data-act="onb-pay" data-v="upfront" aria-pressed="${d.payMode!=="milestone"}"><b>Paid up front</b><span class="small muted">Fully funded. No payment tracking.</span></button><button type="button" data-act="onb-pay" data-v="milestone" aria-pressed="${d.payMode==="milestone"}"><b>Milestone payments</b><span class="small muted">Money released stage by stage after verification.</span></button></div>
+    ${d.payMode==="milestone"?inp("contract","Contract sum (₦)","number","e.g. 450000000"):""}</div>`;
+  if(st===2)body=`<h2>Where is the project now?</h2><p class="muted small">Tap the phase work is on now. Everything before it is marked done, and you can fine-tune the checklist later.</p>
+    <div class="phase-pick">${phases.map((x,i)=>`<button type="button" data-act="onb-phase" data-i="${i}" class="${i<d.phase?"done":i===d.phase?"cur":""}"><span class="pp-dot">${i<d.phase?"✓":i+1}</span>${esc(x.name)}</button>`).join("")}</div>
+    <div class="onb-prev">${ring(prev.overall,88)}<div><b>${esc(phases[d.phase]?phases[d.phase].name:"Complete")}</b><p class="small muted">Starting progress: ${Math.round(prev.overall*100)}%</p></div></div>`;
+  if(st===3)body=`<h2>Invite your team</h2><p class="muted small">Optional. You can also share the project link later.</p>
+    ${["engineer","investor"].map(r=>`<div class="team-block"><b>${r==="engineer"?"Site engineers":"Investors"}</b>${d.team.filter(t=>t.role===r).map(t=>`<div class="team-row"><span>${esc(t.name)}</span><span class="muted small">${esc(t.email)}</span><button type="button" class="link small" data-act="onb-rm" data-i="${d.team.indexOf(t)}">Remove</button></div>`).join("")}
+      <div class="row"><label class="f" for="t-${r}-n">Name<input type="text" id="t-${r}-n" placeholder="${r==="engineer"?"e.g. Eng. Wale":"e.g. Mrs Adeyemi"}"></label><label class="f" for="t-${r}-e">Email<input type="email" id="t-${r}-e"></label></div>
+      <div><button type="button" class="btn sm" data-act="onb-add" data-role="${r}">Add ${r==="engineer"?"engineer":"investor"}</button></div></div>`).join("")}`;
+  if(st===4){const n=1,rate=25000;body=`<h2>Your plan</h2>
+    <div class="billing" role="group" aria-label="Billing period"><button type="button" data-act="onb-bill" data-v="0" aria-pressed="${!d.annual}">Monthly</button><button type="button" data-act="onb-bill" data-v="1" aria-pressed="${!!d.annual}">Yearly <span class="save">2 months free</span></button></div>
+    <div class="summary"><div><span class="muted small">Plan</span><b>Single site</b></div><div><span class="muted small">Project</span><b>${esc(d.pname||"Your project")}</b></div><div><span class="muted small">Team invited</span><b>${d.team.length}</b></div><div class="sum-total"><span class="muted small">Total</span><b class="num">${naira(d.annual?rate*10:rate)}</b><span class="small muted">per ${d.annual?"year":"month"}</span></div></div>
+    <p class="note">Billing isn't connected in this prototype, so no payment is taken. Card and bank transfer payments come with the full build.</p>`;}
+  return `<div class="onb">${BLUEPRINT}<div class="onb-box">
+    <div class="onb-top"><a class="brand" href="#home"><span class="mark" aria-hidden="true"></span>TrailConstruct</a><span class="small muted">Step ${st+1} of ${ONB_STEPS.length}</span></div>
+    <ol class="onb-steps">${ONB_STEPS.map((x,i)=>`<li class="${i<st?"done":i===st?"cur":""}"><i></i><span>${x}</span></li>`).join("")}</ol>
+    <form id="onb-form" class="onb-body">${body}
+      <div class="actions onb-nav">${st>0?`<button type="button" class="btn" data-act="onb-back">Back</button>`:`<a class="btn ghost" href="#home">Cancel</a>`}<span style="flex:1"></span>
+      <button class="btn ${st===4?"amber":"pri"}" type="submit" ${S.busy?"disabled":""}>${st===4?(S.busy?"Creating…":"Create project"):st===3?(d.team.length?"Continue":"Skip for now"):"Continue"}</button></div></form>
+    <p class="small muted" style="text-align:center">Already have an account? <a class="link" href="#signin">Sign in</a></p>
+  </div></div>`;
+}
+
+
+/* ---------- GUIDED DEMO ---------- */
+const DEMO=[
+  {who:"Developer",c:"s2",t:"Sign up and add your project",d:"Create a developer account, then add the site: name, location, units, number of floors, budget and dates. TrailConstruct builds the full stage checklist for that building automatically.",
+   m:`<div class="mk"><div class="mk-h">Add your first project</div><div class="mk-f"><span>Project name</span><b>Banana Island Semi-Detached</b></div><div class="mk-row"><div class="mk-f"><span>Location</span><b>Banana Island, Ikoyi</b></div><div class="mk-f"><span>Floors</span><b>G+2</b></div></div><div class="mk-f"><span>Units</span><b>4 semi-detached in 2 blocks</b></div><div class="mk-btn">Continue</div></div>`},
+  {who:"Developer",c:"s2",t:"Mark where the site is today",d:"Tap the phase work is on now. Everything before it is ticked off, so a project that's already halfway starts at the right percentage.",
+   m:`<div class="mk"><div class="mk-h">Where is the project now?</div><div class="mk-phases">${["Pre-construction","Setting out","Foundation","Frame","Roofing","M&E first fix","Plastering","Finishes"].map((x,i)=>`<span class="${i<7?"d":"c"}">${i<7?"✓ ":""}${x}</span>`).join("")}</div><div class="mk-ringrow"><span class="mk-ring">66%</span><div><small>Starting progress</small><b>Finishes</b></div></div></div>`},
+  {who:"Developer",c:"s2",t:"Invite the site team and investors",d:"Add your site engineers and investors by name and email. Engineers and investors join free. Only the developer pays.",
+   m:`<div class="mk"><div class="mk-h">Invite your team</div><div class="mk-person"><i>WA</i><div><b>Eng. Wale</b><small>Site engineer</small></div></div><div class="mk-person"><i>HK</i><div><b>Eng. Hakeem</b><small>Site engineer</small></div></div><div class="mk-person inv"><i>AO</i><div><b>Mrs Adeyemi</b><small>Investor · London</small></div></div><div class="mk-btn">Create project</div></div>`},
+  {who:"Site engineer",c:"s1",t:"The engineer posts from site every day",d:"At close of work the engineer logs the stage, the work done, workers on site, the weather and any issues, then adds photos from the phone. It takes about a minute.",
+   m:STEPS[0].mock},
+  {who:"Site engineer",c:"s1",t:"Request materials, log the store",d:"No more 'Oga, send money for cement' calls. The engineer raises a request, the developer approves it in one tap, and every delivery and every bag used goes into the site store log. Gaps are flagged.",
+   m:`<div class="mk"><div class="mk-h">Store balance</div>${[["Cement 42.5","600","540","60",""],["Iron rods 12mm","180","195","-15","bad"],["Tiles 60×60","420","300","120",""]].map(r=>`<div class="mk-stock ${r[4]}"><span>${r[0]}</span><b>${r[3]}</b></div>`).join("")}<div class="mk-banner" style="background:var(--rose);color:var(--rose-ink)">Iron rods: used more than delivered</div><div class="mk-btn">Request materials</div></div>`},
+  {who:"Site engineer",c:"s1",t:"Friday: the weekly report",d:"A reminder appears every week. The engineer writes a short summary and plan, and the week's updates, photos and issues are attached automatically. If it's late, the developer sees it in red.",
+   m:`<div class="mk"><div class="mk-banner">Weekly report due Friday · 2 days left</div><div class="mk-row"><div class="mk-f"><span>Updates</span><b>5</b></div><div class="mk-f"><span>Avg workers</span><b>16</b></div><div class="mk-f"><span>Photos</span><b>12</b></div></div><div class="mk-f"><span>Summary</span><b>Tiling done in both blocks. Plumbing 2nd fix started.</b></div><div class="mk-btn">Send to developer</div></div>`},
+  {who:"Developer",c:"s2",t:"The developer reviews and curates",d:"The dashboard flags new reports, quiet sites and investor requests. One tap turns the engineer's weekly report into an investor update. The developer picks the photos and edits the briefing.",
+   m:STEPS[1].mock},
+  {who:"Investor",c:"s3",t:"The investor sees clear progress",d:"Wherever they are, the investor opens one page: percent complete, now and next, a schedule check, milestones and a gallery of every photo shared. They can also ask for an update.",
+   m:STEPS[2].mock},
+  {who:"Investor",c:"s3",t:"Approve payment for verified work",d:"On milestone-funded projects, money moves only when a stage is complete, checked by an independent inspector and approved by the investor. The escrow partner then releases that stage's funds.",
+   m:`<div class="mk"><div class="mk-h">Roof on · ₦67,500,000</div><ol class="pipe"><li class="on"><i></i><span>Requested</span></li><li class="on"><i></i><span>Verified</span></li><li><i></i><span>Approved</span></li><li><i></i><span>Paid</span></li></ol><div class="mk-f"><span>Verified by</span><b>Engr. Bello, independent inspector</b></div><div class="mk-ph"><i></i><i></i><i></i><i></i></div><div class="mk-row"><div class="mk-btn">Approve release</div><div class="mk-btn" style="background:var(--sunk);color:var(--ink)">Dispute</div></div></div>`},
+  {who:"Investor",c:"s3",t:"Download the full PDF report",d:"Every update becomes a branded PDF with the briefing, progress by phase, budget (if included) and site photos. Ready for records, co-investors or the bank.",
+   m:`<div class="mk pdf"><div class="pdf-h"><b>TrailConstruct</b><small>Investor progress report</small></div><div class="pdf-b"><b>Banana Island Semi-Detached</b><small>Progress update, 16 Nov 2026</small><div class="pdf-big">66%<small> complete</small></div>${[["Foundation",100],["Frame",100],["Roofing",100],["Finishes",13],["Handover",0]].map(([n,v])=>`<div class="pdf-r"><span>${n}</span><i><i style="width:${v}%"></i></i></div>`).join("")}<div class="mk-ph"><i></i><i></i><i></i><i></i></div></div></div>`}
+];
+function demoView(){
+  const i=S.demo.i,x=DEMO[i];
+  return `<div class="demo-page">${BLUEPRINT}
+  <header class="demo-head"><a class="brand" href="#home"><span class="mark" aria-hidden="true"></span>TrailConstruct</a><span class="kicker" style="margin:0">Product tour</span><span class="sp"></span><a class="btn outline sm" href="#home">Close tour</a></header>
+  <div class="demo-body">
+    <div class="demo-copy"><span class="who-tag ${x.c}">${esc(x.who)}</span><p class="demo-count num">Step ${i+1} of ${DEMO.length}</p><h1>${esc(x.t)}</h1><p class="lead">${esc(x.d)}</p>
+      <div class="actions">${i>0?`<button class="btn outline" data-act="demo-go" data-i="${i-1}">Back</button>`:""}${i<DEMO.length-1?`<button class="btn amber" data-act="demo-go" data-i="${i+1}">Next</button>`:`<a class="btn amber" href="#signup">Start my project</a>`}
+      <button class="btn outline" data-act="demo-play" aria-pressed="${S.demo.play}">${S.demo.play?"Pause":"Autoplay"}</button></div></div>
+    <div class="demo-stage" key="${i}">${x.m}</div>
+  </div>
+  <nav class="demo-dots" aria-label="Tour steps">${DEMO.map((s,k)=>`<button data-act="demo-go" data-i="${k}" aria-current="${k===i?"step":"false"}" class="${s.c}"><i></i><span>${esc(s.t)}</span></button>`).join("")}</nav>
+  </div>`;
+}
+
+/* ---------- home interactivity ---------- */
+let homeTimers=[];
+function clearHomeTimers(){homeTimers.forEach(clearInterval);homeTimers=[];}
+const reduce=()=>window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+function afterRender(){
+  clearHomeTimers();
+  if(S.view==="home"){
+    let fi=0;const fe=document.getElementById("feed");
+    if(fe&&!reduce())homeTimers.push(setInterval(()=>{fi=(fi+1)%FEED.length;fe.classList.remove("in");void fe.offsetWidth;fe.textContent=FEED[fi];fe.classList.add("in");},3200));
+    if(S.home.auto&&!reduce())homeTimers.push(setInterval(()=>{if(!S.home.auto)return;S.home.step=(S.home.step+1)%STEPS.length;const y=window.scrollY;render();window.scrollTo(0,y);},7000));
+    if("IntersectionObserver" in window&&!reduce()){
+      const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add("pop");S.seen.add(+e.target.dataset.ri);io.unobserve(e.target);}}),{threshold:.15});
+      document.querySelectorAll(".reveal").forEach((el,i)=>{el.dataset.ri=i;if(!S.seen.has(i))io.observe(el);});
+      const io2=new IntersectionObserver(es=>es.forEach(e=>{if(!e.isIntersecting)return;io2.unobserve(e.target);const el=e.target,to=+el.dataset.count;if(S.counted.has(to+el.nextElementSibling.textContent))return;S.counted.add(to+el.nextElementSibling.textContent);let s=null;const f=t=>{s=s||t;const k=Math.min(1,(t-s)/1100);el.textContent=Math.round(to*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(f);};requestAnimationFrame(f);}),{threshold:.4});
+      document.querySelectorAll("[data-count]").forEach(el=>io2.observe(el));
+    }
+  }
+  if(S.view==="demo"&&S.demo.play&&!reduce())homeTimers.push(setInterval(()=>{if(S.demo.i<DEMO.length-1){S.demo.i++;render();}else{S.demo.play=false;render();}},6000));
+}
+
+
+/* ---------- SIGN IN ---------- */
+function signinView(){
+  return `<div class="auth"><div class="auth-box">
+    <a class="brand" href="#home"><span class="mark" aria-hidden="true"></span>TrailConstruct</a>
+    <div><h2>Sign in</h2><p class="muted small">Choose your role to open your workspace.</p></div>
+    <div class="pick">
+      <button type="button" data-act="signin" data-role="developer"><span class="ic">D</span><b>Developer</b><span class="small muted">Manage sites, review reports, update investors</span></button>
+      <button type="button" data-act="signin" data-role="engineer"><span class="ic">E</span><b>Site engineer</b><span class="small muted">Post daily updates and weekly reports</span></button>
+      <button type="button" data-act="signin" data-role="investor"><span class="ic">I</span><b>Investor</b><span class="small muted">See progress and download reports</span></button>
+    </div>
+    <p class="small" style="text-align:center">New to TrailConstruct? <a class="link" href="#signup">Create an account</a></p>
+    <p class="note">Prototype: choosing a role opens that workspace. Email accounts and passwords come with the full build.</p>
+    <a class="link small" href="#home">Back to home</a>
+  </div></div>`;
+}
+
+/* ---------- APP SHELL ---------- */
+function shell(role,tabs,body,narrow){
+  const cur=S.tab[role];
+  return `<header class="apphead"><div class="apphead-in"><a class="brand" href="#home"><span class="mark" aria-hidden="true"></span>TrailConstruct</a>
+    <span class="who">${ROLE_LABEL[role]}</span><span class="sp"></span>
+    ${S.projects.length>1?`<label class="sr" for="proj">Project</label><select id="proj" class="proj">${S.projects.map(p=>`<option value="${esc(p.id)}" ${p.id===S.pid?"selected":""}>${esc(p.name)}</option>`).join("")}</select>`:""}
+    <button class="btn sm ghost" data-act="signout">Sign out</button></div>
+    ${tabs?`<nav class="tabs" role="tablist">${tabs.map(([k,l,n])=>`<button role="tab" data-act="tab" data-role="${role}" data-tab="${k}" aria-selected="${cur===k}">${l}${n?`<span class="count">${n}</span>`:""}</button>`).join("")}</nav>`:""}
+  </header><main class="${narrow?"narrow":""}">${S.mode==="memory"?`<p class="note">Preview mode: changes aren't saved here. Open the published page to save.</p>`:""}${!S.canWrite&&role!=="investor"?`<p class="note">You have view access only.</p>`:""}${body}</main>`;
+}
+function noProject(role){
+  return shell(role,null,`<div class="card"><h2>No projects yet</h2>${role==="developer"&&S.canWrite?`<p class="muted">Add your first site to start tracking.</p><div><button class="btn pri" data-act="new-project">Add a project</button></div>`:`<p class="muted">${S.mode==="cf"?"You're not on a project yet. Ask your developer for an invite link, or set up your own project.":"Your developer hasn't added a project yet."}</p>${S.mode==="cf"?`<div class="actions"><a class="btn pri" href="#signup">Set up a project</a></div>`:""}`}</div>`);
+}
+
+/* ---------- DEVELOPER ---------- */
+function devView(p){
+  const pr=progress(p),logs=logsOf(p.id),reps=reportsOf(p.id),ups=updatesOf(p.id);
+  const newReps=reps.filter(r=>r.status!=="used").length;
+  const pendReq=reqOf(p.id).filter(r=>r.status==="pending").length,msAct=msOf(p.id).filter(m=>m.status==="requested"||m.status==="approved").length;
+  const tabs=[["overview","Overview"],["site","Site reports",newReps],["investor","Investor updates"],["materials","Materials",pendReq],...(p.payMode==="milestone"?[["payments","Payments",msAct]]:[]),["stages","Stages"],["budget","Budget"],["project","Project"]];
+  const t=S.tab.developer;let body="";
+  if(t==="overview"){
+    const last=logs[0],ago=last?daysSince(last.date):null,lastUp=ups[0],upAgo=lastUp?daysSince(lastUp.date):null;
+    const todo=[];
+    reps.filter(r=>r.status!=="used").slice(0,3).forEach(r=>todo.push(["",`New weekly report from ${esc(r.by||"site")} (week of ${esc(fmtS(r.weekStart))})`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="site">Review</button>`]));
+    S.requests.filter(r=>r.pid===p.id&&!r.resolved).slice(0,1).forEach(r=>todo.push(["crit",`Your investor asked for an update on ${esc(fmtS(r.createdAt))}`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="investor">Send update</button>`]));
+    if(upAgo==null||upAgo>7)todo.push(["",upAgo==null?"Your investor hasn't had an update yet":`Last investor update was ${upAgo} days ago`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="investor">Create update</button>`]);
+    {const pr2=reqOf(p.id).filter(r=>r.status==="pending");if(pr2.length)todo.push(["",`${pr2.length} material request${pr2.length>1?"s":""} waiting for approval`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="materials">Review</button>`]);}
+    if(stockRows(p.id).some(r=>r.flag==="crit"))todo.push(["crit","Store log shows materials used beyond what was delivered",`<button class="btn sm" data-act="tab" data-role="developer" data-tab="materials">Check store</button>`]);
+    if(p.payMode==="milestone")msOf(p.id).forEach(m=>{if(m.status==="pending"&&phasePct(p,m.phase)>=.999)todo.push(["ok",`"${esc(m.name)}" is ready. Request release of ${naira(m.amount)}`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="payments">Open</button>`]);if(m.status==="requested")todo.push(["",`Record verification for "${esc(m.name)}"`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="payments">Open</button>`]);if(m.status==="approved")todo.push(["ok",`Investor approved "${esc(m.name)}". Confirm when the money arrives`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="payments">Open</button>`]);if(m.status==="disputed")todo.push(["crit",`Investor disputed "${esc(m.name)}"`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="payments">Open</button>`]);});
+    if(p.siteLat==null||p.siteLat==="")todo.push(["","Add the site's GPS location so photos can be checked as taken on site",`<button class="btn sm" data-act="edit-project">Add location</button>`]);
+    if(ago==null||ago>3)todo.push(["crit",ago==null?"No site updates yet":`No site update for ${ago} days`,""]);
+    const ws=weekStatus(p.id);if(ws.late)todo.push(["crit","This week's site report is overdue",waLink(`Hi, this week's TrailConstruct report for ${p.name} is overdue. Please send it today.`,"Remind on WhatsApp")]);else if(!ws.report&&ws.left<=2)todo.push(["","Weekly site report due Friday",waLink(`Hi, reminder: this week's TrailConstruct report for ${p.name} is due Friday ${fmtS(ymd(ws.w.fri))}.`,"Remind on WhatsApp")]);
+    body=`<section class="card"><div class="card-h"><div><h2>${esc(p.name)}</h2><p class="small muted">${esc([p.location,p.units,+p.floors?"G+"+p.floors:"Bungalow"].filter(Boolean).join(" · "))}</p></div></div>
+      ${phaseStrip(pr)}
+      <div class="stats"><div class="stat"><b>${esc(pr.current?pr.current.name:"Complete")}</b><span>Current stage</span></div>
+        <div class="stat"><b class="num">${ago==null?"—":ago===0?"Today":ago+"d ago"}</b><span>Last site update</span></div>
+        <div class="stat"><b class="num">${upAgo==null?"None":upAgo===0?"Today":upAgo+"d ago"}</b><span>Last investor update</span></div>
+        <div class="stat"><b class="num">${ws.report?"In":"Due Fri"}</b><span>Weekly site report</span></div></div></section>
+    <section class="card"><h2>To do</h2>${todo.length?`<ul class="todo">${todo.map(([c,txt,btn])=>`<li class="${c}"><span>${txt}</span>${btn}</li>`).join("")}</ul>`:`<ul class="todo"><li class="ok"><span>All caught up.</span></li></ul>`}</section>
+    <section class="card"><div class="card-h"><h2>Latest from site</h2><button class="link small" data-act="tab" data-role="developer" data-tab="site">See all</button></div>${logs.length?`<div class="list">${logs.slice(0,2).map(l=>logHTML(p,l)).join("")}</div>`:`<div class="empty">Nothing posted yet.</div>`}</section>`;
+  }
+  if(t==="site"){
+    body=`<div class="grid2"><section class="card"><h2>Weekly reports</h2>${reps.length?reps.map(r=>engReportHTML(p,r,true)).join(""):`<div class="empty">No weekly reports yet. Engineers send one every Friday.</div>`}</section>
+      <section class="card"><h2>Daily site diary</h2>${logs.length?`<div class="list">${logs.slice(0,15).map(l=>logHTML(p,l)).join("")}</div>`:`<div class="empty">No daily updates yet.</div>`}</section></div>`;
+  }
+  if(t==="investor")body=composeView(p,pr,ups);
+  if(t==="materials")body=materialsView(p,"developer");
+  if(t==="payments")body=paymentsView(p,"developer");
+  if(t==="stages")body=`<section class="card"><div class="card-h"><h2>Stages</h2><span class="small muted">Tap a stage to open its checklist</span></div>${phaseStrip(pr)}${stageList(p)}</section>`;
+  if(t==="budget"){
+    const exps=expOf(p.id),spent=exps.reduce((a,e)=>a+(+e.amount||0),0),budget=+p.budget||0;
+    body=`<section class="card"><h2>Budget</h2>
+      <div class="stats"><div class="stat"><b class="num">${budget?naira(budget):"Not set"}</b><span>Budget</span></div><div class="stat"><b class="num">${naira(spent)}</b><span>Spent</span></div>
+      <div class="stat"><b class="num">${budget?Math.round(spent/budget*100)+"%":"—"}</b><span>Of budget used</span></div><div class="stat"><b class="num">${Math.round(pr.overall*100)}%</b><span>Of work done</span></div></div>
+      ${budget?bar(spent/budget,spent>budget?"over":""):`<p class="small muted">Set the budget in the Project tab to compare spend against progress.</p>`}</section>
+    <div class="grid2">${S.canWrite?`<section class="card"><h3>Add expense</h3><form id="exp-form">
+      <label class="f" for="ex-item">Item<input type="text" id="ex-item" required placeholder="e.g. 400 bags of cement"></label>
+      <div class="row"><label class="f" for="ex-amt">Amount (₦)<input type="number" id="ex-amt" min="0" step="1" required></label><label class="f" for="ex-date">Date<input type="date" id="ex-date" value="${ymd(new Date())}"></label></div>
+      <label class="f" for="ex-stage">Stage<select id="ex-stage">${pr.stages.map(s=>`<option value="${s.id}" ${pr.current&&pr.current.id===s.id?"selected":""}>${esc(s.name)}</option>`).join("")}</select></label>
+      <div><button class="btn pri" type="submit">Add expense</button></div></form></section>`:""}
+    <section class="card"><h3>Recent spending</h3>${exps.length?`<div>${exps.slice(0,15).map(e=>`<div class="exp"><span>${esc(e.item)}</span><b class="num">${naira(e.amount)}</b><span class="small muted">${esc(stageName(p,e.stage))} · ${esc(fmtS(e.date))}</span>${S.canWrite?`<button class="link small" data-act="del-exp" data-id="${e.id}">Remove</button>`:"<span></span>"}</div>`).join("")}</div>`:`<div class="empty">No expenses recorded.</div>`}</section></div>`;
+  }
+  if(t==="project"){
+    body=(S.mode==="cf"?teamSection(p):"")+`<section class="card"><div class="card-h"><h2>Project details</h2>${S.canWrite?`<div class="actions"><button class="btn sm" data-act="edit-project">Edit</button><button class="btn sm" data-act="new-project">Add another project</button></div>`:""}</div>
+      <dl class="kv"><dt>Name</dt><dd>${esc(p.name)}</dd><dt>Location</dt><dd>${esc(p.location||"—")}</dd><dt>Units</dt><dd>${esc(p.units||"—")}</dd><dt>Floors</dt><dd>${+p.floors?"Ground + "+p.floors:"Bungalow"}</dd><dt>Developer</dt><dd>${esc(p.client||"—")}</dd><dt>Budget</dt><dd>${+p.budget?naira(p.budget):"Not set"}</dd><dt>Start</dt><dd>${esc(fmtD(p.startDate)||"Not set")}</dd><dt>Target completion</dt><dd>${esc(fmtD(p.targetDate)||"Not set")}</dd><dt>Site GPS</dt><dd>${p.siteLat!=null&&p.siteLat!==""?esc((+p.siteLat).toFixed(5)+", "+(+p.siteLng).toFixed(5))+" · photos within "+(+p.siteRadius||200)+" m"+(p.strictGps?" · GPS required":""):"Not set. Add it so site photos can be checked."}</dd><dt>Funding</dt><dd>${p.payMode==="milestone"?"Milestone payments"+(+p.contractSum?" · "+naira(p.contractSum):""):"Paid up front"}</dd></dl></section>
+    ${(p.team||[]).length?`<section class="card"><h2>Team</h2><div>${p.team.map(t=>`<div class="exp"><span>${esc(t.name)}</span><span class="pill ${t.role==="investor"?"ok":"active"}">${t.role==="investor"?"Investor":"Site engineer"}</span><span class="small muted">${esc(t.email||"")}</span><span></span></div>`).join("")}</div></section>`:""}
+    <section class="card"><h2>Team access</h2><p class="muted">Share this page from its menu. Give site engineers <b>Contributor</b> access so they can post updates and photos. Investors can be <b>Viewers</b>: they only open the Investor workspace and see updates you send.</p></section>`;
+  }
+  return shell("developer",tabs,body);
+}
+function composeView(p,pr,ups){
+  const d=S.draft,photos=sitePhotos(p.id).slice(0,40),all=[...d.extra,...photos];
+  const selN=d.sel.length;
+  return `<div class="grid2">
+  <section class="card"><div><h2>New investor update</h2><p class="small muted">Investors only see what you send here. Pick photos from site reports or upload your own.</p></div>
+    ${S.canWrite?`<form id="upd-form">
+      <label class="f" for="up-title">Title<input type="text" id="up-title" required value="${esc(d.title||("Progress update, "+fmtD(ymd(new Date()))))}"></label>
+      <label class="f" for="up-brief">Briefing<textarea id="up-brief" required placeholder="What happened since the last update, in plain words">${esc(d.briefing)}</textarea></label>
+      <label class="f" for="up-next">What's next<textarea id="up-next" style="min-height:60px" placeholder="The next milestone and when you expect it">${esc(d.next)}</textarea></label>
+      <div style="display:grid;gap:8px"><div class="card-h"><b class="small">Photos</b><span class="small muted">${selN} selected</span></div>
+        ${all.length?`<div class="photos">${all.map(ph=>{const on=d.sel.includes(ph.id);return `<button type="button" class="ph sel" data-act="pick" data-id="${esc(ph.id)}" aria-pressed="${on}" aria-label="Select photo"><img src="${esc(src(ph))}" alt="" loading="lazy"><span class="tick">${on?"✓":""}</span>${ph.cap?`<span class="cap">${esc(ph.cap)}</span>`:""}</button>`;}).join("")}</div>`:`<p class="small muted">No site photos yet.</p>`}
+        ${S.assets||S.mode==="memory"?`<div class="upl"><label class="small" for="up-files"><b>Upload your own</b></label><input type="file" id="up-files" accept="image/*" multiple data-act="dev-upload"></div>`:""}
+      </div>
+      <label class="chk"><input type="checkbox" id="up-budget" ${d.budget?"checked":""}> Include budget summary</label>
+      <div class="actions"><button class="btn pri" type="submit" ${S.busy?"disabled":""}>${S.busy?esc(S.busy):"Send to investor"}</button>${d.briefing||selN?`<button class="btn" type="button" data-act="clear-draft">Clear</button>`:""}</div>
+    </form>`:`<div class="empty">You have view access only.</div>`}
+  </section>
+  <section class="card"><h2>Sent updates</h2>${ups.length?`<div>${ups.map(u=>`<div class="upd-row"><div><b>${esc(u.title)}</b><p class="small muted">${esc(fmtD(u.date))} · ${(u.photos||[]).length} photos</p></div><div class="actions">${waLink(`${u.title}: ${p.name} is ${Math.round(((u.snapshot||{}).overall||0)*100)}% complete. ${(u.briefing||"").slice(0,220)} Open TrailConstruct for photos and the full PDF report.`,"Share")}${S.downloads?`<button class="btn sm" data-act="pdf" data-id="${u.id}">PDF</button>`:""}${S.canWrite?`<button class="btn sm ghost" data-act="del-update" data-id="${u.id}">Delete</button>`:""}</div></div>`).join("")}</div>`:`<div class="empty">Nothing sent yet.</div>`}</section>
+  </div>`;
+}
+
+/* ---------- ENGINEER ---------- */
+function engView(p){
+  const pr=progress(p),ws=weekStatus(p.id),me=ls.get("st.name")||"",wlogs=logsOf(p.id).filter(l=>l.date>=ws.w.key);
+  const tabs=[["today","Today"],["weekly","Weekly report",ws.report?0:(ws.late?"!":0)],["materials","Materials"],["stages","Checklist"],["history","History"]];
+  const t=S.tab.engineer;let body="";
+  let ban;
+  if(ws.report)ban=`<div class="banner done"><div><strong>Weekly report sent</strong><span class="small">Thanks. The developer has it.</span></div></div>`;
+  else if(ws.late)ban=`<div class="banner late"><div><strong>Weekly report overdue</strong><span class="small">It was due Friday ${esc(fmtS(ymd(ws.w.fri)))}.</span></div><button class="btn amber" data-act="tab" data-role="engineer" data-tab="weekly">Write it now</button></div>`;
+  else ban=`<div class="banner due"><div><strong>Weekly report due Friday ${esc(fmtS(ymd(ws.w.fri)))}</strong><span class="small">${ws.left<=0?"Due today":ws.left+" day"+(ws.left===1?"":"s")+" left"} · ${wlogs.length} update${wlogs.length===1?"":"s"} this week</span></div>${t!=="weekly"?`<button class="btn amber" data-act="tab" data-role="engineer" data-tab="weekly">Write report</button>`:""}</div>`;
+  if(t==="today"){
+    const ob=outbox.get().filter(x=>x.pid===p.id),lastMine=logsOf(p.id).find(l=>l.by===me&&l.date===ymd(new Date()));
+    body=ban+(ob.length?`<div class="banner due"><div><strong>${ob.length} update${ob.length>1?"s":""} waiting for signal</strong><span class="small">Saved on this phone. They post automatically when you're back online.</span></div><button class="btn" data-act="flush">Try now</button></div>`:"")
+      +(lastMine?`<div class="banner done"><div><strong>Today's update is posted</strong><span class="small">${esc(lastMine.work.slice(0,90))}</span></div>${waLink(`Site update, ${p.name} (${fmtS(lastMine.date)}): ${lastMine.work}${lastMine.issues?" Issue: "+lastMine.issues:""} Workers: ${lastMine.workers}. Photos on TrailConstruct.`,"Send to developer")}</div>`:"")
+      +`<section class="card"><div><h2>Post today's update</h2><p class="small muted">${esc(p.name)} · now on ${esc(pr.current?pr.current.name:"handover")} · drafts save on this phone as you type</p></div>
+      ${S.canWrite?`<form id="log-form">
+        <div class="row"><label class="f" for="lg-date">Date<input type="date" id="lg-date" value="${ymd(new Date())}" required></label>
+        <label class="f" for="lg-stage">Stage<select id="lg-stage">${pr.stages.map(s=>`<option value="${s.id}" ${pr.current&&pr.current.id===s.id?"selected":""}>${esc(s.name)}</option>`).join("")}</select></label></div>
+        <label class="f" for="lg-work">Work done today<textarea id="lg-work" required placeholder="e.g. Tiled master bedroom and landing, Block A">${esc(logDraft().work||"")}</textarea></label>
+        <div class="row"><label class="f" for="lg-workers">Workers on site<input type="number" id="lg-workers" min="0" step="1" inputmode="numeric" value="${esc(logDraft().workers||"")}"></label>
+        <label class="f" for="lg-weather">Weather<select id="lg-weather"><option>Sunny</option><option>Cloudy</option><option>Light rain</option><option>Heavy rain (work stopped)</option></select></label></div>
+        <label class="f" for="lg-issues">Issues or delays (optional)<input type="text" id="lg-issues" placeholder="e.g. Waiting on sanitary fittings delivery" value="${esc(logDraft().issues||"")}"></label>
+        ${S.assets||S.mode==="memory"?`<div class="cam"><label class="btn amber cam-btn" for="lg-cam">${ICON.cam} Take site photo</label><input type="file" id="lg-cam" accept="image/*" capture="environment" class="sr"><p class="small muted">Photos must be taken live${p.siteLat!=null&&p.siteLat!==""?`, within ${+p.siteRadius||200} m of the site`:""}. Each one is stamped with the date, time and GPS location.</p><div id="shots"></div></div>`:""}
+        <label class="f" for="lg-by">Your name<input type="text" id="lg-by" value="${esc(me)}" placeholder="e.g. Eng. Wale" required></label>
+        <div><button class="btn pri" type="submit" ${S.busy?"disabled":""}>${S.busy?esc(S.busy):"Post update"}</button></div></form>`:`<div class="empty">You have view access only.</div>`}</section>`;
+  }
+  if(t==="weekly"){
+    const avg=wlogs.length?Math.round(wlogs.reduce((a,l)=>a+(+l.workers||0),0)/wlogs.length):0;
+    body=ban+(ws.report?`<section class="card"><h2>This week's report</h2>${engReportHTML(p,ws.report,false)}</section>`:`<section class="card"><h2>Weekly report</h2>
+      <div class="stats" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div class="stat"><b class="num">${wlogs.length}</b><span>Updates</span></div><div class="stat"><b class="num">${avg}</b><span>Avg workers</span></div><div class="stat"><b class="num">${wlogs.reduce((a,l)=>a+(l.photos||[]).length,0)}</b><span>Photos</span></div></div>
+      ${S.canWrite?`<form id="rep-form"><label class="f" for="rp-sum">Summary of the week<textarea id="rp-sum" required placeholder="What got done this week"></textarea></label>
+      <label class="f" for="rp-next">Plan for next week<textarea id="rp-next" style="min-height:60px"></textarea></label>
+      <p class="small muted">This week's daily updates, photos and issues are attached automatically.</p><div><button class="btn pri" type="submit">Send to developer</button></div></form>`:""}</section>`);
+  }
+  if(t==="materials")body=materialsView(p,"engineer");
+  if(t==="stages")body=`<section class="card"><div class="card-h"><h2>Stage checklist</h2><span class="small muted">Tick items as they're finished</span></div>${stageList(p)}</section>`;
+  if(t==="history"){const logs=logsOf(p.id);body=`<section class="card"><h2>All updates</h2>${logs.length?`<div class="list">${logs.slice(0,30).map(l=>logHTML(p,l)).join("")}</div>`:`<div class="empty">No updates yet.</div>`}</section>`;}
+  return shell("engineer",tabs,body,true);
+}
+
+/* ---------- WhatsApp, materials, payments ---------- */
+const WA_ICON=`<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6.5-.1 1.5-.6 1.7-1.2s.2-1.1.2-1.2-.2-.2-.5-.3z"/></svg>`;
+const waLink=(text,label)=>`<a class="btn sm wa" href="https://wa.me/?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">${WA_ICON}${esc(label||"WhatsApp")}</a>`;
+
+const reqOf=pid=>S.matreqs.filter(r=>r.pid===pid).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+const movesOf=pid=>S.stock.filter(r=>r.pid===pid).sort(byDateDesc);
+const REQ_PILL={pending:["active","Waiting for approval"],approved:["ok","Approved"],rejected:["crit","Declined"],delivered:["ok","Delivered"]};
+function stockRows(pid){
+  const m=new Map();movesOf(pid).forEach(x=>{const k=(x.item||"").trim().toLowerCase();if(!k)return;if(!m.has(k))m.set(k,{item:x.item.trim(),unit:x.unit||"",inn:0,out:0});const r=m.get(k);if(x.type==="out")r.out+=+x.qty||0;else r.inn+=+x.qty||0;});
+  return [...m.values()].map(r=>{const bal=r.inn-r.out;return {...r,bal,flag:bal<0?"crit":r.inn&&bal<=r.inn*.1?"low":""};}).sort((a,b)=>(a.flag==="crit"?-1:0)-(b.flag==="crit"?-1:0)||a.item.localeCompare(b.item));
+}
+function stockTable(pid){
+  const rows=stockRows(pid);
+  if(!rows.length)return `<div class="empty">No store records yet. Deliveries and usage logged on site appear here.</div>`;
+  return `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Item</th><th class="r">In</th><th class="r">Used</th><th class="r">Balance</th><th></th></tr></thead><tbody>
+  ${rows.map(r=>`<tr class="${r.flag}"><td>${esc(r.item)}</td><td class="r num">${r.inn} ${esc(r.unit)}</td><td class="r num">${r.out}</td><td class="r num"><b>${r.bal}</b></td><td>${r.flag==="crit"?`<span class="pill crit">Used more than delivered</span>`:r.flag==="low"?`<span class="pill active">Running low</span>`:""}</td></tr>`).join("")}</tbody></table></div>`;
+}
+function reqCard(p,r,role){
+  const [c,l]=REQ_PILL[r.status]||["",r.status];
+  return `<div class="req"><div class="card-h"><b>${esc(r.qty)} ${esc(r.unit)} · ${esc(r.item)}</b><span class="pill ${c}">${l}</span></div>
+  <p class="small muted">${esc(r.by||"Site")} · ${esc(fmtS(r.createdAt))}${r.needBy?" · needed by "+esc(fmtS(r.needBy)):""}${r.cost?" · "+naira(r.cost):""}</p>${r.note?`<p class="small">${esc(r.note)}</p>`:""}
+  ${role==="developer"&&S.canWrite&&r.status==="pending"?`<div class="req-act"><label class="sr" for="cost-${r.id}">Cost</label><input type="number" id="cost-${r.id}" min="0" placeholder="Cost ₦ (optional)"><button class="btn sm pri" data-act="req-approve" data-id="${r.id}">Approve</button><button class="btn sm" data-act="req-reject" data-id="${r.id}">Decline</button></div>`:""}
+  ${role==="developer"&&S.canWrite&&r.status==="approved"?`<div class="actions"><button class="btn sm" data-act="req-delivered" data-id="${r.id}">Mark delivered to site</button></div>`:""}
+  ${role==="engineer"&&r.status==="pending"?`<div class="actions">${waLink(`Hi, I've raised a material request on TrailConstruct for ${p.name}: ${r.qty} ${r.unit} ${r.item}${r.needBy?", needed by "+fmtS(r.needBy):""}. Please approve.`,"Nudge on WhatsApp")}</div>`:""}</div>`;
+}
+const UNITS=["bags","pcs","tonnes","trips","lengths","m²","m³","litres","rolls","sets"];
+function materialsView(p,role){
+  const reqs=reqOf(p.id),moves=movesOf(p.id),pend=reqs.filter(r=>r.status==="pending"),appr=reqs.filter(r=>r.status==="approved");
+  const items=[...new Set([...moves.map(m=>m.item),...reqs.map(r=>r.item)].filter(Boolean))];
+  const reqForm=`<form id="req-form"><div class="row"><label class="f" for="rq-item">Material<input type="text" id="rq-item" list="mat-list" required placeholder="e.g. Cement (Dangote 42.5)"></label><label class="f" for="rq-qty">Quantity<input type="number" id="rq-qty" min="0" step="any" required></label><label class="f" for="rq-unit">Unit<select id="rq-unit">${UNITS.map(u=>`<option>${u}</option>`).join("")}</select></label></div>
+    <div class="row"><label class="f" for="rq-need">Needed by<input type="date" id="rq-need"></label><label class="f" for="rq-note">Note (optional)<input type="text" id="rq-note" placeholder="e.g. For Block B plastering"></label></div><div><button class="btn pri" type="submit">Send request</button></div></form>`;
+  const moveForm=`<form id="mv-form"><div class="seg" role="group" aria-label="Movement type"><label><input type="radio" name="mv-type" value="in" checked><span>Delivered to site</span></label><label><input type="radio" name="mv-type" value="out"><span>Used today</span></label></div>
+    <div class="row"><label class="f" for="mv-item">Material<input type="text" id="mv-item" list="mat-list" required></label><label class="f" for="mv-qty">Quantity<input type="number" id="mv-qty" min="0" step="any" required></label><label class="f" for="mv-unit">Unit<select id="mv-unit">${UNITS.map(u=>`<option>${u}</option>`).join("")}</select></label></div>
+    <label class="f" for="mv-note">Note (optional)<input type="text" id="mv-note" placeholder="e.g. Waybill no. 2231, received by storekeeper"></label><div><button class="btn" type="submit">Save to store log</button></div></form>`;
+  const dl=`<datalist id="mat-list">${items.map(i=>`<option value="${esc(i)}"></option>`).join("")}</datalist>`;
+  const recent=moves.slice(0,10).map(m=>`<div class="exp"><span>${m.type==="out"?"Used":"Delivered"}: ${esc(m.qty)} ${esc(m.unit)} ${esc(m.item)}</span><span class="pill ${m.type==="out"?"":"ok"}">${m.type==="out"?"Out":"In"}</span><span class="small muted">${esc(fmtS(m.date))} · ${esc(m.by||"")}${m.note?" · "+esc(m.note):""}</span><span></span></div>`).join("");
+  if(role==="engineer")return `${dl}<div class="grid2"><section class="card"><h2>Request materials</h2><p class="small muted">The developer approves it, so you don't have to chase on the phone.</p>${S.canWrite?reqForm:""}</section>
+    <section class="card"><h2>Your requests</h2>${reqs.length?reqs.slice(0,12).map(r=>reqCard(p,r,role)).join(""):`<div class="empty">No requests yet.</div>`}</section></div>
+    <div class="grid2"><section class="card"><h2>Site store log</h2><p class="small muted">Record every delivery and what was used. Gaps show up straight away.</p>${S.canWrite?moveForm:""}</section>
+    <section class="card"><h2>Store balance</h2>${stockTable(p.id)}</section></div>`;
+  return `${dl}<div class="grid2"><section class="card"><div class="card-h"><h2>Requests to approve</h2>${pend.length?`<span class="pill active">${pend.length} waiting</span>`:""}</div>${pend.length?pend.map(r=>reqCard(p,r,role)).join(""):`<div class="empty">Nothing waiting.</div>`}
+    ${appr.length?`<h3 style="margin-top:6px">Approved, awaiting delivery</h3>${appr.map(r=>reqCard(p,r,role)).join("")}`:""}</section>
+    <section class="card"><h2>Store balance</h2>${stockTable(p.id)}<p class="small muted">Balance = delivered − used, from the site store log. Red rows mean more was recorded as used than was ever delivered.</p></section></div>
+    <section class="card"><h2>Recent store movements</h2>${recent?`<div>${recent}</div>`:`<div class="empty">No movements yet.</div>`}</section>
+    <section class="card"><h2>Request history</h2>${reqs.filter(r=>r.status==="delivered"||r.status==="rejected").slice(0,10).map(r=>reqCard(p,r,role)).join("")||`<div class="empty">No completed requests yet.</div>`}</section>`;
+}
+
+/* milestone payments */
+const msOf=pid=>S.milestones.filter(m=>m.pid===pid).sort((a,b)=>(a.order||0)-(b.order||0));
+const MS={pending:["","Not due yet"],requested:["active","Awaiting verification"],verified:["active","Awaiting investor approval"],approved:["ok","Approved, releasing"],paid:["ok","Paid"],disputed:["crit","Disputed"]};
+const MS_TEMPLATE=[["Foundation complete","Foundation",.20],["Frame complete","Frame",.30],["Roof on","Roofing",.15],["M&E rough-in and plastering","Plastering",.15],["Finishes complete","Finishes",.15],["Handover","Handover",.05]];
+const phasePct=(p,name)=>{const x=progress(p).phases.find(q=>q.name===name);return x?x.pct:0;};
+function msSummary(p){
+  const ms=msOf(p.id),contract=+p.contractSum||ms.reduce((a,m)=>a+(+m.amount||0),0);
+  const paid=ms.filter(m=>m.status==="paid").reduce((a,m)=>a+(+m.amount||0),0);
+  const inflight=ms.filter(m=>["requested","verified","approved"].includes(m.status)).reduce((a,m)=>a+(+m.amount||0),0);
+  return {ms,contract,paid,inflight,left:Math.max(0,contract-paid-inflight)};
+}
+function msPipe(m){const order=["requested","verified","approved","paid"],i=order.indexOf(m.status==="disputed"?"verified":m.status);
+  return `<ol class="pipe">${["Requested","Verified","Approved","Paid"].map((l,k)=>`<li class="${k<=i?(m.status==="disputed"&&k===i?"bad":"on"):""}"><i></i><span>${l}</span></li>`).join("")}</ol>`;}
+function msCard(p,m,role){
+  const [c,l]=MS[m.status]||["",m.status],pct=phasePct(p,m.phase),ready=pct>=.999;
+  let act="";
+  if(S.canWrite){
+    if(role==="developer"){
+      if(m.status==="pending")act=ready?`<button class="btn sm pri" data-act="ms-request" data-id="${m.id}">Request release</button>`:`<span class="small muted">Unlocks when ${esc(m.phase)} is complete (${Math.round(pct*100)}% now)</span>${`<button class="link small" data-act="ms-del" data-id="${m.id}">Remove</button>`}`;
+      if(m.status==="requested")act=`<button class="btn sm pri" data-act="ms-verify" data-id="${m.id}">Record verification</button>`;
+      if(m.status==="verified")act=waLink(`Hi, the "${m.name}" milestone on ${p.name} has been independently verified. Please review and approve the release of ${naira(m.amount)} on TrailConstruct.`,"Ask investor to approve");
+      if(m.status==="approved")act=`<button class="btn sm pri" data-act="ms-paid" data-id="${m.id}">Confirm payment received</button>`;
+      if(m.status==="disputed")act=`<button class="btn sm" data-act="ms-resubmit" data-id="${m.id}">Resubmit for verification</button>`;
+    }
+    if(role==="investor"){
+      if(m.status==="verified")act=`<button class="btn sm pri" data-act="ms-approve" data-id="${m.id}">Approve release</button><button class="btn sm" data-act="ms-dispute" data-id="${m.id}">Dispute</button>`;
+    }
+  }
+  return `<div class="ms-card ${c}"><div class="card-h"><div><b>${esc(m.name)}</b><p class="small muted">${esc(m.phase)} phase · ${Math.round(pct*100)}% done</p></div><div style="text-align:right"><b class="num">${naira(m.amount)}</b><br><span class="pill ${c}">${l}</span></div></div>
+  ${m.status!=="pending"?msPipe(m):""}
+  ${m.verification?`<p class="small"><b>Verified by</b> ${esc(m.verification.by)}${m.verification.org?" ("+esc(m.verification.org)+")":""} on ${esc(fmtS(m.verification.date))}${m.verification.note?": "+esc(m.verification.note):""}</p>`:""}
+  ${m.dispute?`<div class="issue"><b>Investor's concern:</b> ${esc(m.dispute)}</div>`:""}
+  ${m.payRef?`<p class="small muted">Payment ref: ${esc(m.payRef)} · ${esc(fmtS(m.paidAt))}</p>`:""}
+  ${m.evidence&&m.evidence.length&&m.status!=="pending"?photoGrid(m.evidence):""}
+  ${act?`<div class="actions">${act}</div>`:""}</div>`;
+}
+function paymentsView(p,role){
+  if(p.payMode!=="milestone")return `<section class="card"><h2>Funding</h2><p><span class="pill ok">Paid up front</span></p><p class="muted">This project is fully funded, so there are no milestone payments to track.${role==="developer"&&S.canWrite?` You can switch to milestone payments in the Project tab.`:""}</p></section>`;
+  const s=msSummary(p);
+  const sum=`<section class="card"><div class="card-h"><h2>Milestone payments</h2><span class="pill">Escrow partner: not connected</span></div>
+    <div class="stats"><div class="stat t1"><b class="num">${nairaS(s.contract)}</b><span>Contract sum</span></div><div class="stat t3"><b class="num">${nairaS(s.paid)}</b><span>Released</span></div><div class="stat t2"><b class="num">${nairaS(s.inflight)}</b><span>In progress</span></div><div class="stat t4"><b class="num">${nairaS(s.left)}</b><span>Still to come</span></div></div>
+    ${s.contract?`<div class="paybar"><i class="pb-paid" style="width:${(s.paid/s.contract*100).toFixed(1)}%"></i><i class="pb-fly" style="width:${(s.inflight/s.contract*100).toFixed(1)}%"></i></div>`:""}
+    <p class="small muted">Money moves only after a milestone's work is complete, independently verified and approved by the investor. In the full build, approval tells the escrow bank to release the funds automatically.</p></section>`;
+  const list=s.ms.length?`<section class="card"><h3>Schedule</h3>${s.ms.map(m=>msCard(p,m,role)).join("")}</section>`
+    :`<section class="card"><div class="empty">${role==="developer"?"No payment schedule yet.":"The developer hasn't set up the payment schedule yet."}</div>${role==="developer"&&S.canWrite?`<div class="actions"><button class="btn pri" data-act="ms-template">Create standard schedule</button></div><p class="small muted">Foundation 20% · Frame 30% · Roof 15% · M&E and plastering 15% · Finishes 15% · Handover 5%, based on the contract sum. You can remove or add milestones after.</p>`:""}</section>`;
+  const add=role==="developer"&&S.canWrite?`<section class="card"><h3>Add a milestone</h3><form id="ms-form"><div class="row"><label class="f" for="ms-name">Name<input type="text" id="ms-name" required placeholder="e.g. Ground floor slab cast"></label>
+    <label class="f" for="ms-phase">Released when this phase is complete<select id="ms-phase">${progress(p).phases.map(x=>`<option>${esc(x.name)}</option>`).join("")}</select></label><label class="f" for="ms-amt">Amount (₦)<input type="number" id="ms-amt" min="0" required></label></div><div><button class="btn" type="submit">Add milestone</button></div></form></section>`:"";
+  return sum+list+add;
+}
+function verifyForm(m){modal(`<h2>Record verification</h2><p class="small muted">Who inspected the work for "${esc(m.name)}"? Use an independent engineer or inspector, not the site team.</p>
+  <form id="ver-form" data-id="${m.id}"><label class="f" for="vf-by">Inspector name<input type="text" id="vf-by" required placeholder="e.g. Engr. Bello"></label><label class="f" for="vf-org">Organisation<input type="text" id="vf-org" placeholder="e.g. Eppcheck, or a COREN-registered consultant"></label>
+  <label class="f" for="vf-date">Inspection date<input type="date" id="vf-date" value="${ymd(new Date())}"></label><label class="f" for="vf-note">Findings<textarea id="vf-note" placeholder="What was checked and confirmed"></textarea></label>
+  <div class="actions"><button class="btn pri" type="submit">Save verification</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);}
+
+/* offline outbox */
+const outbox={get(){try{return JSON.parse(ls.get("st.outbox")||"[]")}catch(e){return []}},set(a){ls.set("st.outbox",JSON.stringify(a));}};
+async function flushOutbox(){const q=outbox.get();if(!q.length||!navigator.onLine)return;let sent=0;const left=[];for(const x of q){try{await store.add("logs",x);sent++;}catch(e){left.push(x);}}outbox.set(left);if(sent)toast(sent+" saved update"+(sent>1?"s":"")+" posted.");render();}
+window.addEventListener("online",flushOutbox);
+function logDraft(){try{return JSON.parse(ls.get("st.draft.log")||"{}")}catch(e){return {}}}
+
+
+/* ---------- live, GPS-checked site photos ---------- */
+const LIVE_MIN=30;
+function parseLatLng(s){const m=String(s||"").match(/(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/);if(!m)return null;const lat=+m[1],lng=+m[2];return Math.abs(lat)<=90&&Math.abs(lng)<=180?{lat,lng}:null;}
+function distM(a,b){const R=6371000,r=x=>x*Math.PI/180,dl=r(b.lat-a.lat),dg=r(b.lng-a.lng);const h=Math.sin(dl/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dg/2)**2;return 2*R*Math.asin(Math.sqrt(h));}
+const fmtDist=m=>m<1000?Math.round(m)+" m":(m/1000).toFixed(1)+" km";
+async function readExif(file){
+  try{
+    const buf=await file.slice(0,512*1024).arrayBuffer(),v=new DataView(buf);
+    if(v.byteLength<4||v.getUint16(0)!==0xFFD8)return {};
+    let off=2;
+    while(off<v.byteLength-10){
+      const mk=v.getUint16(off);off+=2;
+      if((mk&0xFF00)!==0xFF00)break;
+      const len=v.getUint16(off);
+      if(mk===0xFFE1&&v.getUint32(off+2)===0x45786966)return parseTiff(v,off+8);
+      off+=len;
+    }
+  }catch(e){}
+  return {};
+}
+function parseTiff(v,t){
+  const le=v.getUint16(t)===0x4949,g16=o=>v.getUint16(o,le),g32=o=>v.getUint32(o,le),out={};
+  const ifd=o=>{const n=g16(o),tags={};for(let i=0;i<n;i++){const e=o+2+i*12;tags[g16(e)]={count:g32(e+4),vo:e+8};}return tags;};
+  const rat=o=>{const d=g32(o+4);return d?g32(o)/d:0;};
+  const str=tg=>{const o=tg.count>4?t+g32(tg.vo):tg.vo;let s="";for(let i=0;i<tg.count-1;i++)s+=String.fromCharCode(v.getUint8(o+i));return s;};
+  const t0=ifd(t+g32(t+4));
+  if(t0[0x8769]){const ex=ifd(t+g32(t0[0x8769].vo));if(ex[0x9003])out.dt=str(ex[0x9003]);}
+  if(t0[0x8825]){const gp=ifd(t+g32(t0[0x8825].vo)),co=tg=>{const o=t+g32(tg.vo);return rat(o)+rat(o+8)/60+rat(o+16)/3600;};
+    if(gp[2]&&gp[4]){let lat=co(gp[2]),lng=co(gp[4]);if(gp[1]&&String.fromCharCode(v.getUint8(gp[1].vo))==="S")lat=-lat;if(gp[3]&&String.fromCharCode(v.getUint8(gp[3].vo))==="W")lng=-lng;if(lat||lng)out.gps={lat,lng};}}
+  return out;
+}
+function exifTime(dt){const m=String(dt||"").match(/^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/);return m?new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5],+m[6]):null;}
+function stampPhoto(file,lines){
+  return new Promise((res,rej)=>{const u=URL.createObjectURL(file),im=new Image();
+    im.onload=()=>{try{const max=1600,s=Math.min(1,max/Math.max(im.width,im.height)),w=Math.round(im.width*s),h=Math.round(im.height*s),c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");x.drawImage(im,0,0,w,h);
+      const fs=Math.max(16,Math.round(w/48)),bh=Math.round(fs*1.5*lines.length+fs);x.fillStyle="rgba(10,18,26,.72)";x.fillRect(0,h-bh,w,bh);x.fillStyle="#f0a500";x.fillRect(0,h-bh,Math.round(fs/3),bh);
+      x.fillStyle="#ffffff";x.font=`600 ${fs}px "IBM Plex Sans",Arial,sans-serif`;lines.forEach((l,i)=>x.fillText(l,fs,h-bh+fs*1.35*(i+1)));
+      c.toBlob(b=>{URL.revokeObjectURL(u);b?res(b):rej(new Error("stamp"));},"image/jpeg",.82);}catch(e){rej(e);}};
+    im.onerror=()=>{URL.revokeObjectURL(u);rej(new Error("load"));};im.src=u;});
+}
+async function checkShot(p,file){
+  const ex=await readExif(file),now=Date.now();
+  const taken=exifTime(ex.dt)||(file.lastModified?new Date(file.lastModified):null);
+  const ageMin=taken?(now-taken.getTime())/60000:null;
+  if(ageMin!=null&&ageMin>LIVE_MIN)return {ok:false,why:`This photo was taken ${ageMin>1440?Math.round(ageMin/1440)+" days":ageMin>90?Math.round(ageMin/60)+" hours":Math.round(ageMin)+" minutes"} ago. Take a new photo on site.`};
+  const site=p.siteLat!=null&&p.siteLng!=null&&p.siteLat!==""?{lat:+p.siteLat,lng:+p.siteLng}:null,rad=+p.siteRadius||200;
+  let v="nosite",dist=null;
+  if(ex.gps&&site){dist=distM(ex.gps,site);if(dist>rad)return {ok:false,why:`This photo was taken ${fmtDist(dist)} from the site. Photos must be taken within ${rad} m of the site.`};v="onsite";}
+  if(!ex.gps&&S.mode==="cf"){const d=await getDevicePos();if(d){ex.gps={lat:d.lat,lng:d.lng};ex.src="device";}}
+  if(ex.gps&&site&&ex.src==="device"){dist=distM(ex.gps,site);if(dist>rad)return {ok:false,why:`You are ${fmtDist(dist)} from the site. Photos must be taken within ${rad} m of the site.`};v="onsite";}
+  else if(!ex.gps){if(site&&p.strictGps)return {ok:false,why:"This photo has no location. Turn on location for your camera, then take it again."};v=site?"nogps":"nosite";}
+  else if(v!=="onsite")v="gps";
+  const when=new Date(taken||now),stampT=when.toLocaleString("en-GB",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+  const lines=[`TrailConstruct · ${p.name}`,`${stampT}${ex.gps?` · ${ex.gps.lat.toFixed(5)}, ${ex.gps.lng.toFixed(5)}`:""}`,v==="onsite"?`Verified on site (${fmtDist(dist)} from pin)`:v==="nogps"?"Location not recorded by camera":"Live photo"];
+  const blob=await stampPhoto(file,lines);
+  return {ok:true,blob,preview:URL.createObjectURL(blob),v,dist,gps:ex.gps||null,takenAt:when.toISOString()};
+}
+const VBADGE={onsite:["ok","On site"],nogps:["","No GPS"],nosite:["","Live"],gps:["","Live · GPS"]};
+const vBadge=p=>p&&p.v&&VBADGE[p.v]?`<span class="vb ${VBADGE[p.v][0]}">${VBADGE[p.v][0]==="ok"?"✓ ":""}${VBADGE[p.v][1]}</span>`:"";
+function renderShots(){const el=document.getElementById("shots");if(!el)return;
+  el.innerHTML=S.shots.length?`<div class="photos">${S.shots.map((s,i)=>`<div class="ph shot"><img src="${esc(s.preview)}" alt="New site photo">${vBadge(s)}<button type="button" class="rm" data-act="shot-rm" data-i="${i}" aria-label="Remove photo">×</button></div>`).join("")}</div>`:"";}
+
+
+/* ---------- INVESTOR ---------- */
+function invPhotos(p){const out=[];updatesOf(p.id).forEach(u=>(u.photos||[]).forEach(ph=>out.push({...ph,cap:(ph.cap&&ph.cap!=="Developer upload"?ph.cap:fmtS(u.date)),upd:u.title,date:u.date})));return out;}
+function scheduleInfo(p,pr){
+  const s=parseD(p.startDate),t=parseD(p.targetDate);if(!s||!t||t<=s)return null;
+  const now=new Date(),time=Math.max(0,Math.min(1,(now-s)/(t-s))),work=pr.overall,daysLeft=Math.ceil((t-now)/864e5);
+  const status=work>=time-0.05?["ok","On track"]:work>=time-0.15?["active","Slightly behind"]:["crit","Behind schedule"];
+  return {time,work,daysLeft,status};
+}
+function invView(p){
+  const pr=progress(p),ups=updatesOf(p.id),latest=ups[0],photos=invPhotos(p),t=S.tab.investor||"overview";
+  const openReq=S.requests.filter(r=>r.pid===p.id&&!r.resolved);
+  const msWait=msOf(p.id).filter(m=>m.status==="verified").length;
+  const tabs=[["overview","Overview"],...(p.payMode==="milestone"?[["payments","Payments",msWait]]:[]),["photos","Site photos",photos.length||0],["updates","Updates",0]];
+  const cover=photos[0];
+  let body="";
+  if(t==="overview"){
+    const sch=scheduleInfo(p,pr),lastAgo=latest?daysSince(latest.date):null;
+    const done=pr.phases.filter(x=>x.status==="done").length;
+    body=`<section class="cover ${cover?"has":""}" ${cover?`style="--img:url('${esc(src(cover))}')"`:""}>
+      <div class="cover-in"><span class="pill ${cover?"glass":"active"}">${esc(pr.current?pr.current.group:"Completed")}</span><h1>${esc(p.name)}</h1><p>${esc([p.location,p.units].filter(Boolean).join(" · "))}</p>
+      ${cover?`<button class="btn glass sm" data-act="tab" data-role="investor" data-tab="photos">${ICON.cam} View ${photos.length} site photo${photos.length===1?"":"s"}</button>`:""}</div></section>
+    <section class="card"><div class="ihero">${ring(pr.overall)}<div style="display:grid;gap:10px;min-width:0">
+      <dl class="kv"><dt>Now</dt><dd>${esc(pr.current?pr.current.name:"Completed")}</dd><dt>Next</dt><dd>${esc(pr.next?pr.next.name:"Handover")}</dd></dl>
+      ${phaseStrip(pr)}</div></div></section>
+    <div class="stats">
+      <div class="stat t1"><b class="num">${done}/${pr.phases.length}</b><span>Phases complete</span></div>
+      <div class="stat t2"><b class="num">${p.targetDate?(sch&&sch.daysLeft>0?sch.daysLeft+" days":fmtS(p.targetDate)):"TBC"}</b><span>${p.targetDate?"To target completion":"Target completion"}</span></div>
+      <div class="stat t3"><b class="num">${lastAgo==null?"—":lastAgo===0?"Today":lastAgo+"d ago"}</b><span>Last update</span></div>
+      <div class="stat t4"><b class="num">${photos.length}</b><span>Site photos</span></div></div>
+    ${sch?`<section class="card"><div class="card-h"><h3>Schedule check</h3><span class="pill ${sch.status[0]}">${sch.status[1]}</span></div>
+      <div class="sch"><span>Work done</span>${bar(sch.work)}<b class="num">${Math.round(sch.work*100)}%</b><span>Time used</span>${bar(sch.time,"amberbar")}<b class="num">${Math.round(sch.time*100)}%</b></div>
+      <p class="small muted">${esc(fmtD(p.startDate))} to ${esc(fmtD(p.targetDate))}</p></section>`:""}
+    ${latest?`<section class="card upd hl"><div><p class="eyebrow">Latest update · ${esc(fmtD(latest.date))}</p><h2 style="margin-top:4px">${esc(latest.title)}</h2></div>
+      <p>${esc(latest.briefing)}</p>${latest.next?`<p class="small"><b>What's next:</b> ${esc(latest.next)}</p>`:""}
+      ${photoGrid((latest.photos||[]).slice(0,4).map(x=>({...x})),true)}
+      <div class="actions">${S.downloads?`<button class="btn pri" data-act="pdf" data-id="${latest.id}">Download report (PDF)</button>`:""}${ups.length>1?`<button class="btn" data-act="tab" data-role="investor" data-tab="updates">All updates</button>`:""}</div></section>`
+    :`<section class="card"><div class="empty">The developer hasn't sent an update yet. You'll see it here when they do.</div></section>`}
+    ${p.payMode==="milestone"?(()=>{const s=msSummary(p),w=s.ms.filter(m=>m.status==="verified");return `<section class="card ${w.length?"hl":""}"><div class="card-h"><h3>Payments</h3>${w.length?`<span class="pill active">${w.length} to approve</span>`:""}</div>${s.contract?`<div class="paybar"><i class="pb-paid" style="width:${(s.paid/s.contract*100).toFixed(1)}%"></i><i class="pb-fly" style="width:${(s.inflight/s.contract*100).toFixed(1)}%"></i></div><p class="small">${naira(s.paid)} released of ${naira(s.contract)}</p>`:`<p class="small muted">Schedule not set up yet.</p>`}<div><button class="btn sm ${w.length?"pri":""}" data-act="tab" data-role="investor" data-tab="payments">${w.length?"Review and approve":"View payments"}</button></div></section>`;})():`<section class="card"><div class="card-h"><h3>Funding</h3><span class="pill ok">Fully funded</span></div><p class="small muted">This project was paid up front.</p></section>`}
+    <section class="card"><h3>Milestones</h3><ol class="ms">${pr.phases.map(x=>`<li class="${x.status}"><span class="ms-dot" aria-hidden="true">${x.status==="done"?"✓":""}</span><span>${esc(x.name)}</span><span class="small num">${x.status==="done"?"Done":x.status==="active"?Math.round(x.pct*100)+"%":"Upcoming"}</span></li>`).join("")}</ol></section>
+    ${latest&&latest.budget&&latest.budget.budget?`<section class="card"><div class="card-h"><h3>Budget</h3><span class="small muted">as of ${esc(fmtS(latest.date))}</span></div><div class="sch"><span>Spent</span>${bar(latest.budget.spent/latest.budget.budget,latest.budget.spent>latest.budget.budget?"over":"amberbar")}<b class="num">${Math.round(latest.budget.spent/latest.budget.budget*100)}%</b></div><p class="small">${naira(latest.budget.spent)} of ${naira(latest.budget.budget)}</p></section>`:""}
+    <section class="card ask"><div><h3>Want the latest?</h3><p class="small muted">${openReq.length?`You asked for an update on ${esc(fmtS(openReq[0].createdAt))}. The developer has been notified.`:"Ask the developer for a fresh update and photos."}</p></div>${S.canWrite&&!openReq.length?`<button class="btn amber" data-act="request">Request an update</button>`:""}</section>`;
+  }
+  if(t==="payments")body=paymentsView(p,"investor");
+  if(t==="photos"){
+    const groups=[];ups.forEach(u=>{if((u.photos||[]).length)groups.push(u);});
+    let idx=0;
+    body=groups.length?groups.map(u=>`<section class="card"><div class="card-h"><h3>${esc(u.title)}</h3><span class="small muted">${esc(fmtD(u.date))}</span></div>
+      <div class="photos lg">${u.photos.map(ph=>{const i=idx++;return `<button type="button" class="ph" data-act="gallery" data-i="${i}"><img src="${esc(src(ph))}" alt="Site photo" loading="lazy"></button>`;}).join("")}</div></section>`).join("")
+      :`<section class="card"><div class="empty">No photos yet. They appear here when the developer sends an update with pictures.</div></section>`;
+  }
+  if(t==="updates"){
+    body=ups.length?ups.map(u=>`<section class="card upd"><div class="card-h"><div><p class="eyebrow">${esc(fmtD(u.date))}</p><h3 style="margin-top:4px">${esc(u.title)}</h3></div>${u.snapshot?`<span class="pill">${Math.round(u.snapshot.overall*100)}% at the time</span>`:""}</div>
+      <p>${esc(u.briefing)}</p>${u.next?`<p class="small"><b>What's next:</b> ${esc(u.next)}</p>`:""}${photoGrid(u.photos)}
+      ${S.downloads?`<div><button class="btn sm pri" data-act="pdf" data-id="${u.id}">Download PDF</button></div>`:""}</section>`).join("")
+      :`<section class="card"><div class="empty">No updates yet.</div></section>`;
+  }
+  return shell("investor",tabs,body,true);
+}
+
+
+/* ---------- render ---------- */
+function render(){renderInner();afterRender();renderShots();if(S.view==="home")S.ringDone=true;}
+function renderInner(){
+  const app=document.getElementById("app"),v=S.view;
+  if(v==="home"){app.innerHTML=homeView();return;}
+  if(S.mode==="cf"&&["developer","engineer","investor"].includes(v)&&!S.me){S.view="signin";history.replaceState(null,"","#signin");}
+  if(S.mode==="cf"&&S.view==="signin"){if(S.me&&!S.pendingInvite){const r=S.pid?roleFor(S.pid):null;S.view=r||"developer";history.replaceState(null,"","#"+S.view);}else{app.innerHTML=cfAuthView();return;}}
+  if(S.mode==="cf"&&["developer","engineer","investor"].includes(S.view)&&S.pid){const r=roleFor(S.pid);if(r&&r!==S.view){S.view=r;history.replaceState(null,"","#"+r);}}
+  if(S.view==="signin"){app.innerHTML=signinView();return;}
+  if(S.view==="signup"){app.innerHTML=signupView();return;}
+  if(S.view==="demo"){app.innerHTML=demoView();return;}
+  if(S.mode==="loading"||(S.db&&!S.loaded.projects)){app.innerHTML=shell(v,null,`<div class="card"><div class="empty">${S.slow?"Can't reach the project data yet. It will appear when the connection returns.":"Loading your projects…"}</div></div>`);return;}
+  const vv=S.view,p=P();if(!p){app.innerHTML=noProject(vv);return;}
+  app.innerHTML=vv==="developer"?devView(p):vv==="engineer"?engView(p):invView(p);
+}
+function go(view){S.view=view;history.replaceState(null,"","#"+view);render();window.scrollTo(0,0);}
+
+/* ---------- modals ---------- */
+function modal(html){const L=document.getElementById("layer");L.innerHTML=`<div class="modal" data-act="backdrop"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;const f=L.querySelector("input,button");if(f)f.focus();}
+function closeModal(){document.getElementById("layer").innerHTML="";}
+function projectForm(p){p=p||{};
+  modal(`<h2>${p.id?"Edit project":"New project"}</h2><form id="proj-form" data-id="${esc(p.id||"")}">
+    <label class="f" for="pf-name">Project name<input type="text" id="pf-name" required value="${esc(p.name||"")}"></label>
+    <label class="f" for="pf-loc">Location<input type="text" id="pf-loc" value="${esc(p.location||"")}" placeholder="Street, area, Lagos"></label>
+    <label class="f" for="pf-units">Units<input type="text" id="pf-units" value="${esc(p.units||"")}" placeholder="e.g. 4 semi-detached in 2 blocks"></label>
+    <label class="f" for="pf-client">Developer / company<input type="text" id="pf-client" value="${esc(p.client||"")}"></label>
+    <div class="row"><label class="f" for="pf-floors">Floors above ground<input type="number" id="pf-floors" min="0" max="30" value="${esc(p.floors??0)}"><span class="small" style="font-weight:400">0 = bungalow, 2 = G+2</span></label>
+    <label class="f" for="pf-budget">Budget (₦)<input type="number" id="pf-budget" min="0" step="1" value="${esc(p.budget||"")}"></label></div>
+    <div class="row"><label class="f" for="pf-start">Start date<input type="date" id="pf-start" value="${esc(p.startDate||"")}"></label><label class="f" for="pf-target">Target completion<input type="date" id="pf-target" value="${esc(p.targetDate||"")}"></label></div>
+    <div class="row"><label class="f" for="pf-gps">Site GPS (lat, lng or Google Maps link)<input type="text" id="pf-gps" value="${p.siteLat!=null&&p.siteLat!==""?esc(p.siteLat+", "+p.siteLng):""}" placeholder="e.g. 6.4561, 3.4318"></label><label class="f" for="pf-rad">Photo radius<select id="pf-rad">${[100,200,300,500].map(r=>`<option value="${r}" ${(+p.siteRadius||200)===r?"selected":""}>${r} m</option>`).join("")}</select></label></div>
+    <label class="chk"><input type="checkbox" id="pf-strict" ${p.strictGps?"checked":""}> Reject photos that have no GPS location</label>
+    <div class="row"><label class="f" for="pf-pay">Funding<select id="pf-pay"><option value="upfront" ${p.payMode!=="milestone"?"selected":""}>Paid up front</option><option value="milestone" ${p.payMode==="milestone"?"selected":""}>Milestone payments</option></select></label><label class="f" for="pf-contract">Contract sum (₦, for milestones)<input type="number" id="pf-contract" min="0" value="${esc(p.contractSum||"")}"></label></div>
+    <div class="actions"><button class="btn pri" type="submit">Save project</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);
+}
+
+function openGallery(i){const p=P();if(!p)return;const list=invPhotos(p);if(!list.length)return;i=(i+list.length)%list.length;const ph=list[i];
+  modal(`<img src="${esc(src(ph))}" alt="Site photo"><div class="card-h"><div><b>${esc(ph.upd||"")}</b><p class="small muted">${esc(fmtD(ph.date))}${ph.cap?" · "+esc(ph.cap):""}</p></div><span class="small muted num">${i+1} / ${list.length}</span></div>
+  <div class="actions"><button class="btn" data-act="gnav" data-i="${i-1}">Previous</button><button class="btn" data-act="gnav" data-i="${i+1}">Next</button><span style="flex:1"></span><button class="btn ghost" data-act="close">Close</button></div>`);}
+
+/* ---------- PDF report ---------- */
+function loadImg(url){return new Promise(res=>{const im=new Image();im.crossOrigin="anonymous";im.onload=()=>{try{const m=1400,s=Math.min(1,m/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext("2d").drawImage(im,0,0,c.width,c.height);res({data:c.toDataURL("image/jpeg",.82),w:c.width,h:c.height});}catch(e){res(null);}};im.onerror=()=>res(null);im.src=url;});}
+async function makePDF(p,u){
+  if(!S.downloads){toast("Downloads aren't available here.");return;}
+  const J=window.jspdf&&window.jspdf.jsPDF;if(!J){toast("The report tool didn't load. Check your connection and try again.");return;}
+  toast("Preparing report…");
+  const snap=u.snapshot||(()=>{const pr=progress(p);return {overall:pr.overall,current:pr.current?pr.current.name:"Completed",next:pr.next?pr.next.name:"Handover",phases:pr.phases.map(x=>({name:x.name,pct:x.pct}))};})();
+  const doc=new J({unit:"mm",format:"a4"}),W=210,M=16,CW=W-2*M;let y=0;
+  const need=h=>{if(y+h>282){doc.addPage();y=18;}};
+  const txt=(t,size,style,color)=>{doc.setFont("helvetica",style||"normal");doc.setFontSize(size);doc.setTextColor(...(color||[21,32,42]));const lines=doc.splitTextToSize(String(t||""),CW);lines.forEach(l=>{need(size*.45);doc.text(l,M,y);y+=size*.45;});};
+  doc.setFillColor(43,74,94);doc.rect(0,0,W,30,"F");doc.setFillColor(240,165,0);doc.rect(0,30,W,2,"F");
+  doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(20);doc.text("TrailConstruct",M,15);
+  doc.setFont("helvetica","normal");doc.setFontSize(10);doc.text("Investor progress report · Every stage, on record.",M,22);doc.text(fmtD(u.date),W-M,22,{align:"right"});
+  y=44;txt(p.name,18,"bold");y+=1;txt([p.location,p.units,+p.floors?"Ground + "+p.floors+" floors":""].filter(Boolean).join("  ·  "),10,"normal",[91,101,112]);y+=4;
+  txt(u.title,13,"bold");y+=2;
+  need(26);doc.setFillColor(246,247,243);doc.roundedRect(M,y,CW,24,3,3,"F");
+  doc.setFont("helvetica","bold");doc.setFontSize(24);doc.setTextColor(43,74,94);doc.text(Math.round(snap.overall*100)+"%",M+6,y+15);
+  doc.setFontSize(9);doc.setFont("helvetica","normal");doc.setTextColor(91,101,112);doc.text("complete",M+6,y+20);
+  doc.setTextColor(21,32,42);doc.setFontSize(10);doc.setFont("helvetica","bold");doc.text("Now:",M+42,y+10);doc.text("Next:",M+42,y+17);
+  doc.setFont("helvetica","normal");doc.text(doc.splitTextToSize(snap.current,CW-58)[0],M+54,y+10);doc.text(doc.splitTextToSize(snap.next,CW-58)[0],M+54,y+17);y+=32;
+  txt("Briefing",12,"bold");y+=1;txt(u.briefing,10.5);y+=3;
+  if(u.next){txt("What's next",12,"bold");y+=1;txt(u.next,10.5);y+=3;}
+  txt("Progress by phase",12,"bold");y+=2;
+  snap.phases.forEach(ph=>{need(7);doc.setFontSize(9.5);doc.setFont("helvetica","normal");doc.setTextColor(21,32,42);doc.text(ph.name,M,y+3.5);
+    const bx=M+52,bw=CW-70;doc.setFillColor(223,226,219);doc.roundedRect(bx,y,bw,4.5,2,2,"F");
+    if(ph.pct>0){doc.setFillColor(...(ph.pct>=.999?[44,122,75]:[240,165,0]));doc.roundedRect(bx,y,Math.max(4,bw*ph.pct),4.5,2,2,"F");}
+    doc.text(Math.round(ph.pct*100)+"%",W-M,y+3.5,{align:"right"});y+=7;});
+  y+=3;
+  if(u.budget){txt("Budget",12,"bold");y+=1;txt(`${naira(u.budget.spent).replace("₦","NGN ")} spent of ${naira(u.budget.budget).replace("₦","NGN ")} (${u.budget.budget?Math.round(u.budget.spent/u.budget.budget*100):0}%)`,10.5);y+=3;}
+  const ph=u.photos||[];
+  if(ph.length){need(12);txt("Site photos",12,"bold");y+=2;const cw=(CW-6)/2,chh=cw*0.72;let col=0;
+    for(const x of ph){const im=await loadImg(src(x));if(!im)continue;if(col===0)need(chh+8);
+      const r=Math.min(cw/im.w,chh/im.h),w=im.w*r,h=im.h*r,xx=M+col*(cw+6)+(cw-w)/2;
+      doc.addImage(im.data,"JPEG",xx,y+(chh-h)/2,w,h);if(x.cap){doc.setFontSize(8);doc.setTextColor(91,101,112);doc.text(x.cap,M+col*(cw+6),y+chh+4);}
+      col++;if(col===2){col=0;y+=chh+8;}}
+    if(col)y+=chh+8;}
+  const n=doc.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);doc.setFontSize(8);doc.setTextColor(140,140,140);doc.text("TrailConstruct · "+p.name+" · Page "+i+" of "+n,W/2,292,{align:"center"});}
+  const name=(p.name+"-"+(u.date||"report")).replace(/[^A-Za-z0-9-]+/g,"-")+".pdf";
+  try{await S.downloads.save({filename:name,data:doc.output("blob")});}
+  catch(e){if(e&&e.code!=="declined")toast("Couldn't save the report. Try again.");}
+}
+
+/* ---------- toast ---------- */
+let tt;function toast(m){let el=document.querySelector(".toast");if(!el){el=document.createElement("div");el.className="toast";el.setAttribute("role","status");document.body.appendChild(el);}el.textContent=m;clearTimeout(tt);tt=setTimeout(()=>el.remove(),3200);}
+
+/* ---------- events ---------- */
+document.addEventListener("click",async e=>{
+  const t=e.target.closest("[data-act]");if(!t)return;const act=t.dataset.act,p=P();
+  if(act==="backdrop"){if(e.target===t)closeModal();return;}
+  if(act==="close"){closeModal();return;}
+  if(act==="hstep"){S.home.step=+t.dataset.i;S.home.auto=false;const y=window.scrollY;render();window.scrollTo(0,y);return;}
+  if(act==="phase-chip"){S.home.phase=+t.dataset.i;const y=window.scrollY;render();window.scrollTo(0,y);return;}
+  if(act==="billing"){S.home.annual=t.dataset.v==="1";const y=window.scrollY;render();window.scrollTo(0,y);return;}
+  if(act==="demo-go"){S.demo.i=+t.dataset.i;render();return;}
+  if(act==="demo-play"){S.demo.play=!S.demo.play;if(S.demo.play&&S.demo.i===DEMO.length-1)S.demo.i=0;render();return;}
+  if(act==="onb-back"){S.onb.step=Math.max(0,S.onb.step-1);render();window.scrollTo(0,0);return;}
+  if(act==="onb-pay"){S.onb.d.payMode=t.dataset.v;render();return;}
+  if(act==="onb-phase"){S.onb.d.phase=+t.dataset.i;render();return;}
+  if(act==="onb-bill"){S.onb.d.annual=t.dataset.v==="1";render();return;}
+  if(act==="onb-rm"){S.onb.d.team.splice(+t.dataset.i,1);render();return;}
+  if(act==="onb-add"){const r=t.dataset.role,n=(document.getElementById("t-"+r+"-n").value||"").trim(),em=(document.getElementById("t-"+r+"-e").value||"").trim();if(!n){toast("Add a name first.");return;}S.onb.d.team.push({role:r,name:n,email:em});render();return;}
+  if(act==="scroll"){e.preventDefault();const el=document.getElementById(t.dataset.to);if(el)el.scrollIntoView({behavior:"smooth"});return;}
+  if(act==="signin"){ls.set("st.role",t.dataset.role);go(t.dataset.role);return;}
+  if(act==="signout"){ls.set("st.role","");if(S.mode==="cf"){try{await cfApi("POST","/api/auth/logout");}catch(e){}S.me=null;S.memberships=[];S.projects=[];S.pid=null;}go("home");return;}
+  if(act==="authmode"){S.authMode=t.value;render();return;}
+  if(act==="copy"){try{await navigator.clipboard.writeText(t.dataset.text);toast("Link copied.");}catch(e){modal(`<h2>Invite link</h2><p class="small">Copy this link:</p><input type="text" readonly value="${esc(t.dataset.text)}" style="width:100%"><div><button class="btn" data-act="close">Close</button></div>`);}return;}
+  if(act==="tab"){S.tab[t.dataset.role]=t.dataset.tab;render();window.scrollTo(0,0);return;}
+  if(act==="toggle-stage"){S.open[t.dataset.id]=t.getAttribute("aria-expanded")!=="true";render();return;}
+  if(act==="photo"){modal(`<img src="${esc(t.dataset.src)}" alt="Site photo">${t.dataset.cap?`<p class="small muted">${esc(t.dataset.cap)}</p>`:""}<div><button class="btn" data-act="close">Close</button></div>`);return;}
+  if(act==="view-update"){const u=S.updates.find(x=>x.id===t.dataset.id);if(!u)return;modal(`<h2>${esc(u.title)}</h2><p class="small muted">${esc(fmtD(u.date))}</p><p>${esc(u.briefing)}</p>${u.next?`<p class="small"><b>What's next:</b> ${esc(u.next)}</p>`:""}${photoGrid(u.photos)}<div class="actions">${S.downloads?`<button class="btn pri" data-act="pdf" data-id="${u.id}">Download PDF</button>`:""}<button class="btn" data-act="close">Close</button></div>`);return;}
+  if(act==="gallery"){openGallery(+t.dataset.i);return;}
+  if(act==="gnav"){openGallery(+t.dataset.i);return;}
+  if(act==="pdf"){const u=S.updates.find(x=>x.id===t.dataset.id);if(u&&p)makePDF(p,u);return;}
+  if(act==="new-project"){projectForm();return;}
+  if(act==="edit-project"){projectForm(p);return;}
+  if(act==="pick"){saveDraftFields();const id=t.dataset.id,s=S.draft.sel;const i=s.indexOf(id);if(i<0)s.push(id);else s.splice(i,1);render();return;}
+  if(act==="clear-draft"){S.draft={sel:[],extra:[],title:"",briefing:"",next:"",budget:false,fromReport:null};render();return;}
+  if(!S.canWrite||!p)return;
+  if(act==="request"){try{await store.add("requests",{pid:p.id,createdAt:new Date().toISOString(),resolved:false});toast("Request sent to the developer.");}catch(err){toast("Couldn't send the request. Ask the developer for contributor access.");}return;}
+  if(act==="shot-rm"){S.shots.splice(+t.dataset.i,1);renderShots();return;}
+  if(act==="flush"){flushOutbox();return;}
+  if(act==="req-approve"){const r=S.matreqs.find(x=>x.id===t.dataset.id);if(!r)return;const cost=Math.max(0,+(document.getElementById("cost-"+r.id)||{}).value||0);await store.update("matreqs",r.id,{status:"approved",cost,approvedAt:new Date().toISOString()});if(cost){const pr=progress(p);await store.add("expenses",{pid:p.id,item:`${r.qty} ${r.unit} ${r.item}`,amount:cost,stage:pr.current?pr.current.id:"fin",date:ymd(new Date()),createdAt:new Date().toISOString(),fromRequest:r.id});}toast("Approved"+(cost?" and added to budget":"")+".");return;}
+  if(act==="req-reject"){await store.update("matreqs",t.dataset.id,{status:"rejected"});toast("Request declined.");return;}
+  if(act==="req-delivered"){const r=S.matreqs.find(x=>x.id===t.dataset.id);if(!r)return;await store.update("matreqs",r.id,{status:"delivered",deliveredAt:new Date().toISOString()});await store.add("stock",{pid:p.id,item:r.item,qty:+r.qty||0,unit:r.unit,type:"in",note:"From approved request",by:p.client||"Developer",date:ymd(new Date()),createdAt:new Date().toISOString()});toast("Marked delivered and added to the store.");return;}
+  if(act==="ms-template"){const base=+p.contractSum||0;if(!base){toast("Set the contract sum in the Project tab first.");return;}for(let i=0;i<MS_TEMPLATE.length;i++){const [n,ph,f]=MS_TEMPLATE[i];await store.add("milestones",{pid:p.id,name:n,phase:ph,amount:Math.round(base*f),order:i,status:"pending",createdAt:new Date().toISOString()});}toast("Payment schedule created.");return;}
+  if(act==="ms-del"){store.del("milestones",t.dataset.id);return;}
+  if(act==="ms-request"){const m=S.milestones.find(x=>x.id===t.dataset.id);if(!m)return;const sids=new Set(stagesFor(p).filter(s=>s.group===m.phase).map(s=>s.id));const ev=[];logsOf(p.id).forEach(l=>{if(sids.has(l.stage))(l.photos||[]).forEach(ph=>{if(ev.length<6)ev.push({id:ph.id,url:ph.url||"",cap:fmtS(l.date)});});});await store.update("milestones",m.id,{status:"requested",requestedAt:new Date().toISOString(),evidence:ev});toast("Release requested. Next: independent verification.");return;}
+  if(act==="ms-verify"){const m=S.milestones.find(x=>x.id===t.dataset.id);if(m)verifyForm(m);return;}
+  if(act==="ms-approve"){await store.update("milestones",t.dataset.id,{status:"approved",approvedAt:new Date().toISOString(),dispute:""});toast("Approved. The developer has been notified.");return;}
+  if(act==="ms-dispute"){modal(`<h2>Dispute this milestone</h2><form id="dis-form" data-id="${esc(t.dataset.id)}"><label class="f" for="ds-note">What's your concern?<textarea id="ds-note" required placeholder="e.g. Roof covering not finished on Block B"></textarea></label><div class="actions"><button class="btn pri" type="submit">Send dispute</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);return;}
+  if(act==="ms-paid"){modal(`<h2>Confirm payment received</h2><form id="paid-form" data-id="${esc(t.dataset.id)}"><label class="f" for="pd-ref">Bank or escrow reference<input type="text" id="pd-ref" required placeholder="e.g. FT2611160023"></label><div class="actions"><button class="btn pri" type="submit">Confirm</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);return;}
+  if(act==="ms-resubmit"){await store.update("milestones",t.dataset.id,{status:"requested",verification:null});toast("Resubmitted for verification.");return;}
+  if(act==="check"){store.update("projects",p.id,{checks:{[t.dataset.id]:t.checked}});return;}
+  if(act==="del-exp"){store.del("expenses",t.dataset.id);return;}
+  if(act==="del-update"){store.del("updates",t.dataset.id);toast("Update deleted.");return;}
+  if(act==="use-report"){const r=S.reports.find(x=>x.id===t.dataset.id);if(!r)return;
+    S.draft={sel:(r.photos||[]).map(x=>x.id),extra:[],title:"Progress update, week of "+fmtS(r.weekStart),briefing:r.summary||"",next:r.next||"",budget:false,fromReport:r.id};
+    S.tab.developer="investor";render();window.scrollTo(0,0);return;}
+});
+function saveDraftFields(){const g=id=>document.getElementById(id);if(g("up-title"))S.draft.title=g("up-title").value;if(g("up-brief"))S.draft.briefing=g("up-brief").value;if(g("up-next"))S.draft.next=g("up-next").value;if(g("up-budget"))S.draft.budget=g("up-budget").checked;}
+document.addEventListener("change",async e=>{
+  if(e.target.dataset&&e.target.dataset.onb){S.onb.d[e.target.dataset.onb]=e.target.value;if(e.target.dataset.onb==="floors"){S.onb.d.floors=+e.target.value;}return;}
+  if(e.target.id==="lg-cam"){const f=e.target.files&&e.target.files[0];e.target.value="";const p=P();if(!f||!p)return;if(S.shots.length>=8){toast("8 photos per update. Post this one first.");return;}
+    toast("Checking photo…");try{const r=await checkShot(p,f);if(!r.ok){modal(`<h2>Photo not accepted</h2><p>${esc(r.why)}</p><div><button class="btn pri" data-act="close">OK</button></div>`);return;}S.shots.push(r);renderShots();toast(r.v==="onsite"?"Verified on site.":"Photo added.");}catch(err){toast("Couldn't read that photo. Try again.");}return;}
+  if(e.target.id==="proj"){S.pid=e.target.value;ls.set("st.pid",S.pid);render();return;}
+  if(e.target.id==="up-files"){
+    const files=[...e.target.files].slice(0,10);if(!files.length)return;saveDraftFields();
+    try{for(let i=0;i<files.length;i++){S.busy="Uploading "+(i+1)+" of "+files.length+"…";render();const ph=await uploadFile(files[i]);ph.cap="Developer upload";S.draft.extra.unshift(ph);S.draft.sel.push(ph.id);}}
+    catch(err){onErr(err);}S.busy=false;render();
+  }
+});
+document.addEventListener("submit",async e=>{
+  e.preventDefault();const f=e.target,p=P(),v=id=>(document.getElementById(id)||{}).value||"";
+  if(f.id==="onb-form"){
+    const o=S.onb,d=o.d;
+    if(o.step===0&&S.mode==="cf"&&!S.me){const pw=(document.getElementById("o-pass")||{}).value||"";S.busy="Creating account";render();
+      try{const r=await cfApi("POST","/api/auth/signup",{name:d.name,email:d.email,password:pw});S.me=r.user;S.memberships=[];}catch(e){S.busy=false;render();toast(e.code==="conflict"?"That email already has an account. Sign in, then start a project.":e.message||"Couldn't create your account.");return;}S.busy=false;}
+    if(o.step<4){o.step++;render();window.scrollTo(0,0);return;}
+    if(S.busy)return;S.busy="Creating";render();
+    const p0={floors:+d.floors||0,checks:{}},pr0=progress(p0),done=new Set(pr0.phases.slice(0,d.phase).map(x=>x.name));
+    stagesFor(p0).forEach(s=>{if(done.has(s.group))s.items.forEach(i=>p0.checks[i.id]=true);});
+    const nid="p-"+Date.now().toString(36);
+    try{await store.set("projects",nid,{name:(d.pname||"New project").trim(),location:(d.loc||"").trim(),units:(d.units||"").trim(),client:(d.company||"").trim(),owner:(d.name||"").trim(),floors:+d.floors||0,budget:Math.max(0,+d.budget||0),startDate:d.start||"",targetDate:d.target||"",payMode:d.payMode==="milestone"?"milestone":"upfront",...(()=>{const g=parseLatLng(d.gps);return g?{siteLat:g.lat,siteLng:g.lng,siteRadius:200}:{};})(),contractSum:Math.max(0,+d.contract||0),checks:p0.checks,team:d.team,plan:{name:"Single site",billing:d.annual?"yearly":"monthly"},createdAt:new Date().toISOString()});
+      S.pid=nid;ls.set("st.pid",nid);ls.set("st.role","developer");S.tab.developer="overview";
+      if(S.mode==="cf"){await S.db.pull();const links=[];for(const m of d.team){try{const r=await cfApi("POST","/api/invites",{pid:nid,role:m.role,name:m.name,email:m.email});links.push({...m,code:r.code});}catch(e){}}
+        if(links.length)setTimeout(()=>modal(`<h2>Send your invite links</h2><p class="small muted">Each person opens their link to join.</p>${links.map(l=>`<div class="exp"><span>${esc(l.name)} · ${ROLE_LABEL[l.role]}</span><span class="actions">${waLink(`You've been invited to follow ${d.pname} on TrailConstruct. Join here: ${location.origin}/?invite=${l.code}`,"WhatsApp")}<button class="btn sm" data-act="copy" data-text="${esc(location.origin+"/?invite="+l.code)}">Copy</button></span><span></span><span></span></div>`).join("")}<div><button class="btn pri" data-act="close">Done</button></div>`),400);}S.onb={step:0,d:{floors:2,phase:0,team:[],annual:false}};S.busy=false;toast("Project created. Welcome to TrailConstruct.");go("developer");}
+    catch(err){S.busy=false;onErr(err);}
+    return;
+  }
+  if(f.id==="auth-form"){const up=S.authMode==="up",body={name:up?v("au-name").trim():undefined,email:v("au-email").trim(),password:v("au-pass")};S.busy=true;render();
+    try{const r=await cfApi("POST",up?"/api/auth/signup":"/api/auth/login",body);S.me=r.user;S.busy=false;await cfAfterAuth();}
+    catch(err){S.busy=false;render();toast(err.code==="conflict"?"That email already has an account. Sign in instead.":err.message||"Couldn't sign you in.");}return;}
+  if(f.id==="inv-form"){const p=P();if(!p)return;try{const r=await cfApi("POST","/api/invites",{pid:p.id,role:v("iv-role"),name:v("iv-name").trim(),email:v("iv-email").trim()});delete S.team[p.id];toast("Invite link created.");render();}catch(err){toast(err.message||"Couldn't create the invite.");}return;}
+  if(f.id==="proj-form"){
+    const data={name:v("pf-name").trim(),location:v("pf-loc").trim(),units:v("pf-units").trim(),client:v("pf-client").trim(),floors:Math.max(0,parseInt(v("pf-floors"),10)||0),budget:Math.max(0,+v("pf-budget")||0),startDate:v("pf-start"),targetDate:v("pf-target"),payMode:v("pf-pay")||"upfront",contractSum:Math.max(0,+v("pf-contract")||0),siteRadius:+v("pf-rad")||200,strictGps:!!(document.getElementById("pf-strict")||{}).checked};
+    {const g=parseLatLng(v("pf-gps"));if(v("pf-gps").trim()&&!g){toast("Couldn't read that location. Use \"6.4561, 3.4318\" or a Google Maps link.");return;}data.siteLat=g?g.lat:"";data.siteLng=g?g.lng:"";}
+    if(f.dataset.id)await store.update("projects",f.dataset.id,data);
+    else{const nid="p-"+Date.now().toString(36);await store.set("projects",nid,{...data,checks:{},createdAt:new Date().toISOString()});S.pid=nid;ls.set("st.pid",nid);}
+    closeModal();toast("Project saved.");render();return;
+  }
+  if(!p)return;
+  if(f.id==="req-form"){await store.add("matreqs",{pid:p.id,item:v("rq-item").trim(),qty:+v("rq-qty")||0,unit:v("rq-unit"),needBy:v("rq-need"),note:v("rq-note").trim(),by:ls.get("st.name")||"Site engineer",status:"pending",createdAt:new Date().toISOString()});toast("Request sent to the developer.");return;}
+  if(f.id==="mv-form"){const type=(f.querySelector("input[name=mv-type]:checked")||{}).value||"in";await store.add("stock",{pid:p.id,item:v("mv-item").trim(),qty:+v("mv-qty")||0,unit:v("mv-unit"),type,note:v("mv-note").trim(),by:ls.get("st.name")||"Site",date:ymd(new Date()),createdAt:new Date().toISOString()});toast(type==="in"?"Delivery recorded.":"Usage recorded.");return;}
+  if(f.id==="ms-form"){const n=msOf(p.id).length;await store.add("milestones",{pid:p.id,name:v("ms-name").trim(),phase:v("ms-phase"),amount:Math.max(0,+v("ms-amt")||0),order:n,status:"pending",createdAt:new Date().toISOString()});toast("Milestone added.");return;}
+  if(f.id==="ver-form"){await store.update("milestones",f.dataset.id,{status:"verified",verification:{by:v("vf-by").trim(),org:v("vf-org").trim(),date:v("vf-date"),note:v("vf-note").trim()},verifiedAt:new Date().toISOString()});closeModal();toast("Verified. The investor can now approve.");return;}
+  if(f.id==="dis-form"){await store.update("milestones",f.dataset.id,{status:"disputed",dispute:v("ds-note").trim()});closeModal();toast("Dispute sent to the developer.");return;}
+  if(f.id==="paid-form"){await store.update("milestones",f.dataset.id,{status:"paid",payRef:v("pd-ref").trim(),paidAt:new Date().toISOString()});closeModal();toast("Payment confirmed.");return;}
+  if(f.id==="exp-form"){await store.add("expenses",{pid:p.id,item:v("ex-item").trim(),amount:Math.max(0,+v("ex-amt")||0),stage:v("ex-stage"),date:v("ex-date")||ymd(new Date()),createdAt:new Date().toISOString()});toast("Expense added.");return;}
+  if(f.id==="log-form"){
+    if(S.busy)return;const by=v("lg-by").trim();ls.set("st.name",by);
+    const files=S.shots.slice(0,8);
+    const data={pid:p.id,date:v("lg-date"),stage:v("lg-stage"),work:v("lg-work").trim(),workers:Math.max(0,parseInt(v("lg-workers"),10)||0),weather:v("lg-weather"),issues:v("lg-issues").trim(),by,createdAt:new Date().toISOString(),photos:[]};
+    if(!navigator.onLine){const q=outbox.get();q.push(data);outbox.set(q);ls.set("st.draft.log","{}");toast("No signal. Saved on this phone"+(files.length?" (photos need signal, add them later)":"")+". It will post when you're back online.");render();return;}
+    try{for(let i=0;i<files.length;i++){S.busy="Uploading photo "+(i+1)+" of "+files.length+"…";render();const s=files[i],up=await uploadFile(new File([s.blob],"site-photo.jpg",{type:"image/jpeg",lastModified:Date.parse(s.takenAt)||Date.now()}));data.photos.push({...up,v:s.v,dist:s.dist,gps:s.gps,takenAt:s.takenAt});}
+      S.busy="Posting…";render();await store.add("logs",data);ls.set("st.draft.log","{}");S.shots=[];S.busy=false;toast("Update posted.");render();}
+    catch(err){S.busy=false;onErr(err);}return;
+  }
+  if(f.id==="rep-form"){
+    const ws=weekOf(new Date()),wl=logsOf(p.id).filter(l=>l.date>=ws.key);
+    await store.set("reports",p.id+"_"+ws.key,{pid:p.id,weekStart:ws.key,weekEnd:ymd(ws.fri),by:ls.get("st.name")||"Site engineer",summary:v("rp-sum").trim(),next:v("rp-next").trim(),
+      logCount:wl.length,workersAvg:wl.length?Math.round(wl.reduce((a,l)=>a+(+l.workers||0),0)/wl.length):0,
+      issues:wl.filter(l=>l.issues).map(l=>fmtS(l.date)+": "+l.issues),photos:wl.flatMap(l=>(l.photos||[]).map(x=>({...x,cap:fmtS(l.date)}))).slice(0,12),status:"new",createdAt:new Date().toISOString()});
+    toast("Report sent to the developer.");return;
+  }
+  if(f.id==="upd-form"){
+    saveDraftFields();const d=S.draft,pr=progress(p);
+    const pool=[...d.extra,...sitePhotos(p.id)],photos=d.sel.map(id=>pool.find(x=>x.id===id)).filter(Boolean).map(x=>({id:x.id,url:x.url||"",cap:x.cap||""}));
+    const exps=expOf(p.id),spent=exps.reduce((a,e)=>a+(+e.amount||0),0);
+    const u={pid:p.id,title:d.title.trim()||"Progress update",briefing:d.briefing.trim(),next:d.next.trim(),date:ymd(new Date()),photos,by:p.client||"",
+      snapshot:{overall:pr.overall,current:pr.current?pr.current.name:"Completed",next:pr.next?pr.next.name:"Handover",phases:pr.phases.map(x=>({name:x.name,pct:x.pct}))},
+      budget:d.budget?{budget:+p.budget||0,spent}:null,createdAt:new Date().toISOString()};
+    S.busy="Sending…";render();
+    try{await store.add("updates",u);if(d.fromReport)await store.update("reports",d.fromReport,{status:"used"});
+      for(const r of S.requests.filter(r=>r.pid===p.id&&!r.resolved))await store.update("requests",r.id,{resolved:true});
+      S.draft={sel:[],extra:[],title:"",briefing:"",next:"",budget:false,fromReport:null};toast("Update sent to the investor.");}
+    catch(err){onErr(err);}S.busy=false;render();return;
+  }
+});
+document.addEventListener("input",e=>{
+  if(["lg-work","lg-workers","lg-issues"].includes(e.target.id)){const d=logDraft();d[e.target.id.slice(3)]=e.target.value;ls.set("st.draft.log",JSON.stringify(d));return;}
+  if(e.target.dataset&&e.target.dataset.onb){const k=e.target.dataset.onb;S.onb.d[k]=e.target.value;if(k==="floors")S.onb.d.floors=+e.target.value;return;}
+  if(e.target.id==="calc-n"){S.home.projects=+e.target.value;const n=S.home.projects,a=S.home.annual,r=n>=5?22000:25000;document.querySelector(".calc-n").textContent=n;document.getElementById("calc-total").textContent=naira(n*r*(a?10:1));document.getElementById("calc-note").textContent=n>=5?"Portfolio rate applied":"Add "+(5-n)+" more for the Portfolio rate";return;}
+if(["up-title","up-brief","up-next"].includes(e.target.id))saveDraftFields();});
+document.addEventListener("keydown",e=>{const L=document.getElementById("layer");if(!L.innerHTML)return;if(e.key==="Escape")closeModal();const b=L.querySelectorAll("[data-act=gnav]");if(b.length&&e.key==="ArrowLeft")b[0].click();if(b.length&&e.key==="ArrowRight")b[1].click();});
+window.addEventListener("hashchange",()=>{const h=location.hash.slice(1);if(["home","signin","signup","demo","developer","engineer","investor"].includes(h)&&h!==S.view){S.view=h;render();window.scrollTo(0,0);}});
+
+/* ---------- preview data (only when shared storage is unavailable) ---------- */
+function previewSeed(){
+  const d=n=>{const x=new Date();x.setDate(x.getDate()-n);return ymd(x);},checks={};
+  stagesFor({floors:2}).forEach(s=>{if(["pre","set","fdn","lv0","lv1","lv2","roof"].includes(s.id))s.items.forEach(i=>checks[i.id]=true);});["me1.0","me1.1","pls.0","pls.1","pls.2","pls.3","fin.0"].forEach(k=>checks[k]=true);
+  S.projects=[{id:"preview",name:"Preview project",location:"Lagos",units:"4 semi-detached in 2 blocks",client:"Developer",floors:2,checks}];
+  S.logs=[{id:"l1",pid:"preview",date:d(1),stage:"fin",work:"Tiling finished in Block A. Fittings started on ground floor.",workers:14,weather:"Sunny",by:"Site engineer",photos:[]}];
+  S.reports=[];S.updates=[];S.expenses=[];S.requests=[];S.matreqs=[];S.stock=[];S.milestones=[];
+}
+
+/* ---------- Cloudflare mode: own backend (D1 + R2), real accounts ---------- */
+async function cfApi(method,url,body,raw){
+  const r=await fetch(url,{method,credentials:"same-origin",headers:raw?{"content-type":raw.type||"application/octet-stream"}:body?{"content-type":"application/json"}:{},body:raw||(body?JSON.stringify(body):undefined)});
+  let d=null;try{d=await r.json();}catch(e){}
+  if(r.status===401){S.me=null;throw {code:"unauthenticated",message:(d&&d.error)||"Please sign in."};}
+  if(r.status===403)throw {code:"invalid_argument",message:(d&&d.error)||"Not allowed."};
+  if(!r.ok)throw {code:r.status===409?"conflict":"unavailable",message:(d&&d.error)||"Something went wrong."};
+  return d;
+}
+function makeCfDb(){
+  const subs={};let pulling=null;
+  async function pull(){
+    if(pulling)return pulling;
+    pulling=(async()=>{try{const d=await cfApi("GET","/api/data");S.memberships=d.memberships||[];
+      for(const col in subs){const rows=(d.docs&&d.docs[col])||[];subs[col].forEach(cb=>cb(rows));}}
+      catch(e){if(e.code==="unauthenticated"){render();}} finally{pulling=null;}})();
+    return pulling;
+  }
+  const path=(c,i)=>`/api/docs/${encodeURIComponent(c)}/${encodeURIComponent(i)}`;
+  const docRef=(col,id)=>({id,path:col+"/"+id,
+    set:async data=>{await cfApi("PUT",path(col,id),data);pull();},
+    update:async data=>{await cfApi("PATCH",path(col,id),data);pull();},
+    delete:async()=>{await cfApi("DELETE",path(col,id));pull();}});
+  const newId=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2)).replace(/-/g,"").slice(0,24);
+  const coll=col=>({path:col,doc:id=>docRef(col,id||newId()),
+    add:async data=>{const r=docRef(col,newId());await r.set(data);return r;},
+    orderBy(){return this;},limit(){return this;},where(){return this;},
+    onSnapshot(next){(subs[col]=subs[col]||[]).push(rows=>next({docs:rows.map(x=>({id:x.id,exists:true,data:()=>x.data})),size:rows.length,empty:!rows.length,metadata:{fromCache:false,hasPendingWrites:false}}));return ()=>{};}});
+  return {collection:coll,doc:p=>{const [c,i]=p.split("/");return docRef(c,i);},pull};
+}
+const cfAssets={async upload(file){const d=await cfApi("POST","/api/upload?pid="+encodeURIComponent(S.pid||""),null,file);return d;}};
+const cfDownloads={async save({filename,data}){const b=data instanceof Blob?data:new Blob([data]);const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);return {status:"saved"};}};
+const roleFor=pid=>((S.memberships||[]).find(m=>m.pid===pid)||{}).role||null;
+async function cfAfterAuth(){
+  const code=S.pendingInvite;
+  if(code){try{const r=await cfApi("POST","/api/invites/accept",{code});S.pendingInvite=null;try{sessionStorage.removeItem("st.invite")}catch(e){}S.pid=r.pid;ls.set("st.pid",r.pid);toast("You've joined the project.");}catch(e){toast(e.message||"That invite link isn't valid any more.");S.pendingInvite=null;}}
+  await S.db.pull();pickProject();
+  const role=S.pid?roleFor(S.pid):null;
+  go(role||"developer");
+}
+function cfAuthView(){
+  const inv=S.pendingInvite,mode=S.authMode||"in";
+  return `<div class="auth"><div class="auth-box">
+    <a class="brand" href="#home"><span class="mark" aria-hidden="true"></span>TrailConstruct</a>
+    ${inv?`<p class="note">You've been invited to a project. ${mode==="in"?"Sign in":"Create your account"} to join it.</p>`:""}
+    <div class="seg" role="group" aria-label="Sign in or create account"><label><input type="radio" name="am" value="in" data-act="authmode" ${mode==="in"?"checked":""}><span>Sign in</span></label><label><input type="radio" name="am" value="up" data-act="authmode" ${mode==="up"?"checked":""}><span>Create account</span></label></div>
+    <form id="auth-form">
+      ${mode==="up"?`<label class="f" for="au-name">Full name<input type="text" id="au-name" required autocomplete="name"></label>`:""}
+      <label class="f" for="au-email">Email<input type="email" id="au-email" required autocomplete="email"></label>
+      <label class="f" for="au-pass">Password<input type="password" id="au-pass" required minlength="8" autocomplete="${mode==="up"?"new-password":"current-password"}"></label>
+      <div><button class="btn pri" type="submit" ${S.busy?"disabled":""}>${S.busy?"Please wait…":mode==="up"?"Create account":"Sign in"}</button></div>
+    </form>
+    ${!inv?`<p class="small" style="text-align:center">Developer setting up a site? <a class="link" href="#signup">Start here</a></p>`:""}
+    <a class="link small" href="#home">Back to home</a>
+  </div></div>`;
+}
+function teamSection(p){
+  const t=S.team[p.id];
+  if(!t){cfApi("GET","/api/members?pid="+encodeURIComponent(p.id)).then(d=>{S.team[p.id]=d;render();}).catch(()=>{});return `<section class="card"><h2>Team</h2><div class="empty">Loading team…</div></section>`;}
+  const link=c=>location.origin+"/?invite="+c;
+  return `<section class="card"><h2>Team</h2>
+    <div>${(t.members||[]).map(m=>`<div class="exp"><span>${esc(m.name||m.email)}</span><span class="pill ${m.role==="investor"?"ok":m.role==="engineer"?"active":""}">${ROLE_LABEL[m.role]||m.role}</span><span class="small muted">${esc(m.email)}</span><span></span></div>`).join("")}</div>
+    ${(t.invites||[]).length?`<h3>Pending invites</h3>${t.invites.map(i=>`<div class="exp"><span>${esc(i.name||i.email||"Invite")} · ${ROLE_LABEL[i.role]}</span><span class="actions">${waLink(`You've been invited to follow ${p.name} on TrailConstruct as ${ROLE_LABEL[i.role]}. Join here: ${link(i.code)}`,"Send")}<button class="btn sm" data-act="copy" data-text="${esc(link(i.code))}">Copy link</button></span><span class="small muted">${esc(i.email||"")}</span><span></span></div>`).join("")}`:""}
+    <form id="inv-form"><h3>Invite someone</h3><div class="row"><label class="f" for="iv-name">Name<input type="text" id="iv-name" required></label><label class="f" for="iv-email">Email<input type="email" id="iv-email"></label><label class="f" for="iv-role">Role<select id="iv-role"><option value="engineer">Site engineer</option><option value="investor">Investor</option><option value="developer">Developer (full access)</option></select></label></div><div><button class="btn pri" type="submit">Create invite link</button></div></form>
+  </section>`;
+}
+async function getDevicePos(){
+  if(!navigator.geolocation)return null;
+  return new Promise(res=>navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy}),()=>res(null),{enableHighAccuracy:true,timeout:10000,maximumAge:60000}));
+}
+async function initCf(){
+  let me;
+  try{me=await fetch("/api/me",{credentials:"same-origin"});}catch(e){return false;}
+  if(!me||(me.status!==200&&me.status!==401)||!(me.headers.get("content-type")||"").includes("json"))return false;
+  S.mode="cf";S.db=makeCfDb();S.assets=cfAssets;S.downloads=cfDownloads;S.team={};S.canWrite=true;
+  const q=new URLSearchParams(location.search).get("invite");
+  if(q){S.pendingInvite=q;try{sessionStorage.setItem("st.invite",q)}catch(e){}history.replaceState(null,"",location.pathname+"#signin");S.view="signin";S.authMode="up";}
+  else{try{S.pendingInvite=sessionStorage.getItem("st.invite")||null}catch(e){}}
+  ["projects","logs","reports","updates","expenses","requests","matreqs","stock","milestones"].forEach(c=>subscribe(c,S.db.collection(c)));
+  if(me.status===200){const d=await me.json();S.me=d.user;S.memberships=d.memberships||[];await S.db.pull();if(S.pendingInvite){await cfAfterAuth();return true;}}
+  else{S.me=null;S.loaded.projects=true;}
+  setInterval(()=>{if(S.me&&document.visibilityState==="visible")S.db.pull();},20000);
+  document.addEventListener("visibilitychange",()=>{if(S.me&&document.visibilityState==="visible")S.db.pull();});
+  setTimeout(flushOutbox,2500);
+  render();return true;
+}
+
+
+/* ---------- start ---------- */
+(function(){const h=location.hash.slice(1);if(["home","signin","signup","demo","developer","engineer","investor"].includes(h))S.view=h;})();
+render();
+(async function init(){
+  const C=window.claude;
+  if(!C||typeof C.use!=="function"){if(await initCf())return;previewSeed();S.mode="memory";pickProject();render();return;}
+  let db=null;try{db=await C.use("db");}catch(e){}
+  try{S.downloads=await C.use("downloads");}catch(e){}
+  if(!db){previewSeed();S.mode="memory";pickProject();render();return;}
+  S.db=db;S.mode="db";
+  try{const u=await C.use("user");if(u&&typeof u.can==="function"){const c=await u.can("data.write");if(c===false)S.canWrite=false;}}catch(e){}
+  try{S.assets=await C.use("assets");}catch(e){}
+  const timer=setTimeout(()=>{if(!S.loaded.projects){S.slow=true;render();}},10000);
+  subscribe("projects",db.collection("projects"));
+  subscribe("logs",db.collection("logs").orderBy("createdAt","desc").limit(500));
+  subscribe("reports",db.collection("reports"));
+  subscribe("updates",db.collection("updates"));
+  subscribe("expenses",db.collection("expenses"));
+  subscribe("requests",db.collection("requests"));
+  subscribe("matreqs",db.collection("matreqs"));
+  subscribe("stock",db.collection("stock"));
+  subscribe("milestones",db.collection("milestones"));
+  setTimeout(flushOutbox,2500);
+  const chk=setInterval(()=>{if(S.loaded.projects){S.slow=false;clearTimeout(timer);clearInterval(chk);render();}},300);
+})();
+})();
+</script>
+</body>
+</html>

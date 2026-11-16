@@ -1,0 +1,14 @@
+{
+  "name": "trailconstruct",
+  "version": "1.0.0",
+  "scripts": {
+    "db:local": "wrangler d1 execute trailconstruct-db --local --file=schema.sql",
+    "db:remote": "wrangler d1 execute trailconstruct-db --remote --file=schema.sql",
+    "dev": "wrangler pages dev",
+    "deploy": "wrangler pages deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.114.17"
+  },
+  "private": true
+}
