@@ -5,7 +5,7 @@ pages_build_output_dir = "public"
 [[d1_databases]]
 binding = "DB"
 database_name = "trailconstruct-db"
-database_id = "PASTE-YOUR-D1-DATABASE-ID-HERE"
+database_id = "caa2fddf-bb33-4b48-9e2b-e61811e2636b"
 
 [[r2_buckets]]
 binding = "PHOTOS"
