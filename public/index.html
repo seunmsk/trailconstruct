@@ -538,6 +538,9 @@ main{max-width:1120px}
 .ac-holder gmp-place-autocomplete::part(prediction-list){font-family:var(--body);font-size:14px}
 .ac-holder gmp-place-autocomplete::part(prediction-item-main-text){font-weight:500}
 .pin{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+.propbox{display:grid;gap:10px;padding:14px;border-radius:12px;background:var(--sunk);border:1px solid var(--line)}
+.propbox input,.propbox select{background:var(--surface)}
 </style>
 </head>
 <body>
@@ -793,6 +796,41 @@ function homeView(){
 }
 const FEED=["Eng. on site posted: tiling done in Block A","Developer sent an update with 4 photos","Investor downloaded the weekly PDF report","Checklist: sanitary fittings, Block B ✓","Weekly report received from site"];
 
+/* ---------- property types ---------- */
+const PTYPES=[
+  {k:"bungalow",l:"Bungalow (detached)",n:"bungalow",np:"bungalows",fl:0},
+  {k:"semi-bungalow",l:"Semi-detached bungalow",n:"semi-detached bungalow",np:"semi-detached bungalows",fl:0},
+  {k:"detached-duplex",l:"Detached duplex",n:"detached duplex",np:"detached duplexes",fl:1},
+  {k:"semi-duplex",l:"Semi-detached duplex",n:"semi-detached duplex",np:"semi-detached duplexes",fl:1},
+  {k:"terrace",l:"Terrace duplex / townhouse",n:"terrace",np:"terraces",fl:1},
+  {k:"maisonette",l:"Maisonette",n:"maisonette",np:"maisonettes",fl:1},
+  {k:"flats",l:"Block of flats",n:"flat",np:"flats",fl:3},
+  {k:"mini-flats",l:"Mini flats / self-contained",n:"mini flat",np:"mini flats",fl:2},
+  {k:"highrise",l:"High-rise apartments",n:"apartment",np:"apartments",fl:8},
+  {k:"mixed",l:"Mixed-use (shops + homes)",n:"unit",np:"units",fl:3},
+  {k:"commercial",l:"Commercial / office building",n:"office unit",np:"office units",fl:3},
+  {k:"estate",l:"Estate (mixed house types)",n:"home",np:"homes",fl:1},
+  {k:"other",l:"Other",n:"unit",np:"units",fl:1}
+];
+const ptype=k=>PTYPES.find(t=>t.k===k);
+function unitsText(p){
+  const t=ptype(p.propType);
+  if(!t)return p.units||"";
+  const n=+p.unitCount||0,b=+p.blockCount||0,bd=p.beds;
+  const head=n?`${n} ${n===1?t.n:t.np}`:t.l;
+  return head+(b>1?` in ${b} blocks`:b===1&&n>1&&t.k!=="flats"?" in 1 block":"")+(bd?` · ${bd==="studio"?"studio":bd+"-bed"}`:"");
+}
+const BEDS=[["","Bedrooms (optional)"],["studio","Studio"],["1","1 bedroom"],["2","2 bedrooms"],["3","3 bedrooms"],["4","4 bedrooms"],["5","5 bedrooms"],["6","6+ bedrooms"]];
+function propFields(prefix,v,attr){
+  // attr(k) returns the attribute that ties a control to its state (data-onb for sign-up, plain id for the edit form)
+  return `<div class="propbox">
+    <label class="f" for="${prefix}-ptype">Type of property<select id="${prefix}-ptype" ${attr("ptype")} required><option value="">Choose a type</option>${PTYPES.map(t=>`<option value="${t.k}" ${v.propType===t.k?"selected":""}>${t.l}</option>`).join("")}</select></label>
+    <div class="row"><label class="f" for="${prefix}-unitn">Number of units<input type="number" id="${prefix}-unitn" ${attr("unitn")} min="1" max="5000" inputmode="numeric" value="${esc(v.unitCount||"")}" placeholder="e.g. 4"></label>
+    <label class="f" for="${prefix}-blocks">Blocks / buildings<input type="number" id="${prefix}-blocks" ${attr("blocks")} min="1" max="500" inputmode="numeric" value="${esc(v.blockCount||"")}" placeholder="e.g. 2"></label>
+    <label class="f" for="${prefix}-beds">Bedrooms per unit<select id="${prefix}-beds" ${attr("beds")}>${BEDS.map(([k,l])=>`<option value="${k}" ${String(v.beds||"")===k?"selected":""}>${l}</option>`).join("")}</select></label></div>
+    ${v.propType?`<p class="small muted" id="${prefix}-psum">Shows as: <b style="color:var(--ink)">${esc(unitsText(v))}</b></p>`:""}</div>`;
+}
+
 /* ---------- SIGN UP / ONBOARDING ---------- */
 const ONB_STEPS=["Your account","Your project","Progress so far","Your team","Plan"];
 function signupView(){
@@ -809,7 +847,7 @@ function signupView(){
   if(st===1)body=`<h2>Add your first project</h2><p class="muted small">You can add more projects later.</p>
     ${inp("pname","Project name","text","e.g. Banana Island Semi-Detached",1)}
     ${(()=>{const g=parseLatLng(d.gps);return locBlock("o",d.loc,g?g.lat:"",g?g.lng:"",`<input type="text" id="o-loc" data-onb="loc" value="${esc(d.loc||"")}" placeholder="Street, area, Lagos">`);})()}
-    <div class="row">${inp("units","Units","text","e.g. 4 semi-detached in 2 blocks")}</div>
+    ${propFields("o",{propType:d.ptype,unitCount:d.unitn,blockCount:d.blocks,beds:d.beds},k=>`data-onb="${k}"`)}
     <div class="row"><label class="f" for="o-floors">Floors above ground<select id="o-floors" data-onb="floors">${[0,1,2,3,4,5,6,8,10,12,15,20].map(n=>`<option value="${n}" ${+d.floors===n?"selected":""}>${n===0?"Bungalow":"G+"+n}</option>`).join("")}</select></label>${inp("budget","Budget (₦, optional)","number")}</div>
     <div class="row">${inp("start","Start date","date")}${inp("target","Target completion","date")}</div>
     ${!S.mapsKey||S.manualGps.o?`<div class="row">${inp("gps","Site GPS (lat, lng or Google Maps link)","text","e.g. 6.4561, 3.4318")}</div>`:""}
@@ -945,7 +983,7 @@ function devView(p){
     if(p.siteLat==null||p.siteLat==="")todo.push(["","Add the site's GPS location so photos can be checked as taken on site",`<button class="btn sm" data-act="edit-project">Add location</button>`]);
     if(ago==null||ago>3)todo.push(["crit",ago==null?"No site updates yet":`No site update for ${ago} days`,""]);
     const ws=weekStatus(p.id);if(ws.late)todo.push(["crit","This week's site report is overdue",waLink(`Hi, this week's TrailConstruct report for ${p.name} is overdue. Please send it today.`,"Remind on WhatsApp")]);else if(!ws.report&&ws.left<=2)todo.push(["","Weekly site report due Friday",waLink(`Hi, reminder: this week's TrailConstruct report for ${p.name} is due Friday ${fmtS(ymd(ws.w.fri))}.`,"Remind on WhatsApp")]);
-    body=`<section class="card"><div class="card-h"><div><h2>${esc(p.name)}</h2><p class="small muted">${esc([p.location,p.units,+p.floors?"G+"+p.floors:"Bungalow"].filter(Boolean).join(" · "))}</p></div></div>
+    body=`<section class="card"><div class="card-h"><div><h2>${esc(p.name)}</h2><p class="small muted">${esc([p.location,unitsText(p),+p.floors?"G+"+p.floors:"Bungalow"].filter(Boolean).join(" · "))}</p></div></div>
       ${phaseStrip(pr)}
       <div class="stats"><div class="stat"><b>${esc(pr.current?pr.current.name:"Complete")}</b><span>Current stage</span></div>
         <div class="stat"><b class="num">${ago==null?"—":ago===0?"Today":ago+"d ago"}</b><span>Last site update</span></div>
@@ -977,7 +1015,7 @@ function devView(p){
   }
   if(t==="project"){
     body=(S.mode==="cf"?teamSection(p):"")+`<section class="card"><div class="card-h"><h2>Project details</h2>${S.canWrite?`<div class="actions"><button class="btn sm" data-act="edit-project">Edit</button><button class="btn sm" data-act="new-project">Add another project</button></div>`:""}</div>
-      <dl class="kv"><dt>Name</dt><dd>${esc(p.name)}</dd><dt>Location</dt><dd>${esc(p.location||"—")}</dd><dt>Units</dt><dd>${esc(p.units||"—")}</dd><dt>Floors</dt><dd>${+p.floors?"Ground + "+p.floors:"Bungalow"}</dd><dt>Developer</dt><dd>${esc(p.client||"—")}</dd><dt>Budget</dt><dd>${+p.budget?naira(p.budget):"Not set"}</dd><dt>Start</dt><dd>${esc(fmtD(p.startDate)||"Not set")}</dd><dt>Target completion</dt><dd>${esc(fmtD(p.targetDate)||"Not set")}</dd><dt>Site GPS</dt><dd>${p.siteLat!=null&&p.siteLat!==""?esc((+p.siteLat).toFixed(5)+", "+(+p.siteLng).toFixed(5))+" · photos within "+(+p.siteRadius||200)+" m"+(p.strictGps?" · GPS required":""):"Not set. Add it so site photos can be checked."}</dd><dt>Funding</dt><dd>${p.payMode==="milestone"?"Milestone payments"+(+p.contractSum?" · "+naira(p.contractSum):""):"Paid up front"}</dd></dl></section>
+      <dl class="kv"><dt>Name</dt><dd>${esc(p.name)}</dd><dt>Location</dt><dd>${esc(p.location||"—")}</dd><dt>Property</dt><dd>${esc(unitsText(p)||"—")}</dd><dt>Floors</dt><dd>${+p.floors?"Ground + "+p.floors:"Bungalow"}</dd><dt>Developer</dt><dd>${esc(p.client||"—")}</dd><dt>Budget</dt><dd>${+p.budget?naira(p.budget):"Not set"}</dd><dt>Start</dt><dd>${esc(fmtD(p.startDate)||"Not set")}</dd><dt>Target completion</dt><dd>${esc(fmtD(p.targetDate)||"Not set")}</dd><dt>Site GPS</dt><dd>${p.siteLat!=null&&p.siteLat!==""?esc((+p.siteLat).toFixed(5)+", "+(+p.siteLng).toFixed(5))+" · photos within "+(+p.siteRadius||200)+" m"+(p.strictGps?" · GPS required":""):"Not set. Add it so site photos can be checked."}</dd><dt>Funding</dt><dd>${p.payMode==="milestone"?"Milestone payments"+(+p.contractSum?" · "+naira(p.contractSum):""):"Paid up front"}</dd></dl></section>
     ${(p.team||[]).length?`<section class="card"><h2>Team</h2><div>${p.team.map(t=>`<div class="exp"><span>${esc(t.name)}</span><span class="pill ${t.role==="investor"?"ok":"active"}">${t.role==="investor"?"Investor":"Site engineer"}</span><span class="small muted">${esc(t.email||"")}</span><span></span></div>`).join("")}</div></section>`:""}
     <section class="card"><h2>Team access</h2><p class="muted">Share this page from its menu. Give site engineers <b>Contributor</b> access so they can post updates and photos. Investors can be <b>Viewers</b>: they only open the Investor workspace and see updates you send.</p></section>`;
   }
@@ -1233,7 +1271,7 @@ function invView(p){
     const sch=scheduleInfo(p,pr),lastAgo=latest?daysSince(latest.date):null;
     const done=pr.phases.filter(x=>x.status==="done").length;
     body=`<section class="cover ${cover?"has":""}" ${cover?`style="--img:url('${esc(src(cover))}')"`:""}>
-      <div class="cover-in"><span class="pill ${cover?"glass":"active"}">${esc(pr.current?pr.current.group:"Completed")}</span><h1>${esc(p.name)}</h1><p>${esc([p.location,p.units].filter(Boolean).join(" · "))}</p>
+      <div class="cover-in"><span class="pill ${cover?"glass":"active"}">${esc(pr.current?pr.current.group:"Completed")}</span><h1>${esc(p.name)}</h1><p>${esc([p.location,unitsText(p)].filter(Boolean).join(" · "))}</p>
       ${cover?`<button class="btn glass sm" data-act="tab" data-role="investor" data-tab="photos">${ICON.cam} View ${photos.length} site photo${photos.length===1?"":"s"}</button>`:""}</div></section>
     <section class="card"><div class="ihero">${ring(pr.overall)}<div style="display:grid;gap:10px;min-width:0">
       <dl class="kv"><dt>Now</dt><dd>${esc(pr.current?pr.current.name:"Completed")}</dd><dt>Next</dt><dd>${esc(pr.next?pr.next.name:"Handover")}</dd></dl>
@@ -1298,7 +1336,7 @@ function projectForm(p){p=p||{};
   modal(`<h2>${p.id?"Edit project":"New project"}</h2><form id="proj-form" data-id="${esc(p.id||"")}">
     <label class="f" for="pf-name">Project name<input type="text" id="pf-name" required value="${esc(p.name||"")}"></label>
     ${locBlock("pf",p.location,p.siteLat,p.siteLng,`<input type="text" id="pf-loc" value="${esc(p.location||"")}" placeholder="Street, area, Lagos" aria-label="Site address">`)}
-    <label class="f" for="pf-units">Units<input type="text" id="pf-units" value="${esc(p.units||"")}" placeholder="e.g. 4 semi-detached in 2 blocks"></label>
+    ${propFields("pf",p.propType?p:{...p,propType:""},()=>"")}${!p.propType&&p.units?`<p class="small muted">Currently: ${esc(p.units)}. Choose a type above to update it.</p>`:""}
     <label class="f" for="pf-client">Developer / company<input type="text" id="pf-client" value="${esc(p.client||"")}"></label>
     <div class="row"><label class="f" for="pf-floors">Floors above ground<input type="number" id="pf-floors" min="0" max="30" value="${esc(p.floors??0)}"><span class="small" style="font-weight:400">0 = bungalow, 2 = G+2</span></label>
     <label class="f" for="pf-budget">Budget (₦)<input type="number" id="pf-budget" min="0" step="1" value="${esc(p.budget||"")}"></label></div>
@@ -1327,7 +1365,7 @@ async function makePDF(p,u){
   doc.setFillColor(43,74,94);doc.rect(0,0,W,30,"F");doc.setFillColor(240,165,0);doc.rect(0,30,W,2,"F");
   doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(20);doc.text("TrailConstruct",M,15);
   doc.setFont("helvetica","normal");doc.setFontSize(10);doc.text("Investor progress report · Every stage, on record.",M,22);doc.text(fmtD(u.date),W-M,22,{align:"right"});
-  y=44;txt(p.name,18,"bold");y+=1;txt([p.location,p.units,+p.floors?"Ground + "+p.floors+" floors":""].filter(Boolean).join("  ·  "),10,"normal",[91,101,112]);y+=4;
+  y=44;txt(p.name,18,"bold");y+=1;txt([p.location,unitsText(p),+p.floors?"Ground + "+p.floors+" floors":""].filter(Boolean).join("  ·  "),10,"normal",[91,101,112]);y+=4;
   txt(u.title,13,"bold");y+=2;
   need(26);doc.setFillColor(246,247,243);doc.roundedRect(M,y,CW,24,3,3,"F");
   doc.setFont("helvetica","bold");doc.setFontSize(24);doc.setTextColor(43,74,94);doc.text(Math.round(snap.overall*100)+"%",M+6,y+15);
@@ -1417,9 +1455,13 @@ document.addEventListener("click",async e=>{
 });
 function saveDraftFields(){const g=id=>document.getElementById(id);if(g("up-title"))S.draft.title=g("up-title").value;if(g("up-brief"))S.draft.briefing=g("up-brief").value;if(g("up-next"))S.draft.next=g("up-next").value;if(g("up-budget"))S.draft.budget=g("up-budget").checked;}
 document.addEventListener("change",async e=>{
-  if(e.target.dataset&&e.target.dataset.onb){S.onb.d[e.target.dataset.onb]=e.target.value;if(e.target.dataset.onb==="floors"){S.onb.d.floors=+e.target.value;}return;}
+  if(e.target.dataset&&e.target.dataset.onb){const k=e.target.dataset.onb,d=S.onb.d;d[k]=e.target.value;if(k==="floors"){d.floors=+e.target.value;d.floorsTouched=true;}
+    if(k==="ptype"){const t=ptype(d.ptype);if(t&&!d.floorsTouched)d.floors=t.fl;}
+    if(k==="ptype"){setTimeout(()=>{const y=window.scrollY;render();window.scrollTo(0,y);},0);}
+    else if(["unitn","blocks","beds"].includes(k)){const s=document.getElementById("o-psum");if(s)s.innerHTML=`Shows as: <b style="color:var(--ink)">${esc(unitsText({propType:d.ptype,unitCount:d.unitn,blockCount:d.blocks,beds:d.beds}))}</b>`;}return;}
   if(e.target.id==="lg-cam"){const f=e.target.files&&e.target.files[0];e.target.value="";const p=P();if(!f||!p)return;if(S.shots.length>=8){toast("8 photos per update. Post this one first.");return;}
     toast("Checking photo…");try{const r=await checkShot(p,f);if(!r.ok){modal(`<h2>Photo not accepted</h2><p>${esc(r.why)}</p><div><button class="btn pri" data-act="close">OK</button></div>`);return;}S.shots.push(r);renderShots();toast(r.v==="onsite"?"Verified on site.":"Photo added.");}catch(err){toast("Couldn't read that photo. Try again.");}return;}
+  if(["pf-ptype","pf-unitn","pf-blocks","pf-beds"].includes(e.target.id)){const g=id=>(document.getElementById(id)||{}).value||"";const txt=unitsText({propType:g("pf-ptype"),unitCount:g("pf-unitn"),blockCount:g("pf-blocks"),beds:g("pf-beds")});let s=document.getElementById("pf-psum");if(!s){s=document.createElement("p");s.id="pf-psum";s.className="small muted";document.querySelector(".propbox").appendChild(s);}s.innerHTML=`Shows as: <b style="color:var(--ink)">${esc(txt)}</b>`;return;}
   if(e.target.id==="proj"){S.pid=e.target.value;ls.set("st.pid",S.pid);render();return;}
   if(e.target.id==="up-files"){
     const files=[...e.target.files].slice(0,10);if(!files.length)return;saveDraftFields();
@@ -1438,7 +1480,7 @@ document.addEventListener("submit",async e=>{
     const p0={floors:+d.floors||0,checks:{}},pr0=progress(p0),done=new Set(pr0.phases.slice(0,d.phase).map(x=>x.name));
     stagesFor(p0).forEach(s=>{if(done.has(s.group))s.items.forEach(i=>p0.checks[i.id]=true);});
     const nid="p-"+Date.now().toString(36);
-    try{await store.set("projects",nid,{name:(d.pname||"New project").trim(),location:(d.loc||"").trim(),units:(d.units||"").trim(),client:(d.company||"").trim(),owner:(d.name||"").trim(),floors:+d.floors||0,budget:Math.max(0,+d.budget||0),startDate:d.start||"",targetDate:d.target||"",payMode:d.payMode==="milestone"?"milestone":"upfront",...(()=>{const g=parseLatLng(d.gps);return g?{siteLat:g.lat,siteLng:g.lng,siteRadius:200}:{};})(),contractSum:Math.max(0,+d.contract||0),checks:p0.checks,team:d.team,plan:{name:"Single site",billing:d.annual?"yearly":"monthly"},createdAt:new Date().toISOString()});
+    try{await store.set("projects",nid,{name:(d.pname||"New project").trim(),location:(d.loc||"").trim(),propType:d.ptype||"",unitCount:+d.unitn||0,blockCount:+d.blocks||0,beds:d.beds||"",units:unitsText({propType:d.ptype,unitCount:d.unitn,blockCount:d.blocks,beds:d.beds}),client:(d.company||"").trim(),owner:(d.name||"").trim(),floors:+d.floors||0,budget:Math.max(0,+d.budget||0),startDate:d.start||"",targetDate:d.target||"",payMode:d.payMode==="milestone"?"milestone":"upfront",...(()=>{const g=parseLatLng(d.gps);return g?{siteLat:g.lat,siteLng:g.lng,siteRadius:200}:{};})(),contractSum:Math.max(0,+d.contract||0),checks:p0.checks,team:d.team,plan:{name:"Single site",billing:d.annual?"yearly":"monthly"},createdAt:new Date().toISOString()});
       S.pid=nid;ls.set("st.pid",nid);ls.set("st.role","developer");S.tab.developer="overview";
       if(S.mode==="cf"){await S.db.pull();const links=[];for(const m of d.team){try{const r=await cfApi("POST","/api/invites",{pid:nid,role:m.role,name:m.name,email:m.email});links.push({...m,code:r.code});}catch(e){}}
         if(links.length)setTimeout(()=>modal(`<h2>Send your invite links</h2><p class="small muted">Each person opens their link to join.</p>${links.map(l=>`<div class="exp"><span>${esc(l.name)} · ${ROLE_LABEL[l.role]}</span><span class="actions">${waLink(`You've been invited to follow ${d.pname} on TrailConstruct. Join here: ${location.origin}/?invite=${l.code}`,"WhatsApp")}<button class="btn sm" data-act="copy" data-text="${esc(location.origin+"/?invite="+l.code)}">Copy</button></span><span></span><span></span></div>`).join("")}<div><button class="btn pri" data-act="close">Done</button></div>`),400);}S.onb={step:0,d:{floors:2,phase:0,team:[],annual:false}};S.busy=false;toast("Project created. Welcome to TrailConstruct.");go("developer");}
@@ -1450,7 +1492,8 @@ document.addEventListener("submit",async e=>{
     catch(err){S.busy=false;render();showErr(up?"Couldn't create your account":"Couldn't sign you in",err.code==="conflict"?"That email already has an account. Choose Sign in instead.":err.message||"Please try again.");}return;}
   if(f.id==="inv-form"){const p=P();if(!p)return;try{const r=await cfApi("POST","/api/invites",{pid:p.id,role:v("iv-role"),name:v("iv-name").trim(),email:v("iv-email").trim()});delete S.team[p.id];toast("Invite link created.");render();}catch(err){toast(err.message||"Couldn't create the invite.");}return;}
   if(f.id==="proj-form"){
-    const data={name:v("pf-name").trim(),location:(S.pfLoc||v("pf-loc")||(f.dataset.id&&P()?P().location||"":"")).trim(),units:v("pf-units").trim(),client:v("pf-client").trim(),floors:Math.max(0,parseInt(v("pf-floors"),10)||0),budget:Math.max(0,+v("pf-budget")||0),startDate:v("pf-start"),targetDate:v("pf-target"),payMode:v("pf-pay")||"upfront",contractSum:Math.max(0,+v("pf-contract")||0),siteRadius:+v("pf-rad")||200,strictGps:!!(document.getElementById("pf-strict")||{}).checked};
+    const data={name:v("pf-name").trim(),location:(S.pfLoc||v("pf-loc")||(f.dataset.id&&P()?P().location||"":"")).trim(),propType:v("pf-ptype"),unitCount:+v("pf-unitn")||0,blockCount:+v("pf-blocks")||0,beds:v("pf-beds"),client:v("pf-client").trim(),floors:Math.max(0,parseInt(v("pf-floors"),10)||0),budget:Math.max(0,+v("pf-budget")||0),startDate:v("pf-start"),targetDate:v("pf-target"),units:"",payMode:v("pf-pay")||"upfront",contractSum:Math.max(0,+v("pf-contract")||0),siteRadius:+v("pf-rad")||200,strictGps:!!(document.getElementById("pf-strict")||{}).checked};
+    data.units=data.propType?unitsText(data):((f.dataset.id&&P()?P().units:"")||"");
     {const g=parseLatLng(v("pf-gps"));if(v("pf-gps").trim()&&!g){toast("Couldn't read that location. Use \"6.4561, 3.4318\" or a Google Maps link.");return;}data.siteLat=g?g.lat:"";data.siteLng=g?g.lng:"";}
     if(f.dataset.id)await store.update("projects",f.dataset.id,data);
     else{const nid="p-"+Date.now().toString(36);await store.set("projects",nid,{...data,checks:{},createdAt:new Date().toISOString()});S.pid=nid;ls.set("st.pid",nid);}
