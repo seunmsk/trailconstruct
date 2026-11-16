@@ -533,7 +533,10 @@ main{max-width:1120px}
 
 .locbox{display:grid;gap:10px;padding:14px;border-radius:12px;background:var(--sunk);border:1px solid var(--line)}
 .locbox .f{display:grid;gap:4px;font-size:.84rem;font-weight:600;color:var(--muted)}
-.ac-holder gmp-place-autocomplete{width:100%;color-scheme:light}
+.ac-holder gmp-place-autocomplete{width:100%;color-scheme:light;background-color:var(--sunk);border:1px solid var(--line);border-radius:9px;color:var(--ink);font-family:var(--body);font-size:15px;font-weight:400;line-height:1.4}
+.ac-holder gmp-place-autocomplete::part(input){font-family:var(--body);font-size:15px;font-weight:400;padding-top:2px;padding-bottom:2px}
+.ac-holder gmp-place-autocomplete::part(prediction-list){font-family:var(--body);font-size:14px}
+.ac-holder gmp-place-autocomplete::part(prediction-item-main-text){font-weight:500}
 .pin{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 </style>
 </head>
