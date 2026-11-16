@@ -1419,7 +1419,7 @@ document.addEventListener("submit",async e=>{
   if(f.id==="onb-form"){
     const o=S.onb,d=o.d;
     if(o.step===0&&S.mode==="cf"&&!S.me){const pw=(document.getElementById("o-pass")||{}).value||"";S.busy="Creating account";render();
-      try{const r=await cfApi("POST","/api/auth/signup",{name:d.name,email:d.email,password:pw});S.me=r.user;S.memberships=[];}catch(e){S.busy=false;render();toast(e.code==="conflict"?"That email already has an account. Sign in, then start a project.":e.message||"Couldn't create your account.");return;}S.busy=false;}
+      try{const r=await cfApi("POST","/api/auth/signup",{name:d.name,email:d.email,password:pw});S.me=r.user;S.memberships=[];}catch(e){S.busy=false;render();showErr("Couldn't create your account",e.code==="conflict"?"That email already has an account. Sign in first, then start your project.":e.message||"Please try again.");return;}S.busy=false;}
     if(o.step<4){o.step++;render();window.scrollTo(0,0);return;}
     if(S.busy)return;S.busy="Creating";render();
     const p0={floors:+d.floors||0,checks:{}},pr0=progress(p0),done=new Set(pr0.phases.slice(0,d.phase).map(x=>x.name));
@@ -1434,7 +1434,7 @@ document.addEventListener("submit",async e=>{
   }
   if(f.id==="auth-form"){const up=S.authMode==="up",body={name:up?v("au-name").trim():undefined,email:v("au-email").trim(),password:v("au-pass")};S.busy=true;render();
     try{const r=await cfApi("POST",up?"/api/auth/signup":"/api/auth/login",body);S.me=r.user;S.busy=false;await cfAfterAuth();}
-    catch(err){S.busy=false;render();toast(err.code==="conflict"?"That email already has an account. Sign in instead.":err.message||"Couldn't sign you in.");}return;}
+    catch(err){S.busy=false;render();showErr(up?"Couldn't create your account":"Couldn't sign you in",err.code==="conflict"?"That email already has an account. Choose Sign in instead.":err.message||"Please try again.");}return;}
   if(f.id==="inv-form"){const p=P();if(!p)return;try{const r=await cfApi("POST","/api/invites",{pid:p.id,role:v("iv-role"),name:v("iv-name").trim(),email:v("iv-email").trim()});delete S.team[p.id];toast("Invite link created.");render();}catch(err){toast(err.message||"Couldn't create the invite.");}return;}
   if(f.id==="proj-form"){
     const data={name:v("pf-name").trim(),location:v("pf-loc").trim(),units:v("pf-units").trim(),client:v("pf-client").trim(),floors:Math.max(0,parseInt(v("pf-floors"),10)||0),budget:Math.max(0,+v("pf-budget")||0),startDate:v("pf-start"),targetDate:v("pf-target"),payMode:v("pf-pay")||"upfront",contractSum:Math.max(0,+v("pf-contract")||0),siteRadius:+v("pf-rad")||200,strictGps:!!(document.getElementById("pf-strict")||{}).checked};
@@ -1504,7 +1504,7 @@ async function cfApi(method,url,body,raw){
   let d=null;try{d=await r.json();}catch(e){}
   if(r.status===401){S.me=null;throw {code:"unauthenticated",message:(d&&d.error)||"Please sign in."};}
   if(r.status===403)throw {code:"invalid_argument",message:(d&&d.error)||"Not allowed."};
-  if(!r.ok)throw {code:r.status===409?"conflict":"unavailable",message:(d&&d.error)||"Something went wrong."};
+  if(!r.ok)throw {code:r.status===409?"conflict":"unavailable",message:(d&&d.error)||("The server couldn't finish this (error "+r.status+"). Please try again in a minute.")};
   return d;
 }
 function makeCfDb(){
@@ -1538,6 +1538,7 @@ async function cfAfterAuth(){
   const role=S.pid?roleFor(S.pid):null;
   go(role||"developer");
 }
+function showErr(title,msg){modal(`<h2>${esc(title)}</h2><p>${esc(msg)}</p><div><button class="btn pri" data-act="close">OK</button></div>`);}
 function cfAuthView(){
   const inv=S.pendingInvite,mode=S.authMode||"in";
   return `<div class="auth"><div class="auth-box">

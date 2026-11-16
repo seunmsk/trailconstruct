@@ -12,4 +12,4 @@ binding = "PHOTOS"
 bucket_name = "trailconstruct-photos"
 
 [vars]
-PBKDF2_ITERATIONS = "100000"
+PBKDF2_ITERATIONS = "20000"

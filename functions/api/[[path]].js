@@ -111,7 +111,7 @@ export async function onRequest(ctx) {
   const url = new URL(req.url);
   const parts = url.pathname.replace(/^\/api\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
   const m = req.method;
-  const iterations = parseInt(env.PBKDF2_ITERATIONS || "100000", 10);
+  const iterations = parseInt(env.PBKDF2_ITERATIONS || "20000", 10);
 
   try {
     // ---------- auth ----------
