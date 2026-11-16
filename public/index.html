@@ -739,17 +739,12 @@ function homeView(){
       <div class="actions"><a class="btn amber lg" href="#signup">Start tracking a project</a><a class="btn outline lg" href="#demo"><span class="play" aria-hidden="true">▶</span> Take the product tour</a></div>
       <p class="hero-note">₦25,000 per project per month · Investors and engineers join free</p></div>
     <div class="demo float" aria-label="Example investor view">
-      <div class="demo-top"><div><h3>4 semi-detached duplexes</h3><p class="small muted">Ikoyi, Lagos · G+2 · example</p></div><span class="pill active">Finishes</span></div>
+      <div class="demo-top"><div><h3>4 semi-detached duplexes</h3><p class="small muted">Ikoyi, Lagos · Ground + 2 floors · example</p></div><span class="pill active">Finishes</span></div>
       <div style="display:flex;gap:16px;align-items:center"><span class="${S.ringDone?"":"ring-anim"}">${ring(pr.overall,104)}</span><div class="small" style="display:grid;gap:4px"><span><b>Now:</b> tiling & interior fittings</span><span><b>Next:</b> M&E second fix</span><span class="muted">Last update 2 days ago · 6 photos</span></div></div>
       ${phaseStrip(pr)}
       <div class="demo-feed"><span class="dot-live"></span><span id="feed">${esc(FEED[0])}</span></div>
     </div>
   </section></div>
-  <section class="strip"><div class="strip-in">
-    <div><b class="num" data-count="11">11</b><span>construction phases tracked</span></div>
-    <div><b class="num" data-count="${items}">${items}</b><span>checklist items on a G+2 build</span></div>
-    <div><b class="num" data-count="3">3</b><span>sides connected on one platform</span></div>
-    <div><b class="num" data-count="1">1</b><span>minute to post a site update</span></div></div></section>
   <section class="sec"><div class="sec-h"><p class="eyebrow">Why TrailConstruct</p><h2 class="sh">Building in Lagos runs on trust. TrailConstruct backs it up.</h2></div>
     <div class="pains">
       <div class="pain reveal"><span class="pi p1">?</span><b>"Is anything happening on my site?"</b><p class="muted">Investors in London, Houston or Abuja wait weeks for news and hear it second-hand. TrailConstruct gives them a live view and a proper report.</p></div>
@@ -795,6 +790,10 @@ function homeView(){
   <footer class="hfoot"><span class="brand" style="font-size:1.1rem"><span class="mark" aria-hidden="true"></span>TrailConstruct</span><span>Every stage, on record. · Lagos, Nigeria</span></footer>`;
 }
 const FEED=["Eng. on site posted: tiling done in Block A","Developer sent an update with 4 photos","Investor downloaded the weekly PDF report","Checklist: sanitary fittings, Block B ✓","Weekly report received from site"];
+
+/* ---------- floors in plain words ---------- */
+const floorsLabel=n=>{n=+n||0;return n===0?"Ground floor only":`Ground + ${n} floor${n===1?"":"s"}`;};
+const floorsOption=n=>{n=+n||0;return n===0?"Bungalow (ground floor only)":`Ground + ${n} floor${n===1?"":"s"} (G+${n})`;};
 
 /* ---------- property types ---------- */
 const PTYPES=[
@@ -865,7 +864,7 @@ function signupView(){
     ${inp("pname","Project name","text","e.g. Palm Court Residences",1)}
     ${(()=>{const g=parseLatLng(d.gps);return locBlock("o",d.loc,g?g.lat:"",g?g.lng:"",`<input type="text" id="o-loc" data-onb="loc" value="${esc(d.loc||"")}" placeholder="Street, area, Lagos">`);})()}
     ${propFields("o",{propType:d.ptype,unitCount:d.unitn,blockCount:d.blocks,beds:d.beds},k=>`data-onb="${k}"`)}
-    <div class="row"><label class="f" for="o-floors">Floors above ground<select id="o-floors" data-onb="floors">${[0,1,2,3,4,5,6,8,10,12,15,20].map(n=>`<option value="${n}" ${+d.floors===n?"selected":""}>${n===0?"Bungalow":"G+"+n}</option>`).join("")}</select></label>${inp("budget","Budget (₦, optional)","number")}</div>
+    <div class="row"><label class="f" for="o-floors">Floors above ground<select id="o-floors" data-onb="floors">${[0,1,2,3,4,5,6,8,10,12,15,20].map(n=>`<option value="${n}" ${+d.floors===n?"selected":""}>${floorsOption(n)}</option>`).join("")}</select></label>${inp("budget","Budget (₦, optional)","number")}</div>
     ${durBlock("o",d.start,d.dur,d.target,k=>`data-onb="${k}"`)}
     ${!S.mapsKey||S.manualGps.o?`<div class="row">${inp("gps","Site GPS (lat, lng or Google Maps link)","text","e.g. 6.4561, 3.4318")}</div>`:""}
     <div class="fund"><b class="small">How is this project funded?</b><div class="fund-opts"><button type="button" data-act="onb-pay" data-v="upfront" aria-pressed="${d.payMode!=="milestone"}"><b>Paid up front</b><span class="small muted">Fully funded. No payment tracking.</span></button><button type="button" data-act="onb-pay" data-v="milestone" aria-pressed="${d.payMode==="milestone"}"><b>Milestone payments</b><span class="small muted">Money released stage by stage after verification.</span></button></div>
@@ -895,7 +894,7 @@ function signupView(){
 /* ---------- GUIDED DEMO ---------- */
 const DEMO=[
   {who:"Developer",c:"s2",t:"Sign up and add your project",d:"Create a developer account, then add the site: name, location, units, number of floors, budget and dates. TrailConstruct builds the full stage checklist for that building automatically.",
-   m:`<div class="mk"><div class="mk-h">Add your first project</div><div class="mk-f"><span>Project name</span><b>Palm Court Residences</b></div><div class="mk-row"><div class="mk-f"><span>Location</span><b>Ikota, Lekki</b></div><div class="mk-f"><span>Floors</span><b>G+2</b></div></div><div class="mk-f"><span>Units</span><b>4 semi-detached in 2 blocks</b></div><div class="mk-btn">Continue</div></div>`},
+   m:`<div class="mk"><div class="mk-h">Add your first project</div><div class="mk-f"><span>Project name</span><b>Palm Court Residences</b></div><div class="mk-row"><div class="mk-f"><span>Location</span><b>Ikota, Lekki</b></div><div class="mk-f"><span>Floors</span><b>Ground + 2</b></div></div><div class="mk-f"><span>Units</span><b>4 semi-detached in 2 blocks</b></div><div class="mk-btn">Continue</div></div>`},
   {who:"Developer",c:"s2",t:"Mark where the site is today",d:"Tap the phase work is on now. Everything before it is ticked off, so a project that's already halfway starts at the right percentage.",
    m:`<div class="mk"><div class="mk-h">Where is the project now?</div><div class="mk-phases">${["Pre-construction","Setting out","Foundation","Frame","Roofing","M&E first fix","Plastering","Finishes"].map((x,i)=>`<span class="${i<7?"d":"c"}">${i<7?"✓ ":""}${x}</span>`).join("")}</div><div class="mk-ringrow"><span class="mk-ring">66%</span><div><small>Starting progress</small><b>Finishes</b></div></div></div>`},
   {who:"Developer",c:"s2",t:"Invite the site team and investors",d:"Add your site engineers and investors by name and email. Engineers and investors join free. Only the developer pays.",
@@ -1000,7 +999,7 @@ function devView(p){
     if(p.siteLat==null||p.siteLat==="")todo.push(["","Add the site's GPS location so photos can be checked as taken on site",`<button class="btn sm" data-act="edit-project">Add location</button>`]);
     if(ago==null||ago>3)todo.push(["crit",ago==null?"No site updates yet":`No site update for ${ago} days`,""]);
     const ws=weekStatus(p.id);if(ws.late)todo.push(["crit","This week's site report is overdue",waLink(`Hi, this week's TrailConstruct report for ${p.name} is overdue. Please send it today.`,"Remind on WhatsApp")]);else if(!ws.report&&ws.left<=2)todo.push(["","Weekly site report due Friday",waLink(`Hi, reminder: this week's TrailConstruct report for ${p.name} is due Friday ${fmtS(ymd(ws.w.fri))}.`,"Remind on WhatsApp")]);
-    body=`<section class="card"><div class="card-h"><div><h2>${esc(p.name)}</h2><p class="small muted">${esc([p.location,unitsText(p),+p.floors?"G+"+p.floors:"Bungalow"].filter(Boolean).join(" · "))}</p></div></div>
+    body=`<section class="card"><div class="card-h"><div><h2>${esc(p.name)}</h2><p class="small muted">${esc([p.location,unitsText(p),floorsLabel(p.floors)].filter(Boolean).join(" · "))}</p></div></div>
       ${phaseStrip(pr)}
       <div class="stats"><div class="stat"><b>${esc(pr.current?pr.current.name:"Complete")}</b><span>Current stage</span></div>
         <div class="stat"><b class="num">${ago==null?"—":ago===0?"Today":ago+"d ago"}</b><span>Last site update</span></div>
@@ -1032,7 +1031,7 @@ function devView(p){
   }
   if(t==="project"){
     body=(S.mode==="cf"?teamSection(p):"")+`<section class="card"><div class="card-h"><h2>Project details</h2>${S.canWrite?`<div class="actions"><button class="btn sm" data-act="edit-project">Edit</button><button class="btn sm" data-act="new-project">Add another project</button></div>`:""}</div>
-      <dl class="kv"><dt>Name</dt><dd>${esc(p.name)}</dd><dt>Location</dt><dd>${esc(p.location||"—")}</dd><dt>Property</dt><dd>${esc(unitsText(p)||"—")}</dd><dt>Floors</dt><dd>${+p.floors?"Ground + "+p.floors:"Bungalow"}</dd><dt>Developer</dt><dd>${esc(p.client||"—")}</dd><dt>Budget</dt><dd>${+p.budget?naira(p.budget):"Not set"}</dd><dt>Start</dt><dd>${esc(fmtD(p.startDate)||"Not set")}</dd><dt>Target completion</dt><dd>${esc(fmtD(p.targetDate)||"Not set")}</dd><dt>Site GPS</dt><dd>${p.siteLat!=null&&p.siteLat!==""?esc((+p.siteLat).toFixed(5)+", "+(+p.siteLng).toFixed(5))+" · photos within "+(+p.siteRadius||200)+" m"+(p.strictGps?" · GPS required":""):"Not set. Add it so site photos can be checked."}</dd><dt>Funding</dt><dd>${p.payMode==="milestone"?"Milestone payments"+(+p.contractSum?" · "+naira(p.contractSum):""):"Paid up front"}</dd></dl></section>
+      <dl class="kv"><dt>Name</dt><dd>${esc(p.name)}</dd><dt>Location</dt><dd>${esc(p.location||"—")}</dd><dt>Property</dt><dd>${esc(unitsText(p)||"—")}</dd><dt>Floors</dt><dd>${floorsLabel(p.floors)}</dd><dt>Developer</dt><dd>${esc(p.client||"—")}</dd><dt>Budget</dt><dd>${+p.budget?naira(p.budget):"Not set"}</dd><dt>Start</dt><dd>${esc(fmtD(p.startDate)||"Not set")}</dd><dt>Target completion</dt><dd>${esc(fmtD(p.targetDate)||"Not set")}</dd><dt>Site GPS</dt><dd>${p.siteLat!=null&&p.siteLat!==""?esc((+p.siteLat).toFixed(5)+", "+(+p.siteLng).toFixed(5))+" · photos within "+(+p.siteRadius||200)+" m"+(p.strictGps?" · GPS required":""):"Not set. Add it so site photos can be checked."}</dd><dt>Funding</dt><dd>${p.payMode==="milestone"?"Milestone payments"+(+p.contractSum?" · "+naira(p.contractSum):""):"Paid up front"}</dd></dl></section>
     ${(p.team||[]).length?`<section class="card"><h2>Team</h2><div>${p.team.map(t=>`<div class="exp"><span>${esc(t.name)}</span><span class="pill ${t.role==="investor"?"ok":"active"}">${t.role==="investor"?"Investor":"Site engineer"}</span><span class="small muted">${esc(t.email||"")}</span><span></span></div>`).join("")}</div></section>`:""}
     <section class="card"><h2>Team access</h2><p class="muted">Share this page from its menu. Give site engineers <b>Contributor</b> access so they can post updates and photos. Investors can be <b>Viewers</b>: they only open the Investor workspace and see updates you send.</p></section>`;
   }
@@ -1355,7 +1354,7 @@ function projectForm(p){p=p||{};
     ${locBlock("pf",p.location,p.siteLat,p.siteLng,`<input type="text" id="pf-loc" value="${esc(p.location||"")}" placeholder="Street, area, Lagos" aria-label="Site address">`)}
     ${propFields("pf",p.propType?p:{...p,propType:""},()=>"")}${!p.propType&&p.units?`<p class="small muted">Currently: ${esc(p.units)}. Choose a type above to update it.</p>`:""}
     <label class="f" for="pf-client">Developer / company<input type="text" id="pf-client" value="${esc(p.client||"")}"></label>
-    <div class="row"><label class="f" for="pf-floors">Floors above ground<input type="number" id="pf-floors" min="0" max="30" value="${esc(p.floors??0)}"><span class="small" style="font-weight:400">0 = bungalow, 2 = G+2</span></label>
+    <div class="row"><label class="f" for="pf-floors">Floors above ground<select id="pf-floors">${[...Array(31).keys()].map(n=>`<option value="${n}" ${(+p.floors||0)===n?"selected":""}>${floorsOption(n)}</option>`).join("")}</select></label>
     <label class="f" for="pf-budget">Budget (₦)<input type="number" id="pf-budget" min="0" step="1" value="${esc(p.budget||"")}"></label></div>
     ${durBlock("pf",p.startDate,p.durationMonths?String(p.durationMonths):(p.targetDate?"custom":""),p.targetDate,()=>"")}
     <div class="row"><label class="f" for="pf-gps" ${!S.mapsKey||S.manualGps.pf?"":"hidden"}>Site GPS (lat, lng or Google Maps link)<input type="text" id="pf-gps" value="${p.siteLat!=null&&p.siteLat!==""?esc(p.siteLat+", "+p.siteLng):""}" placeholder="e.g. 6.4561, 3.4318"></label><label class="f" for="pf-rad">Photo radius<select id="pf-rad">${[100,200,300,500].map(r=>`<option value="${r}" ${(+p.siteRadius||200)===r?"selected":""}>${r} m</option>`).join("")}</select></label></div>
@@ -1382,7 +1381,7 @@ async function makePDF(p,u){
   doc.setFillColor(43,74,94);doc.rect(0,0,W,30,"F");doc.setFillColor(240,165,0);doc.rect(0,30,W,2,"F");
   doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(20);doc.text("TrailConstruct",M,15);
   doc.setFont("helvetica","normal");doc.setFontSize(10);doc.text("Investor progress report · Every stage, on record.",M,22);doc.text(fmtD(u.date),W-M,22,{align:"right"});
-  y=44;txt(p.name,18,"bold");y+=1;txt([p.location,unitsText(p),+p.floors?"Ground + "+p.floors+" floors":""].filter(Boolean).join("  ·  "),10,"normal",[91,101,112]);y+=4;
+  y=44;txt(p.name,18,"bold");y+=1;txt([p.location,unitsText(p),floorsLabel(p.floors)].filter(Boolean).join("  ·  "),10,"normal",[91,101,112]);y+=4;
   txt(u.title,13,"bold");y+=2;
   need(26);doc.setFillColor(246,247,243);doc.roundedRect(M,y,CW,24,3,3,"F");
   doc.setFont("helvetica","bold");doc.setFontSize(24);doc.setTextColor(43,74,94);doc.text(Math.round(snap.overall*100)+"%",M+6,y+15);
