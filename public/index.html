@@ -431,7 +431,7 @@ main .stats>.stat:nth-child(4):not([class*=" t"]){background:var(--rose)}
 .calc-out .muted{color:rgba(255,255,255,.7)}
 .calc-out b{font-family:var(--display);font-size:2.6rem;color:var(--amber);line-height:1.05}
 /* faq */
-.faq{display:grid;gap:10px;max-width:860px}
+.faq{display:grid;gap:10px}
 .faq details{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:4px 18px}
 .faq summary{cursor:pointer;padding:14px 0;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:12px}
 .faq summary::after{content:"+";font-family:var(--display);font-size:1.5rem;line-height:1;color:var(--warn)}
@@ -541,6 +541,17 @@ main{max-width:1120px}
 
 .propbox{display:grid;gap:10px;padding:14px;border-radius:12px;background:var(--sunk);border:1px solid var(--line)}
 .propbox input,.propbox select{background:var(--surface)}
+
+.qty{display:grid;gap:8px;padding:14px;border-radius:12px;background:var(--sunk);border:1px solid var(--line)}
+.plan-card.hot .qty{background:var(--surface)}
+.qty-row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.qty-ctl{display:flex;align-items:center;gap:6px}
+.qty-ctl button{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--surface);font-size:1.2rem;font-weight:700;cursor:pointer;color:var(--ink)}
+.qty-ctl button:hover{border-color:var(--steel)}
+.qty-ctl b{min-width:2.2ch;text-align:center;font-size:1.15rem}
+.qty-total{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.qty-total b{font-family:var(--display);font-size:1.6rem;color:var(--steel)}
+.qty-note{margin:0;color:var(--warn);min-height:1em}
 </style>
 </head>
 <body>
@@ -552,7 +563,7 @@ main{max-width:1120px}
 "use strict";
 const S={db:null,assets:null,downloads:null,mode:"loading",canWrite:true,projects:[],logs:[],reports:[],updates:[],expenses:[],requests:[],matreqs:[],stock:[],milestones:[],
   pid:null,view:"home",shots:[],manualGps:{},mapsKey:"",tab:{developer:"overview",engineer:"today",investor:"overview"},open:{},loaded:{},slow:false,busy:false,
-  demo:{i:0,play:false},seen:new Set(),counted:new Set(),home:{step:0,projects:1,annual:false,phase:7,auto:true},onb:{step:0,d:{floors:2,phase:0,team:[],annual:false}},draft:{sel:[],extra:[],title:"",briefing:"",next:"",budget:false,fromReport:null}};
+  demo:{i:0,play:false},seen:new Set(),counted:new Set(),home:{qs:1,qp:5,step:0,projects:1,annual:false,phase:7,auto:true},onb:{step:0,d:{floors:2,phase:0,team:[],annual:false}},draft:{sel:[],extra:[],title:"",briefing:"",next:"",budget:false,fromReport:null}};
 const ROLE_LABEL={developer:"Developer",engineer:"Site Engineer",investor:"Investor"};
 
 /* ---------- helpers ---------- */
@@ -725,6 +736,12 @@ const FAQ=[
   ["Can photos be faked or reused?","Engineers take photos live in the app. Each photo is checked for when and where it was taken, so old photos and photos taken away from the site's GPS pin are rejected. Accepted photos are stamped with the date, time and location."],
   ["Does it work with WhatsApp?","Yes. Reminders, site updates and investor updates can be sent to WhatsApp in one tap."]
 ];
+function priceTotal(plan){const a=S.home.annual,n=plan==="s"?S.home.qs:S.home.qp,r=plan==="s"?25000:22000;return naira(n*r*(a?10:1));}
+function priceNote(plan,bump){const a=S.home.annual,per=a?"a year":"a month";
+  if(plan==="s")return bump==="max"?"From 5 projects, Portfolio is cheaper at ₦22,000 per project.":S.home.qs>1?`${S.home.qs} projects × ${naira(a?250000:25000)}`:"";
+  return bump==="max"?"Running 20 or more sites? See Enterprise.":`You save ${naira(S.home.qp*3000*(a?10:1))} ${per} compared with Single site.`;}
+function updatePricing(plan,bump){const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  set("qty-"+plan,plan==="s"?S.home.qs:S.home.qp);set("tot-"+plan,priceTotal(plan));set("note-"+plan,priceNote(plan,bump));}
 function homeView(){
   const demo={floors:2,checks:{}};stagesFor(demo).forEach(s=>{if(["pre","set","fdn","lv0","lv1","lv2","roof"].includes(s.id))s.items.forEach(i=>demo.checks[i.id]=true);});["me1.0","me1.1","pls.0","pls.1","pls.2","pls.3","fin.0","fin.1"].forEach(k=>demo.checks[k]=true);
   const pr=progress(demo),items=stagesFor({floors:2}).reduce((a,s)=>a+s.items.length,0),st=S.home.step,step=STEPS[st];
@@ -774,15 +791,15 @@ function homeView(){
   <section class="sec pricing" id="pricing"><div class="sec-h center"><p class="eyebrow">Pricing</p><h2 class="sh">Simple pricing. Pay per project.</h2><p class="muted">The developer pays. Site engineers and investors always join free.</p>
     <div class="billing" role="group" aria-label="Billing period"><button data-act="billing" data-v="0" aria-pressed="${!annual}">Monthly</button><button data-act="billing" data-v="1" aria-pressed="${annual}">Yearly <span class="save">2 months free</span></button></div></div>
     <div class="plans">
-      <div class="plan-card reveal"><span class="plan-name">Single site</span><div class="plan-price"><b class="num">${naira(annual?250000:25000)}</b><span>per project / ${annual?"year":"month"}</span></div><p class="muted small">For a developer running one or a few sites.</p>
+      <div class="plan-card reveal"><span class="plan-name">Single site</span><div class="plan-price"><b class="num">${naira(annual?250000:25000)}</b><span>per project / ${annual?"year":"month"}</span></div><p class="muted small">For a developer running 1 to 4 sites.</p>
+        <div class="qty"><div class="qty-row"><span class="small muted">Projects</span><div class="qty-ctl"><button type="button" data-act="qty" data-plan="s" data-d="-1" aria-label="Fewer projects">−</button><b class="num" id="qty-s">${S.home.qs}</b><button type="button" data-act="qty" data-plan="s" data-d="1" aria-label="More projects">+</button></div></div><div class="qty-total"><b class="num" id="tot-s">${priceTotal("s")}</b><span class="small muted" id="per-s">${annual?"total per year":"total per month"}</span></div><p class="small qty-note" id="note-s">${priceNote("s")}</p></div>
         <ul class="ticks"><li>Unlimited site engineers and investors</li><li>Daily updates, photos and stage checklists</li><li>Investor updates and PDF reports</li><li>Budget against progress</li></ul><a class="btn pri" href="#signup">Get started</a></div>
       <div class="plan-card hot reveal"><span class="badge">Most popular</span><span class="plan-name">Portfolio</span><div class="plan-price"><b class="num">${naira(annual?220000:22000)}</b><span>per project / ${annual?"year":"month"}</span></div><p class="muted small">5 or more active projects.</p>
+        <div class="qty"><div class="qty-row"><span class="small muted">Projects</span><div class="qty-ctl"><button type="button" data-act="qty" data-plan="p" data-d="-1" aria-label="Fewer projects">−</button><b class="num" id="qty-p">${S.home.qp}</b><button type="button" data-act="qty" data-plan="p" data-d="1" aria-label="More projects">+</button></div></div><div class="qty-total"><b class="num" id="tot-p">${priceTotal("p")}</b><span class="small muted" id="per-p">${annual?"total per year":"total per month"}</span></div><p class="small qty-note" id="note-p">${priceNote("p")}</p></div>
         <ul class="ticks"><li>Everything in Single site</li><li>All sites on one dashboard</li><li>Priority support on WhatsApp</li><li>Help onboarding your site teams</li></ul><a class="btn amber" href="#signup">Get started</a></div>
       <div class="plan-card reveal"><span class="plan-name">Enterprise</span><div class="plan-price"><b>Custom</b><span>for 20+ sites</span></div><p class="muted small">Construction firms and fund managers.</p>
         <ul class="ticks"><li>Everything in Portfolio</li><li>Reports with your company branding</li><li>Independent site verification visits</li><li>Dedicated account manager</li></ul><a class="btn" href="#signup">Talk to us</a></div>
     </div>
-    <div class="calc reveal"><div><label for="calc-n"><b>How many projects are you running?</b></label><div class="calc-row"><input type="range" id="calc-n" min="1" max="20" value="${n}"><b class="num calc-n">${n}</b></div></div>
-      <div class="calc-out"><span class="muted small">Your ${annual?"yearly":"monthly"} cost</span><b class="num" id="calc-total">${naira(total)}</b><span class="muted small" id="calc-note">${n>=5?"Portfolio rate applied":"Add "+(5-n)+" more for the Portfolio rate"}</span></div></div>
   </section>
   <section class="sec" id="faq"><div class="sec-h"><p class="eyebrow">Questions</p><h2 class="sh">Frequently asked</h2></div>
     <div class="faq">${FAQ.map(([q,a])=>`<details class="reveal"><summary>${esc(q)}</summary><p class="muted">${esc(a)}</p></details>`).join("")}</div></section>
@@ -1420,6 +1437,7 @@ document.addEventListener("click",async e=>{
   if(act==="close"){closeModal();return;}
   if(act==="use-here"){useHere(t.dataset.for);return;}
   if(act==="manual-gps"){const k=t.dataset.for;S.manualGps[k]=!S.manualGps[k];if(k==="o")render();else{const l=document.querySelector('label[for="pf-gps"]');if(l)l.hidden=!S.manualGps[k];t.textContent=S.manualGps[k]?"Hide coordinates":"Enter coordinates instead";}return;}
+  if(act==="qty"){const pl=t.dataset.plan,d=+t.dataset.d;let bump="";if(pl==="s"){const nv=S.home.qs+d;if(nv>4)bump="max";S.home.qs=Math.max(1,Math.min(4,nv));}else{const nv=S.home.qp+d;if(nv>19)bump="max";S.home.qp=Math.max(5,Math.min(19,nv));}updatePricing(pl,bump);return;}
   if(act==="hstep"){S.home.step=+t.dataset.i;S.home.auto=false;const y=window.scrollY;render();window.scrollTo(0,y);return;}
   if(act==="phase-chip"){S.home.phase=+t.dataset.i;const y=window.scrollY;render();window.scrollTo(0,y);return;}
   if(act==="billing"){S.home.annual=t.dataset.v==="1";const y=window.scrollY;render();window.scrollTo(0,y);return;}
