@@ -849,7 +849,7 @@ function homeView(){
         <div class="qty"><div class="qty-row"><span class="small muted">Projects</span><div class="qty-ctl"><button type="button" data-act="qty" data-plan="p" data-d="-1" aria-label="Fewer projects">−</button><b class="num" id="qty-p">${S.home.qp}</b><button type="button" data-act="qty" data-plan="p" data-d="1" aria-label="More projects">+</button></div></div><div class="qty-total"><b class="num" id="tot-p">${priceTotal("p")}</b><span class="small muted" id="per-p">${annual?"total per year":"total per month"}</span></div><p class="small qty-note" id="note-p">${priceNote("p")}</p></div>
         <ul class="ticks"><li>Everything in Single site</li><li>All sites on one dashboard</li><li>Priority support on WhatsApp</li><li>Help onboarding your site teams</li></ul><a class="btn amber" href="#signup">Get started</a></div>
       <div class="plan-card reveal"><span class="plan-name">Enterprise</span><div class="plan-price"><b>Custom</b><span>for 20+ sites</span></div><p class="muted small">Construction firms and fund managers.</p>
-        <ul class="ticks"><li>Everything in Portfolio</li><li>Reports with your company branding</li><li>Independent site verification visits</li><li>Dedicated account manager</li></ul><a class="btn" href="#signup">Talk to us</a></div>
+        <ul class="ticks"><li>Everything in Portfolio</li><li>Reports with your company branding</li><li>Independent site verification visits</li><li>Dedicated account manager</li></ul><button type="button" class="btn" data-act="contact">Talk to us</button></div>
     </div>
   </section>
   <section class="sec" id="faq"><div class="sec-h"><p class="eyebrow">Questions</p><h2 class="sh">Frequently asked</h2></div>
@@ -1492,6 +1492,13 @@ document.addEventListener("click",async e=>{
   if(act==="use-here"){useHere(t.dataset.for);return;}
   if(act==="manual-gps"){const k=t.dataset.for;S.manualGps[k]=!S.manualGps[k];if(k==="o")render();else{const l=document.querySelector('label[for="pf-gps"]');if(l)l.hidden=!S.manualGps[k];t.textContent=S.manualGps[k]?"Hide coordinates":"Enter coordinates instead";}return;}
   if(act==="qty"){const pl=t.dataset.plan,d=+t.dataset.d;let bump="";if(pl==="s"){const nv=S.home.qs+d;if(nv>4)bump="max";S.home.qs=Math.max(1,Math.min(4,nv));}else{const nv=S.home.qp+d;if(nv>19)bump="max";S.home.qp=Math.max(5,Math.min(19,nv));}updatePricing(pl,bump);return;}
+  if(act==="contact"){modal(`<h2>Talk to us</h2><p class="small muted">Running 20 or more sites, or need something custom? Tell us a little and we'll get back to you within one working day.</p>
+    <form id="contact-form"><div class="row"><label class="f" for="ct-name">Your name<input type="text" id="ct-name" required autocomplete="name" placeholder="e.g. Adaeze Balogun"></label><label class="f" for="ct-company">Company<input type="text" id="ct-company" placeholder="e.g. Okafor & Adebayo Homes"></label></div>
+    <div class="row"><label class="f" for="ct-email">Email<input type="email" id="ct-email" autocomplete="email"></label><label class="f" for="ct-phone">Phone / WhatsApp<input type="text" id="ct-phone" autocomplete="tel" placeholder="+234"></label></div>
+    <label class="f" for="ct-sites">How many sites do you run?<select id="ct-sites"><option>20–49</option><option>50–99</option><option>100+</option><option>Fewer than 20</option></select></label>
+    <label class="f" for="ct-msg">What do you need?<textarea id="ct-msg" placeholder="e.g. Branded reports for our investors, help onboarding 30 site engineers"></textarea></label>
+    <input type="text" id="ct-web" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true">
+    <div class="actions"><button class="btn pri" type="submit">Send</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);return;}
   if(act==="hstep"){S.home.step=+t.dataset.i;S.home.auto=false;const y=window.scrollY;render();window.scrollTo(0,y);return;}
   if(act==="phase-chip"){S.home.phase=+t.dataset.i;const y=window.scrollY;render();window.scrollTo(0,y);return;}
   if(act==="billing"){S.home.annual=t.dataset.v==="1";const y=window.scrollY;render();window.scrollTo(0,y);return;}
@@ -1583,6 +1590,11 @@ document.addEventListener("submit",async e=>{
     catch(err){S.busy=false;onErr(err);}
     return;
   }
+  if(f.id==="contact-form"){const g=id=>(document.getElementById(id)||{}).value||"";const body={name:g("ct-name").trim(),company:g("ct-company").trim(),email:g("ct-email").trim(),phone:g("ct-phone").trim(),sites:g("ct-sites"),message:g("ct-msg").trim(),website:g("ct-web")};
+    if(!body.email&&!body.phone){toast("Add an email or a phone number so we can reply.");return;}
+    if(S.mode==="cf"){try{await cfApi("POST","/api/contact",body);modal(`<h2>Thank you</h2><p>We've got your message and will get back to you within one working day.</p><div><button class="btn pri" data-act="close">Close</button></div>`);}catch(err){toast(err.message||"Couldn't send. Please try again.");}}
+    else{const text=`Enterprise enquiry for TrailConstruct\nName: ${body.name}\nCompany: ${body.company}\nEmail: ${body.email}\nPhone: ${body.phone}\nSites: ${body.sites}\n${body.message}`;modal(`<h2>Almost done</h2><p>This preview can't send messages. Send your enquiry on WhatsApp instead:</p><div class="actions">${waLink(text,"Send on WhatsApp")}<button class="btn" data-act="close">Close</button></div>`);}
+    return;}
   if(f.id==="auth-form"){const up=S.authMode==="up",body={name:up?v("au-name").trim():undefined,email:v("au-email").trim(),password:v("au-pass")};S.busy=true;render();
     try{const r=await cfApi("POST",up?"/api/auth/signup":"/api/auth/login",body);S.me=r.user;S.busy=false;await cfAfterAuth();}
     catch(err){S.busy=false;render();showErr(up?"Couldn't create your account":"Couldn't sign you in",err.code==="conflict"?"That email already has an account. Choose Sign in instead.":err.message||"Please try again.");}return;}

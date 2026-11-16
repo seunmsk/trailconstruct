@@ -118,6 +118,7 @@ const SCHEMA = [
   "CREATE INDEX IF NOT EXISTS invites_project ON invites(project_id)",
   "CREATE TABLE IF NOT EXISTS docs (col TEXT NOT NULL, id TEXT NOT NULL, pid TEXT NOT NULL, data TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (col, id))",
   "CREATE INDEX IF NOT EXISTS docs_pid_col ON docs(pid, col, updated_at)",
+  "CREATE TABLE IF NOT EXISTS leads (id TEXT PRIMARY KEY, name TEXT, company TEXT, email TEXT, phone TEXT, sites TEXT, message TEXT, created_at INTEGER NOT NULL)",
 ];
 let schemaReady = false;
 async function ensureSchema(env) {
@@ -162,6 +163,31 @@ export async function onRequest(ctx) {
     await ensureSchema(env);
     // ---------- public settings for the web app ----------
     if (parts[0] === "config" && m === "GET") return json({ mapsKey: env.GOOGLE_MAPS_KEY || "", email: !!env.RESEND_API_KEY });
+
+    // ---------- enterprise / contact enquiries (no login needed) ----------
+    if (parts[0] === "contact" && m === "POST") {
+      const b = await readBody(req);
+      if (b.website) return json({ ok: true }); // hidden spam trap
+      const name = String(b.name || "").trim().slice(0, 120), email = String(b.email || "").trim().slice(0, 200), phone = String(b.phone || "").trim().slice(0, 40);
+      if (!name || (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !phone)) return err(400, "Add your name and an email or phone number.");
+      const lead = { id: randHex(10), name, company: String(b.company || "").trim().slice(0, 160), email, phone, sites: String(b.sites || "").slice(0, 20), message: String(b.message || "").trim().slice(0, 2000) };
+      await env.DB.prepare("INSERT INTO leads (id, name, company, email, phone, sites, message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(lead.id, lead.name, lead.company, lead.email, lead.phone, lead.sites, lead.message, Date.now()).run();
+      if (env.RESEND_API_KEY && env.CONTACT_TO) {
+        try {
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
+            body: JSON.stringify({
+              from: env.EMAIL_FROM || "TrailConstruct <onboarding@resend.dev>", to: [env.CONTACT_TO], reply_to: lead.email || undefined,
+              subject: `Enterprise enquiry: ${lead.company || lead.name} (${lead.sites || "?"} sites)`,
+              html: `<p><b>${escHtml(lead.name)}</b>${lead.company ? " · " + escHtml(lead.company) : ""}</p><p>Email: ${escHtml(lead.email) || "—"}<br>Phone / WhatsApp: ${escHtml(lead.phone) || "—"}<br>Sites: ${escHtml(lead.sites) || "—"}</p><p>${escHtml(lead.message).replace(/\n/g, "<br>")}</p>`,
+            }),
+          });
+        } catch (e) { console.error("lead email", e); }
+      }
+      return json({ ok: true });
+    }
 
     // ---------- health check (no login needed; shows setup status only) ----------
     if (parts[0] === "health" && m === "GET") {

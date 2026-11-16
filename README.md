@@ -97,6 +97,8 @@ The app uses **Resend** (resend.com) to send email.
 
 Until a domain is verified, Resend only delivers to your own Resend account email, so other people won't receive invites yet.
 
+**Enterprise enquiries:** the "Talk to us" form on the home page saves every enquiry in the database (D1 Console: `SELECT * FROM leads ORDER BY created_at DESC;`). Add a third Secret, `CONTACT_TO` = the email address that should receive them, to also get each enquiry by email.
+
 ---
 
 ## Try it on your computer first
