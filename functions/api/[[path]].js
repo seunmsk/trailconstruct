@@ -114,6 +114,20 @@ export async function onRequest(ctx) {
   const iterations = parseInt(env.PBKDF2_ITERATIONS || "20000", 10);
 
   try {
+    // ---------- health check (no login needed; shows setup status only) ----------
+    if (parts[0] === "health" && m === "GET") {
+      const out = { database_connected: !!env.DB, photo_storage_connected: !!env.PHOTOS, tables: [], missing_tables: [] };
+      if (env.DB) {
+        try {
+          const r = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all();
+          out.tables = (r.results || []).map((x) => x.name).filter((n) => !n.startsWith("_cf") && n !== "sqlite_sequence");
+        } catch (e) { out.database_error = String(e && e.message || e).slice(0, 200); }
+        out.missing_tables = ["users", "sessions", "members", "invites", "docs"].filter((t) => !out.tables.includes(t));
+      }
+      out.ok = out.database_connected && out.photo_storage_connected && !out.missing_tables.length && !out.database_error;
+      return json(out);
+    }
+
     // ---------- auth ----------
     if (parts[0] === "auth") {
       if (m !== "POST") return err(405, "Method not allowed");
