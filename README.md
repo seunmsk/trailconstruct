@@ -99,7 +99,7 @@ On your own domain the browser can use the phone's GPS. When a photo has no loca
 
 ## Before real customers use it
 
-- **Plan:** password hashing uses a fair amount of CPU. If sign-ups or logins fail on the free plan, move to Workers Paid (around $5/month) `PBKDF2_ITERATIONS` in `wrangler.toml` is set to 20000 so sign-up works on the free plan. On Workers Paid, raise it to 100000 (the Workers maximum); existing passwords keep working.
+- **Plan:** password hashing uses CPU time. `PBKDF2_ITERATIONS` in `wrangler.toml` is set to 20000 so sign-up works on the free plan. On Workers Paid (around $5/month), raise it to 100000, the Workers maximum. Existing passwords keep working.
 - **Rate limiting:** in Cloudflare → Security → WAF → Rate limiting rules, limit `/api/auth/*` (for example 10 requests a minute per IP) to slow down password guessing.
 - **Backups:** D1 has Time Travel (point-in-time restore, 30 days on paid plans). Also export regularly: `npx wrangler d1 export trailconstruct-db --remote --output=backup.sql`.
 - **Password reset:** not built yet. It needs an email service (for example Resend or Postmark). Until then, reset passwords manually.
