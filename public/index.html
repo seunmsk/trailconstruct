@@ -530,6 +530,11 @@ main{max-width:1120px}
 .ph .rm{position:absolute;top:4px;right:4px;width:26px;height:26px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-weight:700;cursor:pointer}
 .vb{position:absolute;left:5px;bottom:5px;padding:1px 7px;border-radius:999px;font-size:.68rem;font-weight:700;background:rgba(10,18,26,.7);color:#fff}
 .vb.ok{background:#2c7a4b}
+
+.locbox{display:grid;gap:10px;padding:14px;border-radius:12px;background:var(--sunk);border:1px solid var(--line)}
+.locbox .f{display:grid;gap:4px;font-size:.84rem;font-weight:600;color:var(--muted)}
+.ac-holder gmp-place-autocomplete{width:100%;color-scheme:light}
+.pin{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -540,7 +545,7 @@ main{max-width:1120px}
 (function(){
 "use strict";
 const S={db:null,assets:null,downloads:null,mode:"loading",canWrite:true,projects:[],logs:[],reports:[],updates:[],expenses:[],requests:[],matreqs:[],stock:[],milestones:[],
-  pid:null,view:"home",shots:[],tab:{developer:"overview",engineer:"today",investor:"overview"},open:{},loaded:{},slow:false,busy:false,
+  pid:null,view:"home",shots:[],manualGps:{},mapsKey:"",tab:{developer:"overview",engineer:"today",investor:"overview"},open:{},loaded:{},slow:false,busy:false,
   demo:{i:0,play:false},seen:new Set(),counted:new Set(),home:{step:0,projects:1,annual:false,phase:7,auto:true},onb:{step:0,d:{floors:2,phase:0,team:[],annual:false}},draft:{sel:[],extra:[],title:"",briefing:"",next:"",budget:false,fromReport:null}};
 const ROLE_LABEL={developer:"Developer",engineer:"Site Engineer",investor:"Investor"};
 
@@ -800,10 +805,11 @@ function signupView(){
     ${S.mode==="cf"&&S.me?`<p class="small muted">Signed in as ${esc(S.me.email)}. This project will be added to your account.</p>`:""}`;
   if(st===1)body=`<h2>Add your first project</h2><p class="muted small">You can add more projects later.</p>
     ${inp("pname","Project name","text","e.g. Banana Island Semi-Detached",1)}
-    <div class="row">${inp("loc","Location","text","Street, area, Lagos")}${inp("units","Units","text","e.g. 4 semi-detached in 2 blocks")}</div>
+    ${(()=>{const g=parseLatLng(d.gps);return locBlock("o",d.loc,g?g.lat:"",g?g.lng:"",`<input type="text" id="o-loc" data-onb="loc" value="${esc(d.loc||"")}" placeholder="Street, area, Lagos">`);})()}
+    <div class="row">${inp("units","Units","text","e.g. 4 semi-detached in 2 blocks")}</div>
     <div class="row"><label class="f" for="o-floors">Floors above ground<select id="o-floors" data-onb="floors">${[0,1,2,3,4,5,6,8,10,12,15,20].map(n=>`<option value="${n}" ${+d.floors===n?"selected":""}>${n===0?"Bungalow":"G+"+n}</option>`).join("")}</select></label>${inp("budget","Budget (₦, optional)","number")}</div>
     <div class="row">${inp("start","Start date","date")}${inp("target","Target completion","date")}</div>
-    <div class="row">${inp("gps","Site GPS (lat, lng or Google Maps link)","text","Open the site in Google Maps, copy the link")}</div>
+    ${!S.mapsKey||S.manualGps.o?`<div class="row">${inp("gps","Site GPS (lat, lng or Google Maps link)","text","e.g. 6.4561, 3.4318")}</div>`:""}
     <div class="fund"><b class="small">How is this project funded?</b><div class="fund-opts"><button type="button" data-act="onb-pay" data-v="upfront" aria-pressed="${d.payMode!=="milestone"}"><b>Paid up front</b><span class="small muted">Fully funded. No payment tracking.</span></button><button type="button" data-act="onb-pay" data-v="milestone" aria-pressed="${d.payMode==="milestone"}"><b>Milestone payments</b><span class="small muted">Money released stage by stage after verification.</span></button></div>
     ${d.payMode==="milestone"?inp("contract","Contract sum (₦)","number","e.g. 450000000"):""}</div>`;
   if(st===2)body=`<h2>Where is the project now?</h2><p class="muted small">Tap the phase work is on now. Everything before it is marked done, and you can fine-tune the checklist later.</p>
@@ -870,6 +876,7 @@ let homeTimers=[];
 function clearHomeTimers(){homeTimers.forEach(clearInterval);homeTimers=[];}
 const reduce=()=>window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
 function afterRender(){
+  if(S.view==="signup"&&S.onb.step===1)mountPlaces("o-ac",pick=>setPin("o",pick));
   clearHomeTimers();
   if(S.view==="home"){
     let fi=0;const fe=document.getElementById("feed");
@@ -1287,16 +1294,17 @@ function closeModal(){document.getElementById("layer").innerHTML="";}
 function projectForm(p){p=p||{};
   modal(`<h2>${p.id?"Edit project":"New project"}</h2><form id="proj-form" data-id="${esc(p.id||"")}">
     <label class="f" for="pf-name">Project name<input type="text" id="pf-name" required value="${esc(p.name||"")}"></label>
-    <label class="f" for="pf-loc">Location<input type="text" id="pf-loc" value="${esc(p.location||"")}" placeholder="Street, area, Lagos"></label>
+    ${locBlock("pf",p.location,p.siteLat,p.siteLng,`<input type="text" id="pf-loc" value="${esc(p.location||"")}" placeholder="Street, area, Lagos" aria-label="Site address">`)}
     <label class="f" for="pf-units">Units<input type="text" id="pf-units" value="${esc(p.units||"")}" placeholder="e.g. 4 semi-detached in 2 blocks"></label>
     <label class="f" for="pf-client">Developer / company<input type="text" id="pf-client" value="${esc(p.client||"")}"></label>
     <div class="row"><label class="f" for="pf-floors">Floors above ground<input type="number" id="pf-floors" min="0" max="30" value="${esc(p.floors??0)}"><span class="small" style="font-weight:400">0 = bungalow, 2 = G+2</span></label>
     <label class="f" for="pf-budget">Budget (₦)<input type="number" id="pf-budget" min="0" step="1" value="${esc(p.budget||"")}"></label></div>
     <div class="row"><label class="f" for="pf-start">Start date<input type="date" id="pf-start" value="${esc(p.startDate||"")}"></label><label class="f" for="pf-target">Target completion<input type="date" id="pf-target" value="${esc(p.targetDate||"")}"></label></div>
-    <div class="row"><label class="f" for="pf-gps">Site GPS (lat, lng or Google Maps link)<input type="text" id="pf-gps" value="${p.siteLat!=null&&p.siteLat!==""?esc(p.siteLat+", "+p.siteLng):""}" placeholder="e.g. 6.4561, 3.4318"></label><label class="f" for="pf-rad">Photo radius<select id="pf-rad">${[100,200,300,500].map(r=>`<option value="${r}" ${(+p.siteRadius||200)===r?"selected":""}>${r} m</option>`).join("")}</select></label></div>
+    <div class="row"><label class="f" for="pf-gps" ${!S.mapsKey||S.manualGps.pf?"":"hidden"}>Site GPS (lat, lng or Google Maps link)<input type="text" id="pf-gps" value="${p.siteLat!=null&&p.siteLat!==""?esc(p.siteLat+", "+p.siteLng):""}" placeholder="e.g. 6.4561, 3.4318"></label><label class="f" for="pf-rad">Photo radius<select id="pf-rad">${[100,200,300,500].map(r=>`<option value="${r}" ${(+p.siteRadius||200)===r?"selected":""}>${r} m</option>`).join("")}</select></label></div>
     <label class="chk"><input type="checkbox" id="pf-strict" ${p.strictGps?"checked":""}> Reject photos that have no GPS location</label>
     <div class="row"><label class="f" for="pf-pay">Funding<select id="pf-pay"><option value="upfront" ${p.payMode!=="milestone"?"selected":""}>Paid up front</option><option value="milestone" ${p.payMode==="milestone"?"selected":""}>Milestone payments</option></select></label><label class="f" for="pf-contract">Contract sum (₦, for milestones)<input type="number" id="pf-contract" min="0" value="${esc(p.contractSum||"")}"></label></div>
     <div class="actions"><button class="btn pri" type="submit">Save project</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);
+  S.pfLoc="";mountPlaces("pf-ac",pick=>setPin("pf",pick));
 }
 
 function openGallery(i){const p=P();if(!p)return;const list=invPhotos(p);if(!list.length)return;i=(i+list.length)%list.length;const ph=list[i];
@@ -1353,6 +1361,8 @@ document.addEventListener("click",async e=>{
   const t=e.target.closest("[data-act]");if(!t)return;const act=t.dataset.act,p=P();
   if(act==="backdrop"){if(e.target===t)closeModal();return;}
   if(act==="close"){closeModal();return;}
+  if(act==="use-here"){useHere(t.dataset.for);return;}
+  if(act==="manual-gps"){const k=t.dataset.for;S.manualGps[k]=!S.manualGps[k];if(k==="o")render();else{const l=document.querySelector('label[for="pf-gps"]');if(l)l.hidden=!S.manualGps[k];t.textContent=S.manualGps[k]?"Hide coordinates":"Enter coordinates instead";}return;}
   if(act==="hstep"){S.home.step=+t.dataset.i;S.home.auto=false;const y=window.scrollY;render();window.scrollTo(0,y);return;}
   if(act==="phase-chip"){S.home.phase=+t.dataset.i;const y=window.scrollY;render();window.scrollTo(0,y);return;}
   if(act==="billing"){S.home.annual=t.dataset.v==="1";const y=window.scrollY;render();window.scrollTo(0,y);return;}
@@ -1437,7 +1447,7 @@ document.addEventListener("submit",async e=>{
     catch(err){S.busy=false;render();showErr(up?"Couldn't create your account":"Couldn't sign you in",err.code==="conflict"?"That email already has an account. Choose Sign in instead.":err.message||"Please try again.");}return;}
   if(f.id==="inv-form"){const p=P();if(!p)return;try{const r=await cfApi("POST","/api/invites",{pid:p.id,role:v("iv-role"),name:v("iv-name").trim(),email:v("iv-email").trim()});delete S.team[p.id];toast("Invite link created.");render();}catch(err){toast(err.message||"Couldn't create the invite.");}return;}
   if(f.id==="proj-form"){
-    const data={name:v("pf-name").trim(),location:v("pf-loc").trim(),units:v("pf-units").trim(),client:v("pf-client").trim(),floors:Math.max(0,parseInt(v("pf-floors"),10)||0),budget:Math.max(0,+v("pf-budget")||0),startDate:v("pf-start"),targetDate:v("pf-target"),payMode:v("pf-pay")||"upfront",contractSum:Math.max(0,+v("pf-contract")||0),siteRadius:+v("pf-rad")||200,strictGps:!!(document.getElementById("pf-strict")||{}).checked};
+    const data={name:v("pf-name").trim(),location:(S.pfLoc||v("pf-loc")||(f.dataset.id&&P()?P().location||"":"")).trim(),units:v("pf-units").trim(),client:v("pf-client").trim(),floors:Math.max(0,parseInt(v("pf-floors"),10)||0),budget:Math.max(0,+v("pf-budget")||0),startDate:v("pf-start"),targetDate:v("pf-target"),payMode:v("pf-pay")||"upfront",contractSum:Math.max(0,+v("pf-contract")||0),siteRadius:+v("pf-rad")||200,strictGps:!!(document.getElementById("pf-strict")||{}).checked};
     {const g=parseLatLng(v("pf-gps"));if(v("pf-gps").trim()&&!g){toast("Couldn't read that location. Use \"6.4561, 3.4318\" or a Google Maps link.");return;}data.siteLat=g?g.lat:"";data.siteLng=g?g.lng:"";}
     if(f.dataset.id)await store.update("projects",f.dataset.id,data);
     else{const nid="p-"+Date.now().toString(36);await store.set("projects",nid,{...data,checks:{},createdAt:new Date().toISOString()});S.pid=nid;ls.set("st.pid",nid);}
@@ -1573,7 +1583,8 @@ async function initCf(){
   let me;
   try{me=await fetch("/api/me",{credentials:"same-origin"});}catch(e){return false;}
   if(!me||(me.status!==200&&me.status!==401)||!(me.headers.get("content-type")||"").includes("json"))return false;
-  S.mode="cf";S.db=makeCfDb();S.assets=cfAssets;S.downloads=cfDownloads;S.team={};S.canWrite=true;
+  S.mode="cf";try{const c=await (await fetch("/api/config")).json();S.mapsKey=c.mapsKey||"";}catch(e){}
+  S.db=makeCfDb();S.assets=cfAssets;S.downloads=cfDownloads;S.team={};S.canWrite=true;
   const q=new URLSearchParams(location.search).get("invite");
   if(q){S.pendingInvite=q;try{sessionStorage.setItem("st.invite",q)}catch(e){}history.replaceState(null,"",location.pathname+"#signin");S.view="signin";S.authMode="up";}
   else{try{S.pendingInvite=sessionStorage.getItem("st.invite")||null}catch(e){}}
@@ -1584,6 +1595,58 @@ async function initCf(){
   document.addEventListener("visibilitychange",()=>{if(S.me&&document.visibilityState==="visible")S.db.pull();});
   setTimeout(flushOutbox,2500);
   render();return true;
+}
+
+
+/* ---------- site address autocomplete (Google Places) + GPS pin ---------- */
+let gmapsP=null;
+function loadMaps(){
+  if(!S.mapsKey)return Promise.resolve(null);
+  if(gmapsP)return gmapsP;
+  gmapsP=new Promise(res=>{window.__gmInit=()=>res(window.google&&google.maps?google.maps:null);
+    const s=document.createElement("script");s.async=true;s.onerror=()=>res(null);
+    s.src="https://maps.googleapis.com/maps/api/js?key="+encodeURIComponent(S.mapsKey)+"&v=weekly&loading=async&libraries=places&callback=__gmInit";
+    document.head.appendChild(s);setTimeout(()=>res(window.google&&google.maps?google.maps:null),12000);});
+  return gmapsP;
+}
+async function mountPlaces(holderId,onPick){
+  const holder=document.getElementById(holderId);if(!holder||holder.dataset.ready)return;
+  holder.dataset.ready="1";
+  const maps=await loadMaps();if(!maps||!document.body.contains(holder)){holder.dataset.ready="";return;}
+  try{
+    const lib=await google.maps.importLibrary("places");
+    const el=new lib.PlaceAutocompleteElement({includedRegionCodes:["ng"]});
+    el.setAttribute("placeholder","Start typing the site address");
+    const typed=holder.querySelector("input");if(typed&&typed.value)try{el.value=typed.value;}catch(e){}
+    holder.innerHTML="";holder.appendChild(el);holder.classList.add("ac-live");
+    const take=async place=>{await place.fetchFields({fields:["formattedAddress","displayName","location"]});const l=place.location;if(!l)return;onPick({address:place.formattedAddress||place.displayName||"",lat:+l.lat().toFixed(6),lng:+l.lng().toFixed(6)});};
+    el.addEventListener("gmp-select",e=>{take(e.placePrediction.toPlace()).catch(()=>toast("Couldn't read that address. Try another."));});
+    el.addEventListener("gmp-placeselect",e=>{if(e.place)take(e.place).catch(()=>{});});
+  }catch(e){holder.dataset.ready="";}
+}
+function pinLine(prefix,lat,lng,addr){
+  const has=lat!=null&&lat!==""&&lng!=null&&lng!=="";
+  return `<div class="pin" id="${prefix}-pin">${has?`<span class="pill ok">GPS pinned</span><span class="small"><b>${esc((+lat).toFixed(5))}, ${esc((+lng).toFixed(5))}</b>${addr?" · "+esc(addr):""}</span><a class="link small" href="https://www.google.com/maps?q=${+lat},${+lng}" target="_blank" rel="noopener">View on map</a>`:`<span class="pill">No GPS pin yet</span><span class="small muted">${S.mapsKey?"Pick the address from the suggestions to pin it.":"Use your location on site, or enter coordinates."}</span>`}</div>`;
+}
+function locBlock(prefix,addr,lat,lng,inputHtml){
+  const manual=!S.mapsKey||S.manualGps[prefix];
+  return `<div class="locbox"><div class="f"><span>Site address</span><div id="${prefix}-ac" class="ac-holder">${inputHtml}</div></div>
+    ${pinLine(prefix,lat,lng)}
+    <div class="actions"><button type="button" class="btn sm" data-act="use-here" data-for="${prefix}">Use my current location</button>${S.mapsKey?`<button type="button" class="link small" data-act="manual-gps" data-for="${prefix}">${manual?"Hide coordinates":"Enter coordinates instead"}</button>`:""}</div>
+    <div id="${prefix}-manual" ${manual?"":"hidden"}></div></div>`;
+}
+async function useHere(prefix){
+  toast("Getting your location…");
+  const d=await getDevicePos();
+  if(!d){toast("Couldn't get your location. Allow location access in your browser and try again.");return;}
+  if(d.acc>150)toast(`Location found (accurate to about ${Math.round(d.acc)} m). For a better pin, try again outdoors.`);
+  setPin(prefix,{lat:+d.lat.toFixed(6),lng:+d.lng.toFixed(6)});
+}
+function setPin(prefix,pick){
+  if(prefix==="o"){const d=S.onb.d;if(pick.address)d.loc=pick.address;d.gps=pick.lat+", "+pick.lng;render();return;}
+  if(pick.address)S.pfLoc=pick.address;
+  const g=document.getElementById("pf-gps");if(g)g.value=pick.lat+", "+pick.lng;
+  const pl=document.getElementById("pf-pin");if(pl)pl.outerHTML=pinLine("pf",pick.lat,pick.lng,pick.address||"");
 }
 
 

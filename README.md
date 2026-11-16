@@ -65,6 +65,22 @@ Then under the project's Settings → Bindings, add a **D1 database** binding na
 
 ---
 
+## Google address search (optional, recommended)
+
+With a Google Maps key, the developer types the site address, picks it from Google's suggestions, and the site's GPS pin is saved automatically. Without a key, the app still works: the developer taps "Use my current location" on site or enters coordinates.
+
+1. Go to https://console.cloud.google.com, create a project and add a billing account (Google gives a monthly free allowance; small usage normally costs nothing, but check Google's current pricing).
+2. APIs & Services → Library → enable **Maps JavaScript API** and **Places API (New)**.
+3. APIs & Services → Credentials → **Create credentials → API key**.
+4. Restrict the key:
+   - Application restrictions → **Websites** → add `https://trailconstruct.pages.dev/*` and your own domain, e.g. `https://trailconstruct.com/*`.
+   - API restrictions → only **Maps JavaScript API** and **Places API (New)**.
+5. Cloudflare → Workers & Pages → trailconstruct → Settings → **Variables and Secrets** → Add → type **Secret**, name `GOOGLE_MAPS_KEY`, paste the key → Save, then redeploy (Deployments → Retry deployment).
+
+This key is used in the browser, so Google requires the website restriction above to stop others using it.
+
+---
+
 ## Try it on your computer first
 
 ```bash

@@ -135,6 +135,9 @@ export async function onRequest(ctx) {
 
   try {
     await ensureSchema(env);
+    // ---------- public settings for the web app ----------
+    if (parts[0] === "config" && m === "GET") return json({ mapsKey: env.GOOGLE_MAPS_KEY || "" });
+
     // ---------- health check (no login needed; shows setup status only) ----------
     if (parts[0] === "health" && m === "GET") {
       const out = { database_connected: !!env.DB, photo_storage_connected: !!env.PHOTOS, tables: [], missing_tables: [] };
