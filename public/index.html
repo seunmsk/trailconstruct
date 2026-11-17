@@ -50,6 +50,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .btn.amber{background:var(--amber);border-color:var(--amber);color:#1b1404}
 .btn.sm{padding:6px 11px;font-size:.86rem}
 .btn.ghost{border-color:transparent;background:transparent}
+.btn.danger{background:var(--crit);border-color:var(--crit);color:#fff}
+.legal{max-width:760px;margin:0 auto;padding:32px 20px 64px;line-height:1.6}.legal h1{font-family:var(--display);font-size:2.6rem;margin:16px 0 4px}.legal h2{font-family:var(--display);font-size:1.5rem;margin:28px 0 6px}.legal li{margin:4px 0}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .link{border:0;background:none;padding:0;color:var(--steel);font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
 .actions{display:flex;gap:8px;flex-wrap:wrap}
@@ -666,6 +668,7 @@ function progress(p){
 const queues={};
 function queue(key,fn){queues[key]=(queues[key]||Promise.resolve()).then(fn).catch(onErr);return queues[key];}
 function onErr(e){
+  if(e&&e.code==="forbidden"){toast(e.message||"You can't change this.");render();return;}
   if(e&&e.code==="invalid_argument"){S.canWrite=false;toast("You can view this project but not change it.");}
   else if(e&&e.code==="quota_exceeded")toast("Storage is full. Delete old entries to add more.");
   else toast("That didn't save. Check your connection and try again.");
@@ -677,8 +680,8 @@ const store={
   async update(col,id,data){if(S.db)return queue(col+"/"+id,()=>S.db.collection(col).doc(id).update(data));const r=S[col].find(x=>x.id===id);if(!r)return;for(const k in data){if(data[k]&&typeof data[k]==="object"&&!Array.isArray(data[k]))r[k]={...(r[k]||{}),...data[k]};else r[k]=data[k];}render();},
   async del(col,id){if(S.db)return queue(col+"/"+id,()=>S.db.collection(col).doc(id).delete());S[col]=S[col].filter(x=>x.id!==id);render();}
 };
-async function uploadFile(file){
-  if(S.assets){const r=await S.assets.upload(file);return {id:r.id,url:r.url,takenAt:file.lastModified?new Date(file.lastModified).toISOString():null};}
+async function uploadFile(file,pid){
+  if(S.assets){const r=await S.assets.upload(file,pid);return {id:r.id,url:r.url,takenAt:file.lastModified?new Date(file.lastModified).toISOString():null};}
   return {id:"local-"+Math.random().toString(36).slice(2),url:URL.createObjectURL(file)};
 }
 function subscribe(col,q){
@@ -860,7 +863,7 @@ function homeView(){
   <section class="sec" id="faq"><div class="sec-h"><p class="eyebrow">Questions</p><h2 class="sh">Frequently asked</h2></div>
     <div class="faq">${FAQ.map(([q,a])=>`<details class="reveal"><summary>${esc(q)}</summary><p class="muted">${esc(a)}</p></details>`).join("")}</div></section>
   <section class="cta-band">${BLUEPRINT}<div class="cta-in"><h2>Every stage, on record. Put your next site on TrailConstruct.</h2><p>Set up a project in five minutes and send your first investor update this week.</p><div class="actions"><a class="btn amber lg" href="#signup">Get started</a><a class="btn outline lg" href="#demo">Take the product tour</a></div></div></section>
-  <footer class="hfoot"><span class="brand" style="font-size:1.1rem">${MARK}<span>Trail<span class="wm2">Construct</span></span></span><span>Every stage, on record. · Lagos, Nigeria</span></footer>`;
+  <footer class="hfoot"><span class="brand" style="font-size:1.1rem">${MARK}<span>Trail<span class="wm2">Construct</span></span></span><span>Every stage, on record. · Lagos, Nigeria · <a href="#privacy">Privacy</a> · <a href="#terms">Terms</a></span></footer>`;
 }
 const FEED=["Eng. on site posted: tiling done in Block A","Developer sent an update with 4 photos","Investor downloaded the weekly PDF report","Checklist: sanitary fittings, Block B ✓","Weekly report received from site"];
 
@@ -931,7 +934,7 @@ function signupView(){
   if(st===0)body=`<h2>Create your developer account</h2><p class="muted small">You'll manage projects and invite your team. Engineers and investors don't need to sign up themselves.</p>
     <div class="row">${inp("name","Full name","text","e.g. Adaeze Balogun",1)}${inp("company","Company","text","e.g. Okafor & Adebayo Homes",1)}</div>
     <div class="row">${inp("email","Work email","email","you@company.com",1)}${inp("phone","Phone (WhatsApp)","text","+234")}</div>
-    ${S.mode==="cf"&&!S.me?`<label class="f" for="o-pass">Create a password<input type="password" id="o-pass" required minlength="8" autocomplete="new-password"></label>`:""}
+    ${S.mode==="cf"&&!S.me?`<label class="f" for="o-pass">Create a password<input type="password" id="o-pass" required minlength="8" autocomplete="new-password"></label><p class="small muted">By creating an account you agree to the <a href="#terms" target="_blank">Terms</a> and <a href="#privacy" target="_blank">Privacy policy</a>.</p>`:""}
     ${S.mode==="cf"&&S.me?`<p class="small muted">Signed in as ${esc(S.me.email)}. This project will be added to your account.</p>`:""}`;
   if(st===1)body=`<h2>Add your first project</h2><p class="muted small">You can add more projects later.</p>
     ${inp("pname","Project name","text","e.g. Palm Court Residences",1)}
@@ -1046,7 +1049,7 @@ function shell(role,tabs,body,narrow){
   return `<header class="apphead"><div class="apphead-in"><a class="brand" href="#home">${MARK}<span>Trail<span class="wm2">Construct</span></span></a>
     <span class="who">${ROLE_LABEL[role]}</span><span class="sp"></span>
     ${S.projects.length>1?`<label class="sr" for="proj">Project</label><select id="proj" class="proj">${S.projects.map(p=>`<option value="${esc(p.id)}" ${p.id===S.pid?"selected":""}>${esc(p.name)}</option>`).join("")}</select>`:""}
-    <button class="btn sm ghost" data-act="signout">Sign out</button></div>
+    ${S.mode==="cf"&&S.me?`<button class="btn sm ghost" data-act="account">Account</button>`:`<button class="btn sm ghost" data-act="signout">Sign out</button>`}</div>
     ${tabs?`<nav class="tabs" role="tablist">${tabs.map(([k,l,n])=>`<button role="tab" data-act="tab" data-role="${role}" data-tab="${k}" aria-selected="${cur===k}">${l}${n?`<span class="count">${n}</span>`:""}</button>`).join("")}</nav>`:""}
   </header><main class="${narrow?"narrow":""}">${S.mode==="memory"?`<p class="note">Preview mode: changes aren't saved here. Open the published page to save.</p>`:""}${!S.canWrite&&role!=="investor"?`<p class="note">You have view access only.</p>`:""}${body}</main>`;
 }
@@ -1107,7 +1110,7 @@ function devView(p){
     body=(S.mode==="cf"?teamSection(p):"")+`<section class="card"><div class="card-h"><h2>Project details</h2>${S.canWrite?`<div class="actions"><button class="btn sm" data-act="edit-project">Edit</button><button class="btn sm" data-act="new-project">Add another project</button></div>`:""}</div>
       <dl class="kv"><dt>Name</dt><dd>${esc(p.name)}</dd><dt>Location</dt><dd>${esc(p.location||"—")}</dd><dt>Property</dt><dd>${esc(unitsText(p)||"—")}</dd><dt>Floors</dt><dd>${floorsLabel(p.floors)}</dd><dt>Developer</dt><dd>${esc(p.client||"—")}</dd><dt>Budget</dt><dd>${+p.budget?naira(p.budget):"Not set"}</dd><dt>Start</dt><dd>${esc(fmtD(p.startDate)||"Not set")}</dd><dt>Target completion</dt><dd>${esc(fmtD(p.targetDate)||"Not set")}</dd><dt>Foundation</dt><dd>${esc(FOUNDATIONS[p.foundationType]?FOUNDATIONS[p.foundationType].label:"Not decided yet")}</dd><dt>Sewage</dt><dd>${esc((SEWAGE[p.sewageType]||SEWAGE.septic).label)}</dd><dt>Site GPS</dt><dd>${p.siteLat!=null&&p.siteLat!==""?esc((+p.siteLat).toFixed(5)+", "+(+p.siteLng).toFixed(5))+" · photos within "+(+p.siteRadius||200)+" m"+(p.strictGps?" · GPS required":""):"Not set. Add it so site photos can be checked."}</dd><dt>Funding</dt><dd>${p.payMode==="milestone"?"Milestone payments"+(+p.contractSum?" · "+naira(p.contractSum):""):"Paid up front"}</dd></dl></section>
     ${(p.team||[]).length?`<section class="card"><h2>Team</h2><div>${p.team.map(t=>`<div class="exp"><span>${esc(t.name)}</span><span class="pill ${t.role==="investor"?"ok":"active"}">${t.role==="investor"?"Investor":"Site engineer"}</span><span class="small muted">${esc(t.email||"")}</span><span></span></div>`).join("")}</div></section>`:""}
-    <section class="card"><h2>Team access</h2><p class="muted">Share this page from its menu. Give site engineers <b>Contributor</b> access so they can post updates and photos. Investors can be <b>Viewers</b>: they only open the Investor workspace and see updates you send.</p></section>`;
+    ${S.mode==="cf"?`<section class="card"><h2>Delete this project</h2><p class="muted">Deletes the project for everyone: all updates, reports, photos, materials, the team list and invites. This can't be undone.</p><div><button class="btn sm danger" data-act="del-project">Delete project…</button></div></section>`:`<section class="card"><h2>Team access</h2><p class="muted">Share this page from its menu. Give site engineers <b>Contributor</b> access so they can post updates and photos. Investors can be <b>Viewers</b>: they only open the Investor workspace and see updates you send.</p></section>`}`;
   }
   return shell("developer",tabs,body);
 }
@@ -1273,10 +1276,84 @@ function verifyForm(m){modal(`<h2>Record verification</h2><p class="small muted"
   <label class="f" for="vf-date">Inspection date<input type="date" id="vf-date" value="${ymd(new Date())}"></label><label class="f" for="vf-note">Findings<textarea id="vf-note" placeholder="What was checked and confirmed"></textarea></label>
   <div class="actions"><button class="btn pri" type="submit">Save verification</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);}
 
-/* offline outbox */
+
+/* ---------- privacy policy and terms (DRAFT: have a Nigerian lawyer review before launch) ---------- */
+const LEGAL_CO="[Registered company name]",LEGAL_ADDR="[Registered address, Lagos]",LEGAL_MAIL="[privacy@yourdomain]",LEGAL_DATE="17 November 2026";
+function legalView(which){
+  const top=`<nav class="nav" style="background:var(--deep)"><a class="brand" href="#home">${MARK}<span>Trail<span class="wm2">Construct</span></span></a><span class="sp"></span><a class="btn sm" href="#home">Back</a></nav>`;
+  const priv=`<h1>Privacy policy</h1><p class="muted">Last updated ${LEGAL_DATE}</p>
+<p>TrailConstruct is run by ${LEGAL_CO}, ${LEGAL_ADDR} ("we"). This policy explains what personal data we collect when you use TrailConstruct, why, and your rights under the Nigeria Data Protection Act 2023.</p>
+<h2>What we collect</h2><ul>
+<li><b>Account details:</b> your name, email address and password (stored only in scrambled, hashed form).</li>
+<li><b>Project information you or your team add:</b> project details, site address and map pin, daily updates, weekly reports, budgets, materials, investor updates and payment milestones.</li>
+<li><b>Site photos and their location:</b> photos taken in the app, with the time and GPS location from the photo or your phone, used to check the photo was taken live on site.</li>
+<li><b>Your phone's location:</b> only when you take a site photo or choose "Use my current location", and only with your permission.</li>
+<li><b>Enquiries:</b> what you send through our contact form.</li>
+<li><b>Technical data:</b> a sign-in cookie to keep you signed in, and basic server logs for security.</li></ul>
+<h2>Why we use it</h2><ul>
+<li>To run the service you signed up for: your workspaces, team invites, reports and PDFs (contract).</li>
+<li>To check site photos against the site location (your consent, which you can withdraw in your phone settings).</li>
+<li>To keep accounts secure and prevent misuse (legitimate interest).</li>
+<li>To reply to enquiries and send service emails such as invites (contract or legitimate interest).</li></ul>
+<p>We don't sell your data or use it for advertising.</p>
+<h2>Who can see it</h2>
+<p>Inside a project, people see only what their role allows. Developers see everything on their projects, site engineers see site records, and investors see only the updates and photos the developer chooses to share. We use these service providers to run TrailConstruct: Cloudflare (hosting, database and photo storage), Google (address search and maps) and Resend (email). They may process data outside Nigeria, under contracts that protect it.</p>
+<h2>How long we keep it</h2>
+<p>Account details are kept while your account exists. Project records are kept until the project's developer deletes the project. Site records lock after a short window (24 hours for daily updates and store records, 7 days for weekly reports) so the project history can be trusted. If you delete your account, your login and access are removed, but what you posted to a project stays on that project's record.</p>
+<h2>Your rights</h2>
+<p>You can ask to see, correct or delete your personal data, object to how it's used, withdraw consent, or ask for a copy. You can delete your account yourself under Account. Email ${LEGAL_MAIL} for anything else. You can also complain to the Nigeria Data Protection Commission.</p>
+<h2>Security</h2><p>Data is sent over encrypted connections, passwords are hashed, photos are only shown to project members, and each request is checked against your role.</p>
+<h2>Children</h2><p>TrailConstruct is for people aged 18 and over.</p>
+<h2>Changes</h2><p>If we change this policy we'll update the date above, and tell you in the app if the change is significant.</p>
+<h2>Contact</h2><p>${LEGAL_MAIL}</p>`;
+  const terms=`<h1>Terms of use</h1><p class="muted">Last updated ${LEGAL_DATE}</p>
+<p>These terms are an agreement between you and ${LEGAL_CO} ("we") for using TrailConstruct. By creating an account you accept them.</p>
+<h2>The service</h2><p>TrailConstruct helps developers, site engineers and investors record and follow construction progress. We may improve or change features over time.</p>
+<h2>Your account</h2><p>You must be 18 or over and give accurate details. Keep your password private. You're responsible for what happens under your account.</p>
+<h2>Projects and roles</h2><p>The developer who creates a project controls it: who is invited, what role they have and what investors see. Developers are responsible for removing people who should no longer have access.</p>
+<h2>Your content</h2><p>You own what you upload. You give us permission to store, process and show it to the people on your project so the service works. Don't upload anything you don't have the right to share, or anything unlawful.</p>
+<h2>Site records</h2><p>To keep project history trustworthy, daily updates and store records lock 24 hours after posting, and weekly reports after 7 days. After that they can't be edited or deleted, except by deleting the whole project.</p>
+<h2>What TrailConstruct is not</h2><p>TrailConstruct is a record-keeping tool. It doesn't inspect, certify or guarantee construction work, materials, costs or schedules. Location checks on photos are a strong signal but not proof; phones and GPS can be wrong. Progress figures come from what your team enters. For structural, legal or financial decisions, rely on qualified professionals and your own checks.</p>
+<h2>Fair use</h2><p>Don't misuse the service: no attempts to access other people's projects, overload or attack the system, or upload false or misleading records.</p>
+<h2>Plans and payment</h2><p>Paid plans are charged as shown on our pricing page when billing starts. We'll tell you before any price change takes effect.</p>
+<h2>Ending use</h2><p>You can delete your account at any time. We may suspend accounts that break these terms or put others at risk.</p>
+<h2>Liability</h2><p>We provide TrailConstruct "as is" and work to keep it available and accurate, but can't promise it will always be uninterrupted or error-free. As far as the law allows, we aren't liable for indirect losses, and our total liability is limited to what you paid us in the 12 months before the claim.</p>
+<h2>Law</h2><p>These terms are governed by the laws of the Federal Republic of Nigeria, and the courts of Lagos State have jurisdiction.</p>
+<h2>Contact</h2><p>${LEGAL_MAIL}</p>`;
+  return top+`<main class="legal">${which==="privacy"?priv:terms}</main>`;
+}
+/* offline outbox: updates AND their photos are kept on the phone until there's signal */
 const outbox={get(){try{return JSON.parse(ls.get("st.outbox")||"[]")}catch(e){return []}},set(a){ls.set("st.outbox",JSON.stringify(a));}};
-async function flushOutbox(){const q=outbox.get();if(!q.length||!navigator.onLine)return;let sent=0;const left=[];for(const x of q){try{await store.add("logs",x);sent++;}catch(e){left.push(x);}}outbox.set(left);if(sent)toast(sent+" saved update"+(sent>1?"s":"")+" posted.");render();}
+const idb={db:null,
+  open(){if(this.db)return this.db;this.db=new Promise((res,rej)=>{if(!window.indexedDB)return rej(new Error("no idb"));const r=indexedDB.open("trailconstruct",1);r.onupgradeneeded=()=>r.result.createObjectStore("outbox",{keyPath:"key"});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});return this.db;},
+  async tx(mode,fn){const db=await this.open();return new Promise((res,rej)=>{const t=db.transaction("outbox",mode),st=t.objectStore("outbox");const out=fn(st);t.oncomplete=()=>res(out&&out.result!==undefined?out.result:out);t.onerror=()=>rej(t.error);});},
+  put(item){return this.tx("readwrite",st=>st.put(item));},
+  all(){return this.tx("readonly",st=>st.getAll());},
+  del(key){return this.tx("readwrite",st=>st.delete(key));}};
+async function saveForLater(data,shots){
+  try{await idb.put({key:"o"+Date.now()+Math.random().toString(36).slice(2,6),data,shots:(shots||[]).map(s=>({blob:s.blob,v:s.v,dist:s.dist,gps:s.gps,takenAt:s.takenAt}))});return true;}
+  catch(e){const q=outbox.get();q.push(data);outbox.set(q);return false;} // very old phones: text only
+}
+async function outboxCount(){let n=outbox.get().length;try{n+=(await idb.all()).length;}catch(e){}return n;}
+let flushing=false;
+async function flushOutbox(){
+  if(flushing||!navigator.onLine||!S.me&&S.mode==="cf")return;flushing=true;let sent=0;
+  try{
+    const q=outbox.get();const left=[];for(const x of q){try{await store.add("logs",x);sent++;}catch(e){left.push(x);}}outbox.set(left);
+    let items=[];try{items=await idb.all();}catch(e){}
+    for(const it of items){
+      try{
+        const data=it.data;data.photos=data.photos||[];
+        while(it.shots.length){const s=it.shots[0];const up=await uploadFile(new File([s.blob],"site-photo.jpg",{type:"image/jpeg",lastModified:Date.parse(s.takenAt)||Date.now()}),data.pid);
+          data.photos.push({...up,v:s.v,dist:s.dist,gps:s.gps,takenAt:s.takenAt});it.shots.shift();await idb.put(it);} // progress is kept if the signal drops halfway
+        await S.db.collection("logs").add(data);await idb.del(it.key);sent++;
+      }catch(e){break;}
+    }
+  }finally{flushing=false;}
+  if(sent){toast(sent+" saved update"+(sent>1?"s":"")+" posted.");render();}
+}
 window.addEventListener("online",flushOutbox);
+setInterval(()=>{if(navigator.onLine)flushOutbox();},60000);
 function logDraft(){try{return JSON.parse(ls.get("st.draft.log")||"{}")}catch(e){return {}}}
 
 
@@ -1413,6 +1490,7 @@ function render(){renderInner();afterRender();renderShots();if(S.view==="home")S
 function renderInner(){
   const app=document.getElementById("app"),v=S.view;
   if(v==="home"){app.innerHTML=homeView();return;}
+  if(v==="privacy"||v==="terms"){app.innerHTML=legalView(v);return;}
   if(S.mode==="cf"&&["developer","engineer","investor"].includes(v)&&!S.me){S.view="signin";history.replaceState(null,"","#signin");}
   if(S.mode==="cf"&&S.view==="signin"){if(S.me&&!S.pendingInvite){const r=S.pid?roleFor(S.pid):null;S.view=r||"developer";history.replaceState(null,"","#"+S.view);}else{app.innerHTML=cfAuthView();return;}}
   if(S.mode==="cf"&&["developer","engineer","investor"].includes(S.view)&&S.pid){const r=roleFor(S.pid);if(r&&r!==S.view){S.view=r;history.replaceState(null,"","#"+r);}}
@@ -1523,8 +1601,15 @@ document.addEventListener("click",async e=>{
   if(act==="onb-add"){const r=t.dataset.role,n=(document.getElementById("t-"+r+"-n").value||"").trim(),em=(document.getElementById("t-"+r+"-e").value||"").trim();if(!n){toast("Add a name first.");return;}S.onb.d.team.push({role:r,name:n,email:em});render();return;}
   if(act==="scroll"){e.preventDefault();const el=document.getElementById(t.dataset.to);if(el)el.scrollIntoView({behavior:"smooth"});return;}
   if(act==="signin"){ls.set("st.role",t.dataset.role);go(t.dataset.role);return;}
-  if(act==="signout"){ls.set("st.role","");if(S.mode==="cf"){try{await cfApi("POST","/api/auth/logout");}catch(e){}S.me=null;S.memberships=[];S.projects=[];S.pid=null;}go("home");return;}
+  if(act==="signout"){closeModal();ls.set("st.role","");if(S.mode==="cf"){try{await cfApi("POST","/api/auth/logout");}catch(e){}S.me=null;S.memberships=[];S.projects=[];S.pid=null;}go("home");return;}
   if(act==="authmode"){S.authMode=t.value;render();return;}
+  if(act==="rm-member"){const p=P();if(!p)return;modal(`<h2>Remove ${esc(t.dataset.name)}?</h2><p>They'll lose access to ${esc(p.name)} straight away. Everything they've already posted stays on record.</p><div class="actions"><button class="btn danger" data-act="rm-member-ok" data-id="${esc(t.dataset.id)}">Remove</button><button class="btn" data-act="close">Cancel</button></div>`);return;}
+  if(act==="rm-member-ok"){const p=P();if(!p)return;try{await cfApi("DELETE","/api/members?pid="+encodeURIComponent(p.id)+"&user="+encodeURIComponent(t.dataset.id));closeModal();delete S.team[p.id];toast("Removed from the project.");render();}catch(e){closeModal();showErr("Couldn't remove them",e.message||"Please try again.");}return;}
+  if(act==="rm-invite"){const p=P();if(!p)return;try{await cfApi("DELETE","/api/invites/"+encodeURIComponent(t.dataset.id));delete S.team[p.id];toast("Invite cancelled. That link no longer works.");render();}catch(e){showErr("Couldn't cancel the invite",e.message||"Please try again.");}return;}
+  if(act==="del-project"){const p=P();if(!p)return;modal(`<h2>Delete ${esc(p.name)}?</h2><p>This removes the project for everyone, with all its updates, reports, photos and materials. It can't be undone.</p><form id="delp-form"><label class="f" for="dp-name">Type the project name to confirm<input type="text" id="dp-name" required autocomplete="off" placeholder="${esc(p.name)}"></label><div class="actions"><button class="btn danger" type="submit">Delete project</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);return;}
+  if(act==="account"){modal(`<h2>Your account</h2><dl class="kv"><dt>Name</dt><dd>${esc(S.me&&S.me.name||"—")}</dd><dt>Email</dt><dd>${esc(S.me&&S.me.email||"")}</dd></dl><p class="small muted"><a href="#privacy" target="_blank">Privacy policy</a> · <a href="#terms" target="_blank">Terms</a></p>
+    <details><summary>Delete my account</summary><form id="delacc-form"><p class="small muted">Removes your login and your access to every project. What you posted to a project stays on that project's record. If you're the only developer on a project, delete it or make someone else a developer first.</p><label class="f" for="da-pass">Your password<input type="password" id="da-pass" required autocomplete="current-password"></label><div><button class="btn danger" type="submit">Delete my account</button></div></form></details>
+    <div class="actions"><button class="btn pri" data-act="signout">Sign out</button><button class="btn" data-act="close">Close</button></div>`);return;}
   if(act==="copy"){try{await navigator.clipboard.writeText(t.dataset.text);toast("Link copied.");}catch(e){modal(`<h2>Invite link</h2><p class="small">Copy this link:</p><input type="text" readonly value="${esc(t.dataset.text)}" style="width:100%"><div><button class="btn" data-act="close">Close</button></div>`);}return;}
   if(act==="tab"){S.tab[t.dataset.role]=t.dataset.tab;render();window.scrollTo(0,0);return;}
   if(act==="toggle-stage"){S.open[t.dataset.id]=t.getAttribute("aria-expanded")!=="true";render();return;}
@@ -1609,6 +1694,9 @@ document.addEventListener("submit",async e=>{
   if(f.id==="auth-form"){const up=S.authMode==="up",body={name:up?v("au-name").trim():undefined,email:v("au-email").trim(),password:v("au-pass")};S.busy=true;render();
     try{const r=await cfApi("POST",up?"/api/auth/signup":"/api/auth/login",body);S.me=r.user;S.busy=false;await cfAfterAuth();}
     catch(err){S.busy=false;render();showErr(up?"Couldn't create your account":"Couldn't sign you in",err.code==="conflict"?"That email already has an account. Choose Sign in instead.":err.message||"Please try again.");}return;}
+  if(f.id==="delp-form"){const p=P();if(!p)return;if(v("dp-name").trim().toLowerCase()!==String(p.name||"").trim().toLowerCase()){toast("The name doesn't match.");return;}
+    try{await cfApi("DELETE","/api/docs/projects/"+encodeURIComponent(p.id));closeModal();S.db.reset();S.pid=null;ls.set("st.pid","");await S.db.pull(true);toast("Project deleted.");render();}catch(e){closeModal();showErr("Couldn't delete the project",e.message||"Please try again.");}return;}
+  if(f.id==="delacc-form"){try{await cfApi("DELETE","/api/me",{password:v("da-pass")});closeModal();S.me=null;S.memberships=[];S.projects=[];S.pid=null;S.db.reset();ls.set("st.pid","");toast("Your account has been deleted.");go("home");}catch(e){showErr("Couldn't delete your account",e.message||"Please try again.");}return;}
   if(f.id==="inv-form"){const p=P();if(!p)return;try{const em=v("iv-email").trim();const r=await cfApi("POST","/api/invites",{pid:p.id,role:v("iv-role"),name:v("iv-name").trim(),email:em});delete S.team[p.id];toast(r.emailed?`Invite emailed to ${em}. You can also send the link on WhatsApp.`:"Invite link created. Send it on WhatsApp or copy it.");render();}catch(err){toast(err.message||"Couldn't create the invite.");}return;}
   if(f.id==="proj-form"){
     const data={name:v("pf-name").trim(),location:(S.pfLoc||v("pf-loc")||(f.dataset.id&&P()?P().location||"":"")).trim(),propType:v("pf-ptype"),sewageType:v("pf-sew")||"septic",foundationType:v("pf-fdn")||"",unitCount:+v("pf-unitn")||0,blockCount:+v("pf-blocks")||0,beds:v("pf-beds"),client:v("pf-client").trim(),floors:Math.max(0,parseInt(v("pf-floors"),10)||0),budget:Math.max(0,+v("pf-budget")||0),startDate:v("pf-start"),durationMonths:v("pf-dur")&&v("pf-dur")!=="custom"?+v("pf-dur"):0,targetDate:finalTarget(v("pf-start"),v("pf-dur"),v("pf-target")),units:"",payMode:v("pf-pay")||"upfront",contractSum:Math.max(0,+v("pf-contract")||0),siteRadius:+v("pf-rad")||200,strictGps:!!(document.getElementById("pf-strict")||{}).checked};
@@ -1630,10 +1718,11 @@ document.addEventListener("submit",async e=>{
     if(S.busy)return;const by=v("lg-by").trim();ls.set("st.name",by);
     const files=S.shots.slice(0,8);
     const data={pid:p.id,date:v("lg-date"),stage:v("lg-stage"),work:v("lg-work").trim(),workers:Math.max(0,parseInt(v("lg-workers"),10)||0),weather:v("lg-weather"),issues:v("lg-issues").trim(),by,createdAt:new Date().toISOString(),photos:[]};
-    if(!navigator.onLine){const q=outbox.get();q.push(data);outbox.set(q);ls.set("st.draft.log","{}");toast("No signal. Saved on this phone"+(files.length?" (photos need signal, add them later)":"")+". It will post when you're back online.");render();return;}
-    try{for(let i=0;i<files.length;i++){S.busy="Uploading photo "+(i+1)+" of "+files.length+"…";render();const s=files[i],up=await uploadFile(new File([s.blob],"site-photo.jpg",{type:"image/jpeg",lastModified:Date.parse(s.takenAt)||Date.now()}));data.photos.push({...up,v:s.v,dist:s.dist,gps:s.gps,takenAt:s.takenAt});}
+    const keep=async why=>{const full=await saveForLater(data,files);ls.set("st.draft.log","{}");S.shots=[];S.busy=false;toast(why+" Saved on this phone"+(files.length&&!full?" (this phone can't keep the photos, add them later)":" with its photos")+". It will post when you're back online.");render();};
+    if(!navigator.onLine&&S.mode==="cf"){await keep("No signal.");return;}
+    try{for(let i=0;i<files.length;i++){S.busy="Uploading photo "+(i+1)+" of "+files.length+"…";render();const s=files[i],up=await uploadFile(new File([s.blob],"site-photo.jpg",{type:"image/jpeg",lastModified:Date.parse(s.takenAt)||Date.now()}),p.id);data.photos.push({...up,v:s.v,dist:s.dist,gps:s.gps,takenAt:s.takenAt});}
       S.busy="Posting…";render();await store.add("logs",data);ls.set("st.draft.log","{}");S.shots=[];S.busy=false;toast("Update posted.");render();}
-    catch(err){S.busy=false;onErr(err);}return;
+    catch(err){S.busy=false;if(S.mode==="cf"&&(err&&(err.code==="unavailable"||err instanceof TypeError))){data.photos=[];await keep("Signal dropped.");return;}onErr(err);}return;
   }
   if(f.id==="rep-form"){
     const ws=weekOf(new Date()),wl=logsOf(p.id).filter(l=>l.date>=ws.key);
@@ -1662,7 +1751,7 @@ document.addEventListener("input",e=>{
   if(e.target.id==="calc-n"){S.home.projects=+e.target.value;const n=S.home.projects,a=S.home.annual,r=n>=5?22000:25000;document.querySelector(".calc-n").textContent=n;document.getElementById("calc-total").textContent=naira(n*r*(a?10:1));document.getElementById("calc-note").textContent=n>=5?"Portfolio rate applied":"Add "+(5-n)+" more for the Portfolio rate";return;}
 if(["up-title","up-brief","up-next"].includes(e.target.id))saveDraftFields();});
 document.addEventListener("keydown",e=>{const L=document.getElementById("layer");if(!L.innerHTML)return;if(e.key==="Escape")closeModal();const b=L.querySelectorAll("[data-act=gnav]");if(b.length&&e.key==="ArrowLeft")b[0].click();if(b.length&&e.key==="ArrowRight")b[1].click();});
-window.addEventListener("hashchange",()=>{const h=location.hash.slice(1);if(["home","signin","signup","demo","developer","engineer","investor"].includes(h)&&h!==S.view){S.view=h;render();window.scrollTo(0,0);}});
+window.addEventListener("hashchange",()=>{const h=location.hash.slice(1);if(["home","signin","signup","demo","developer","engineer","investor","privacy","terms"].includes(h)&&h!==S.view){S.view=h;render();window.scrollTo(0,0);}});
 
 /* ---------- preview data (only when shared storage is unavailable) ---------- */
 function previewSeed(){
@@ -1678,17 +1767,27 @@ async function cfApi(method,url,body,raw){
   const r=await fetch(url,{method,credentials:"same-origin",headers:raw?{"content-type":raw.type||"application/octet-stream"}:body?{"content-type":"application/json"}:{},body:raw||(body?JSON.stringify(body):undefined)});
   let d=null;try{d=await r.json();}catch(e){}
   if(r.status===401){S.me=null;throw {code:"unauthenticated",message:(d&&d.error)||"Please sign in."};}
-  if(r.status===403)throw {code:"invalid_argument",message:(d&&d.error)||"Not allowed."};
+  if(r.status===403)throw {code:"forbidden",message:(d&&d.error)||"Not allowed."};
+  if(r.status===429)throw {code:"rate",message:(d&&d.error)||"Too many attempts. Wait a few minutes and try again."};
   if(!r.ok)throw {code:r.status===409?"conflict":"unavailable",message:(d&&d.error)||("The server couldn't finish this (error "+r.status+"). Please try again in a minute.")};
   return d;
 }
 function makeCfDb(){
-  const subs={};let pulling=null;
-  async function pull(){
+  // Loads everything once, then only what changed since the last pull (saves data and server reads).
+  const subs={};let pulling=null,since=0,memSig="";const cache={};
+  const sig=ms=>(ms||[]).map(m=>m.pid+":"+m.role).sort().join("|");
+  async function pull(full){
     if(pulling)return pulling;
-    pulling=(async()=>{try{const d=await cfApi("GET","/api/data");S.memberships=d.memberships||[];
-      for(const col in subs){const rows=(d.docs&&d.docs[col])||[];subs[col].forEach(cb=>cb(rows));}}
-      catch(e){if(e.code==="unauthenticated"){render();}} finally{pulling=null;}})();
+    pulling=(async()=>{try{
+      let d=await cfApi("GET","/api/data?since="+(full?0:since));
+      if(!d.full&&sig(d.memberships)!==memSig)d=await cfApi("GET","/api/data?since=0"); // access changed: reload everything
+      S.memberships=d.memberships||[];memSig=sig(d.memberships);
+      if(d.full)for(const c in cache)delete cache[c];
+      for(const col in (d.docs||{})){const m=cache[col]=cache[col]||new Map();for(const x of d.docs[col])m.set(x.id,x);}
+      for(const x of (d.deleted||[]))if(cache[x.col])cache[x.col].delete(x.id);
+      since=d.now||0;
+      for(const col in subs){const rows=[...((cache[col]||new Map()).values())];subs[col].forEach(cb=>cb(rows));}}
+      catch(e){if(e.code==="unauthenticated"){since=0;render();}} finally{pulling=null;}})();
     return pulling;
   }
   const path=(c,i)=>`/api/docs/${encodeURIComponent(c)}/${encodeURIComponent(i)}`;
@@ -1701,9 +1800,9 @@ function makeCfDb(){
     add:async data=>{const r=docRef(col,newId());await r.set(data);return r;},
     orderBy(){return this;},limit(){return this;},where(){return this;},
     onSnapshot(next){(subs[col]=subs[col]||[]).push(rows=>next({docs:rows.map(x=>({id:x.id,exists:true,data:()=>x.data})),size:rows.length,empty:!rows.length,metadata:{fromCache:false,hasPendingWrites:false}}));return ()=>{};}});
-  return {collection:coll,doc:p=>{const [c,i]=p.split("/");return docRef(c,i);},pull};
+  return {collection:coll,doc:p=>{const [c,i]=p.split("/");return docRef(c,i);},pull,reset(){since=0;memSig="";for(const c in cache)delete cache[c];}};
 }
-const cfAssets={async upload(file){const d=await cfApi("POST","/api/upload?pid="+encodeURIComponent(S.pid||""),null,file);return d;}};
+const cfAssets={async upload(file,pid){const d=await cfApi("POST","/api/upload?pid="+encodeURIComponent(pid||S.pid||""),null,file);return d;}};
 const cfDownloads={async save({filename,data}){const b=data instanceof Blob?data:new Blob([data]);const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);return {status:"saved"};}};
 const roleFor=pid=>((S.memberships||[]).find(m=>m.pid===pid)||{}).role||null;
 async function cfAfterAuth(){
@@ -1723,7 +1822,7 @@ function cfAuthView(){
     <form id="auth-form">
       ${mode==="up"?`<label class="f" for="au-name">Full name<input type="text" id="au-name" required autocomplete="name"></label>`:""}
       <label class="f" for="au-email">Email<input type="email" id="au-email" required autocomplete="email"></label>
-      <label class="f" for="au-pass">Password<input type="password" id="au-pass" required minlength="8" autocomplete="${mode==="up"?"new-password":"current-password"}"></label>
+      <label class="f" for="au-pass">Password<input type="password" id="au-pass" required minlength="8" autocomplete="${mode==="up"?"new-password":"current-password"}"></label>${mode==="up"?`<p class="small muted">By creating an account you agree to the <a href="#terms" target="_blank">Terms</a> and <a href="#privacy" target="_blank">Privacy policy</a>.</p>`:""}
       <div><button class="btn pri" type="submit" ${S.busy?"disabled":""}>${S.busy?"Please wait…":mode==="up"?"Create account":"Sign in"}</button></div>
     </form>
     ${!inv?`<p class="small" style="text-align:center">Developer setting up a site? <a class="link" href="#signup">Start here</a></p>`:""}
@@ -1735,8 +1834,8 @@ function teamSection(p){
   if(!t){cfApi("GET","/api/members?pid="+encodeURIComponent(p.id)).then(d=>{S.team[p.id]=d;render();}).catch(()=>{});return `<section class="card"><h2>Team</h2><div class="empty">Loading team…</div></section>`;}
   const link=c=>location.origin+"/?invite="+c;
   return `<section class="card"><h2>Team</h2>
-    <div>${(t.members||[]).map(m=>`<div class="exp"><span>${esc(m.name||m.email)}</span><span class="pill ${m.role==="investor"?"ok":m.role==="engineer"?"active":""}">${ROLE_LABEL[m.role]||m.role}</span><span class="small muted">${esc(m.email)}</span><span></span></div>`).join("")}</div>
-    ${(t.invites||[]).length?`<h3>Pending invites</h3>${t.invites.map(i=>`<div class="exp"><span>${esc(i.name||i.email||"Invite")} · ${ROLE_LABEL[i.role]}</span><span class="actions">${waLink(`You've been invited to follow ${p.name} on TrailConstruct as ${ROLE_LABEL[i.role]}. Join here: ${link(i.code)}`,"Send")}<button class="btn sm" data-act="copy" data-text="${esc(link(i.code))}">Copy link</button></span><span class="small muted">${esc(i.email||"")}</span><span></span></div>`).join("")}`:""}
+    <div>${(t.members||[]).map(m=>`<div class="exp"><span>${esc(m.name||m.email)}${m.id===t.me?" (you)":""}</span><span class="pill ${m.role==="investor"?"ok":m.role==="engineer"?"active":""}">${ROLE_LABEL[m.role]||m.role}</span><span class="small muted">${esc(m.email)}</span><span>${m.id!==t.me?`<button class="btn sm ghost" data-act="rm-member" data-id="${esc(m.id)}" data-name="${esc(m.name||m.email)}">Remove</button>`:""}</span></div>`).join("")}</div>
+    ${(t.invites||[]).length?`<h3>Pending invites</h3>${t.invites.map(i=>`<div class="exp"><span>${esc(i.name||i.email||"Invite")} · ${ROLE_LABEL[i.role]}</span><span class="actions">${waLink(`You've been invited to follow ${p.name} on TrailConstruct as ${ROLE_LABEL[i.role]}. Join here: ${link(i.code)}`,"Send")}<button class="btn sm" data-act="copy" data-text="${esc(link(i.code))}">Copy link</button><button class="btn sm ghost" data-act="rm-invite" data-id="${esc(i.code)}">Cancel</button></span><span class="small muted">${esc(i.email||"")}</span><span></span></div>`).join("")}<p class="small muted">Invite links work once and expire after 14 days.</p>`:""}
     <form id="inv-form"><h3>Invite someone</h3><div class="row"><label class="f" for="iv-name">Name<input type="text" id="iv-name" required></label><label class="f" for="iv-email">Email<input type="email" id="iv-email"></label><label class="f" for="iv-role">Role<select id="iv-role"><option value="engineer">Site engineer</option><option value="investor">Investor</option><option value="developer">Developer (full access)</option></select></label></div><div><button class="btn pri" type="submit">Create invite link</button></div></form>
   </section>`;
 }
@@ -1816,7 +1915,7 @@ function setPin(prefix,pick){
 
 
 /* ---------- start ---------- */
-(function(){const h=location.hash.slice(1);if(["home","signin","signup","demo","developer","engineer","investor"].includes(h))S.view=h;})();
+(function(){const h=location.hash.slice(1);if(["home","signin","signup","demo","developer","engineer","investor","privacy","terms"].includes(h))S.view=h;})();
 render();
 (async function init(){
   const C=window.claude;

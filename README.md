@@ -139,3 +139,17 @@ On your own domain the browser can use the phone's GPS. When a photo has no loca
 - **Password reset:** not built yet. It needs an email service (for example Resend or Postmark). Until then, reset passwords manually.
 - **Payments:** subscription billing (Paystack/Flutterwave) and the escrow partner are not connected yet.
 - **Legal:** terms of use and a privacy policy (Nigeria Data Protection Act) before launch.
+
+---
+
+## Before opening to the public
+
+1. **Workers Paid plan ($5/month):** Cloudflare dashboard → Workers & Pages → Plans. Gives more CPU per request and much higher database limits. Then raise password strength: Settings → Variables → set `PBKDF2_ITERATIONS` to `100000` and redeploy. Existing users are upgraded automatically the next time they sign in.
+2. **Rate-limit rule (free):** Security → WAF → Rate limiting rules → create: URI path starts with `/api/auth/` or equals `/api/contact`, 20 requests per 10 seconds per IP → Block for 1 minute. (The app also locks an email for 15 minutes after 8 wrong passwords.)
+3. **Your domain and email:** add the custom domain, verify it in Resend, then set `RESEND_API_KEY`, `EMAIL_FROM` (e.g. `TrailConstruct <hello@yourdomain>`) and `CONTACT_TO`.
+4. **Privacy policy and terms:** fill in the company name, address and contact email at the top of the legal section in `public/index.html` (`LEGAL_CO`, `LEGAL_ADDR`, `LEGAL_MAIL`), and have a lawyer review them.
+5. **Backups:** D1 keeps point-in-time history (Time Travel). Also export a copy regularly: `npx wrangler d1 export trailconstruct-db --remote --output backup.sql`.
+
+## Record locking
+
+Daily updates and store-log entries can't be edited or deleted 24 hours after they're posted; weekly reports lock after 7 days. Only deleting the whole project removes them.

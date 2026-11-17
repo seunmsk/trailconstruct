@@ -17,6 +17,12 @@ const ID_RE = /^[A-Za-z0-9_\-:.]{1,80}$/;
 const MAX_DOC = 200 * 1024;
 const MAX_PHOTO = 12 * 1024 * 1024;
 const SESSION_DAYS = 30;
+// Site records can't be changed or deleted once these windows pass: daily updates and the
+// store log after 24 hours, weekly reports after 7 days.
+const LOCK_MS = { logs: 24 * 3600 * 1000, stock: 24 * 3600 * 1000, reports: 7 * 24 * 3600 * 1000 };
+const LOCKED_COLS = Object.keys(LOCK_MS);
+const INVITE_DAYS = 14;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000, LOGIN_MAX_FAILS = 8;
 
 const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json", "cache-control": "no-store", ...headers } });
@@ -88,18 +94,20 @@ async function readBody(req) {
 }
 
 // Extra rules for non-developers.
-function allowedChange(role, col, existing, patch, isCreate) {
+function allowedChange(role, col, existing, patch, isCreate, method) {
   if (role === "developer") return true;
   const keys = Object.keys(patch);
+  // Only developers may replace a whole record; everyone else creates new records or makes small, allowed changes.
+  if (!isCreate && method === "PUT" && col !== "reports") return false;
   if (role === "engineer") {
-    if (col === "projects") return !isCreate && keys.every((k) => k === "checks");
+    if (col === "projects") return !isCreate && method === "PATCH" && keys.every((k) => k === "checks") && patch.checks && typeof patch.checks === "object" && Object.values(patch.checks).every((v) => typeof v === "boolean");
     if (col === "matreqs") return isCreate && patch.status === "pending";
     return true; // logs, reports, stock
   }
   if (role === "investor") {
     if (col === "requests") return isCreate;
     if (col === "milestones") {
-      if (isCreate || !existing || existing.status !== "verified") return false;
+      if (isCreate || method !== "PATCH" || !existing || existing.status !== "verified") return false;
       return keys.every((k) => ["status", "approvedAt", "dispute"].includes(k)) && ["approved", "disputed"].includes(patch.status);
     }
   }
@@ -118,6 +126,10 @@ const SCHEMA = [
   "CREATE INDEX IF NOT EXISTS invites_project ON invites(project_id)",
   "CREATE TABLE IF NOT EXISTS docs (col TEXT NOT NULL, id TEXT NOT NULL, pid TEXT NOT NULL, data TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (col, id))",
   "CREATE INDEX IF NOT EXISTS docs_pid_col ON docs(pid, col, updated_at)",
+  "CREATE TABLE IF NOT EXISTS deleted (col TEXT NOT NULL, id TEXT NOT NULL, pid TEXT NOT NULL, deleted_at INTEGER NOT NULL, PRIMARY KEY (col, id))",
+  "CREATE INDEX IF NOT EXISTS deleted_pid ON deleted(pid, deleted_at)",
+  "CREATE TABLE IF NOT EXISTS login_fails (email TEXT NOT NULL, at INTEGER NOT NULL)",
+  "CREATE INDEX IF NOT EXISTS login_fails_email ON login_fails(email, at)",
   "CREATE TABLE IF NOT EXISTS leads (id TEXT PRIMARY KEY, name TEXT, company TEXT, email TEXT, phone TEXT, sites TEXT, message TEXT, created_at INTEGER NOT NULL)",
 ];
 let schemaReady = false;
@@ -220,10 +232,26 @@ export async function onRequest(ctx) {
       }
       if (parts[1] === "login") {
         const { email = "", password = "" } = await readBody(req);
-        const u = await env.DB.prepare("SELECT * FROM users WHERE email = ?").bind(String(email).trim().toLowerCase()).first();
-        if (!u) return err(400, "Email or password is wrong.");
+        const em = String(email).trim().toLowerCase().slice(0, 200);
+        const since = Date.now() - LOGIN_WINDOW_MS;
+        const fails = await env.DB.prepare("SELECT COUNT(*) AS n FROM login_fails WHERE email = ? AND at > ?").bind(em, since).first();
+        if (fails && fails.n >= LOGIN_MAX_FAILS) return err(429, "Too many attempts. Wait 15 minutes and try again.");
+        const fail = async () => {
+          await env.DB.batch([
+            env.DB.prepare("INSERT INTO login_fails (email, at) VALUES (?, ?)").bind(em, Date.now()),
+            env.DB.prepare("DELETE FROM login_fails WHERE at < ?").bind(Date.now() - 24 * 3600 * 1000),
+          ]);
+          return err(400, "Email or password is wrong.");
+        };
+        const u = await env.DB.prepare("SELECT * FROM users WHERE email = ?").bind(em).first();
+        if (!u) return fail();
         const h = await hashPassword(String(password), u.salt, u.iterations || iterations);
-        if (!safeEqual(h, u.pass_hash)) return err(400, "Email or password is wrong.");
+        if (!safeEqual(h, u.pass_hash)) return fail();
+        await env.DB.prepare("DELETE FROM login_fails WHERE email = ?").bind(em).run();
+        if ((u.iterations || 0) < iterations) { // strengthen older password hashes when the setting is raised
+          const salt = randHex(16), nh = await hashPassword(String(password), salt, iterations);
+          await env.DB.prepare("UPDATE users SET pass_hash = ?, salt = ?, iterations = ? WHERE id = ?").bind(nh, salt, iterations, u.id).run();
+        }
         const c = await startSession(env, u.id);
         return json({ user: { id: u.id, name: u.name, email: u.email } }, 200, { "set-cookie": c });
       }
@@ -240,34 +268,89 @@ export async function onRequest(ctx) {
 
     // ---------- who am I ----------
     if (parts[0] === "me" && m === "GET") return json({ user, memberships: await memberships(env, user.id) });
+    if (parts[0] === "me" && m === "DELETE") {
+      const { password = "" } = await readBody(req);
+      const u = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(user.id).first();
+      if (!safeEqual(await hashPassword(String(password), u.salt, u.iterations || iterations), u.pass_hash)) return err(400, "That password is wrong.");
+      const ms = await memberships(env, user.id);
+      for (const { pid, role } of ms) {
+        if (role !== "developer") continue;
+        const others = await env.DB.prepare("SELECT COUNT(*) AS n FROM members WHERE project_id = ? AND role = 'developer' AND user_id <> ?").bind(pid, user.id).first();
+        if (!others || !others.n) return err(409, "You're the only developer on a project. Delete the project or make someone else a developer first.");
+      }
+      await env.DB.batch([
+        env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id),
+        env.DB.prepare("DELETE FROM members WHERE user_id = ?").bind(user.id),
+        env.DB.prepare("DELETE FROM login_fails WHERE email = ?").bind(user.email),
+        env.DB.prepare("DELETE FROM users WHERE id = ?").bind(user.id),
+      ]);
+      return json({ ok: true }, 200, { "set-cookie": sessionCookie("", 0) });
+    }
 
     // ---------- all data this user may see ----------
+    // Full load the first time (since=0); after that only what changed since the last pull.
     if (parts[0] === "data" && m === "GET") {
+      const now = Date.now();
+      const since = Math.max(0, parseInt(url.searchParams.get("since") || "0", 10) || 0);
       const ms = await memberships(env, user.id);
-      const docs = {};
+      const docs = {}, deleted = [];
       COLS.forEach((c) => (docs[c] = []));
       for (const { pid, role } of ms) {
         const cols = READ[role] || [];
         const qs = cols.map(() => "?").join(",");
         const r = await env.DB.prepare(
-          `SELECT col, id, data FROM docs WHERE pid = ? AND col IN (${qs}) ORDER BY updated_at DESC LIMIT 3000`
-        ).bind(pid, ...cols).all();
-        for (const row of r.results || []) docs[row.col].push({ id: row.id, data: JSON.parse(row.data) });
+          `SELECT col, id, data, created_at FROM docs WHERE pid = ? AND col IN (${qs}) AND updated_at > ? ORDER BY updated_at DESC LIMIT 20000`
+        ).bind(pid, ...cols, since).all();
+        for (const row of r.results || []) {
+          const d = JSON.parse(row.data);
+          if (LOCKED_COLS.includes(row.col)) d._locked = now - row.created_at > LOCK_MS[row.col];
+          docs[row.col].push({ id: row.id, data: d });
+        }
+        if (since) {
+          const dr = await env.DB.prepare(`SELECT col, id FROM deleted WHERE pid = ? AND col IN (${qs}) AND deleted_at > ?`).bind(pid, ...cols, since).all();
+          for (const row of dr.results || []) deleted.push({ col: row.col, id: row.id });
+        }
       }
-      return json({ memberships: ms, docs });
+      // 5 seconds of overlap so nothing written during this request is missed.
+      return json({ memberships: ms, docs, deleted, now: now - 5000, full: !since });
     }
 
     // ---------- documents ----------
     if (parts[0] === "docs" && parts.length === 3) {
       const [, col, id] = parts;
       if (!COLS.includes(col) || !ID_RE.test(id)) return err(400, "Bad path");
-      const row = await env.DB.prepare("SELECT pid, data FROM docs WHERE col = ? AND id = ?").bind(col, id).first();
+      const row = await env.DB.prepare("SELECT pid, data, created_at FROM docs WHERE col = ? AND id = ?").bind(col, id).first();
       const existing = row ? JSON.parse(row.data) : null;
+      const locked = row && LOCKED_COLS.includes(col) && Date.now() - row.created_at > LOCK_MS[col];
 
       if (m === "DELETE") {
         if (!row) return json({ ok: true });
         if ((await roleOn(env, user.id, row.pid)) !== "developer") return err(403, "Only the developer can delete.");
-        await env.DB.prepare("DELETE FROM docs WHERE col = ? AND id = ?").bind(col, id).run();
+        if (locked) return err(403, "This site record is now locked and stays on record.");
+        const now = Date.now();
+        if (col === "projects") {
+          // Remove the whole project: records, team, invites and photos.
+          await env.DB.batch([
+            env.DB.prepare("DELETE FROM docs WHERE pid = ?").bind(id),
+            env.DB.prepare("DELETE FROM members WHERE project_id = ?").bind(id),
+            env.DB.prepare("DELETE FROM invites WHERE project_id = ?").bind(id),
+            env.DB.prepare("DELETE FROM deleted WHERE pid = ?").bind(id),
+          ]);
+          if (env.PHOTOS) {
+            let cursor;
+            do {
+              const list = await env.PHOTOS.list({ prefix: id + "/", cursor, limit: 1000 });
+              const keys = list.objects.map((o) => o.key);
+              if (keys.length) await env.PHOTOS.delete(keys);
+              cursor = list.truncated ? list.cursor : undefined;
+            } while (cursor);
+          }
+          return json({ ok: true });
+        }
+        await env.DB.batch([
+          env.DB.prepare("DELETE FROM docs WHERE col = ? AND id = ?").bind(col, id),
+          env.DB.prepare("INSERT INTO deleted (col, id, pid, deleted_at) VALUES (?, ?, ?, ?) ON CONFLICT(col, id) DO UPDATE SET deleted_at = excluded.deleted_at").bind(col, id, row.pid, now),
+        ]);
         return json({ ok: true });
       }
       if (m !== "PUT" && m !== "PATCH") return err(405, "Method not allowed");
@@ -289,7 +372,13 @@ export async function onRequest(ctx) {
       const role = await roleOn(env, user.id, pid);
       if (!role || !(WRITE[role] || []).includes(col)) return err(403, "You don't have access to change this.");
       if (m === "PATCH" && !row) return err(404, "Not found");
-      if (!allowedChange(role, col, existing, body, !row)) return err(403, "You don't have access to change this.");
+      if (!allowedChange(role, col, existing, body, !row, m)) return err(403, "You don't have access to change this.");
+      if (locked) {
+        // Once locked, a site record is fixed. The developer may only mark a weekly report as used.
+        const onlyStatus = role === "developer" && col === "reports" && m === "PATCH" && Object.keys(body).every((k) => k === "status");
+        if (!onlyStatus) return err(403, "This site record is now locked and stays on record.");
+      }
+      delete body._locked;
 
       let next = m === "PATCH" ? deepMerge(existing, body) : body;
       if (col !== "projects") next.pid = pid;
@@ -310,11 +399,14 @@ export async function onRequest(ctx) {
       if (role !== "developer" && role !== "engineer") return err(403, "You can't upload to this project.");
       const type = (req.headers.get("content-type") || "").split(";")[0];
       if (!["image/jpeg", "image/png", "image/webp"].includes(type)) return err(415, "Upload a JPEG, PNG or WebP photo.");
-      const len = parseInt(req.headers.get("content-length") || "0", 10);
+      const len = parseInt(req.headers.get("content-length") || "", 10);
+      if (!len) return err(411, "Photo size missing. Please try again.");
       if (len > MAX_PHOTO) return err(413, "Photo is too large.");
       const ext = type === "image/png" ? "png" : type === "image/webp" ? "webp" : "jpg";
       const key = `${pid}/${randHex(12)}.${ext}`;
-      await env.PHOTOS.put(key, req.body, { httpMetadata: { contentType: type }, customMetadata: { by: user.id } });
+      const bytes = await req.arrayBuffer();
+      if (bytes.byteLength > MAX_PHOTO) return err(413, "Photo is too large.");
+      await env.PHOTOS.put(key, bytes, { httpMetadata: { contentType: type }, customMetadata: { by: user.id } });
       return json({ id: key, url: "/api/photo/" + key.split("/").map(encodeURIComponent).join("/") });
     }
     if (parts[0] === "photo" && m === "GET" && parts.length === 3) {
@@ -329,20 +421,43 @@ export async function onRequest(ctx) {
     if (parts[0] === "members" && m === "GET") {
       const pid = url.searchParams.get("pid") || "";
       if ((await roleOn(env, user.id, pid)) !== "developer") return err(403, "Only the developer can see the team.");
-      const mem = await env.DB.prepare("SELECT u.name, u.email, m.role FROM members m JOIN users u ON u.id = m.user_id WHERE m.project_id = ? ORDER BY m.created_at").bind(pid).all();
-      const inv = await env.DB.prepare("SELECT code, role, name, email FROM invites WHERE project_id = ? AND used_by IS NULL ORDER BY created_at DESC").bind(pid).all();
-      return json({ members: mem.results || [], invites: inv.results || [] });
+      const mem = await env.DB.prepare("SELECT u.id, u.name, u.email, m.role FROM members m JOIN users u ON u.id = m.user_id WHERE m.project_id = ? ORDER BY m.created_at").bind(pid).all();
+      const inv = await env.DB.prepare("SELECT code, role, name, email, created_at FROM invites WHERE project_id = ? AND used_by IS NULL AND created_at > ? ORDER BY created_at DESC").bind(pid, Date.now() - INVITE_DAYS * 864e5).all();
+      return json({ me: user.id, members: mem.results || [], invites: inv.results || [] });
+    }
+    if (parts[0] === "members" && m === "DELETE") {
+      const pid = url.searchParams.get("pid") || "", uid = url.searchParams.get("user") || "";
+      if ((await roleOn(env, user.id, pid)) !== "developer") return err(403, "Only the developer can remove people.");
+      const target = await roleOn(env, uid, pid);
+      if (!target) return json({ ok: true });
+      if (target === "developer") {
+        const devs = await env.DB.prepare("SELECT COUNT(*) AS n FROM members WHERE project_id = ? AND role = 'developer'").bind(pid).first();
+        if (devs.n <= 1) return err(409, "A project needs at least one developer.");
+      }
+      await env.DB.prepare("DELETE FROM members WHERE project_id = ? AND user_id = ?").bind(pid, uid).run();
+      return json({ ok: true });
+    }
+    if (parts[0] === "invites" && parts[1] && parts[1] !== "accept" && m === "DELETE") {
+      const inv = await env.DB.prepare("SELECT project_id FROM invites WHERE code = ?").bind(parts[1]).first();
+      if (!inv) return json({ ok: true });
+      if ((await roleOn(env, user.id, inv.project_id)) !== "developer") return err(403, "Only the developer can cancel invites.");
+      await env.DB.prepare("DELETE FROM invites WHERE code = ?").bind(parts[1]).run();
+      return json({ ok: true });
     }
     if (parts[0] === "invites" && parts[1] === "accept" && m === "POST") {
       const { code = "" } = await readBody(req);
       const inv = await env.DB.prepare("SELECT * FROM invites WHERE code = ?").bind(String(code)).first();
-      if (!inv || inv.used_by) return err(400, "That invite link isn't valid any more.");
+      if (!inv || inv.used_by || Date.now() - inv.created_at > INVITE_DAYS * 864e5) return err(400, "That invite link isn't valid any more. Ask the developer for a new one.");
       const now = Date.now();
+      const current = await roleOn(env, user.id, inv.project_id);
+      // Never lower someone's access by accident: a developer who opens an investor link stays a developer.
+      const rank = { investor: 1, engineer: 2, developer: 3 };
+      const role = current && rank[current] >= rank[inv.role] ? current : inv.role;
       await env.DB.batch([
-        env.DB.prepare("INSERT INTO members (project_id, user_id, role, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(project_id, user_id) DO UPDATE SET role = excluded.role").bind(inv.project_id, user.id, inv.role, now),
+        env.DB.prepare("INSERT INTO members (project_id, user_id, role, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(project_id, user_id) DO UPDATE SET role = excluded.role").bind(inv.project_id, user.id, role, now),
         env.DB.prepare("UPDATE invites SET used_by = ?, used_at = ? WHERE code = ?").bind(user.id, now, inv.code),
       ]);
-      return json({ pid: inv.project_id, role: inv.role });
+      return json({ pid: inv.project_id, role });
     }
     if (parts[0] === "invites" && !parts[1] && m === "POST") {
       const { pid = "", role = "", name = "", email = "" } = await readBody(req);
