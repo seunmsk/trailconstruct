@@ -100,6 +100,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 /* ---------- sign in ---------- */
 .auth{min-height:100%;display:grid;place-items:center;padding:24px 16px}
 .auth-box{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:24px;width:100%;max-width:440px;display:grid;gap:16px}
+.auth-h{font-family:var(--display);font-size:1.6rem;margin:0}
 .pick{display:grid;gap:10px}
 .pick button{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;align-items:center;text-align:left;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--sunk);cursor:pointer}
 .pick button:hover{border-color:var(--steel)}
@@ -193,7 +194,7 @@ main.narrow{max-width:680px}
 form{display:grid;gap:12px}
 .row{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
 label.f{display:grid;gap:4px;font-size:.84rem;font-weight:600;color:var(--muted)}
-input[type=text],input[type=number],input[type=date],input[type=email],select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--sunk);font-weight:400}
+input[type=text],input[type=number],input[type=date],input[type=email],input[type=password],input[type=tel],select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--sunk);font-weight:400}
 textarea{min-height:90px;resize:vertical}
 .chk{display:flex;gap:10px;align-items:center;font-weight:500}
 .chk input{width:18px;height:18px;accent-color:var(--steel)}
@@ -1291,7 +1292,7 @@ function verifyForm(m){modal(`<h2>Record verification</h2><p class="small muted"
 
 
 /* ---------- privacy policy and terms (DRAFT: have a Nigerian lawyer review before launch) ---------- */
-const LEGAL_CO="[Registered company name]",LEGAL_ADDR="[Registered address, Lagos]",LEGAL_MAIL="[privacy@yourdomain]",LEGAL_DATE="17 November 2026";
+const LEGAL_CO="Trail Construct Limited",LEGAL_ADDR="Surulere, Lagos",LEGAL_MAIL="hello@trailconstruct.com",LEGAL_DATE="17 November 2026";
 function legalView(which){
   const top=`<nav class="nav" style="background:var(--deep)"><a class="brand" href="#home">${MARK}<span>Trail<span class="wm2">Construct</span></span></a><span class="sp"></span><a class="btn sm" href="#home">Back</a></nav>`;
   const priv=`<h1>Privacy policy</h1><p class="muted">Last updated ${LEGAL_DATE}</p>
@@ -1505,7 +1506,7 @@ function renderInner(){
   if(v==="home"){app.innerHTML=homeView();return;}
   if(v==="privacy"||v==="terms"){app.innerHTML=legalView(v);return;}
   if(S.mode==="cf"&&["developer","engineer","investor"].includes(v)&&!S.me){S.view="signin";history.replaceState(null,"","#signin");}
-  if(S.mode==="cf"&&S.view==="signin"){if(S.me&&!S.pendingInvite){const r=S.pid?roleFor(S.pid):null;S.view=r||"developer";history.replaceState(null,"","#"+S.view);}else{app.innerHTML=cfAuthView();return;}}
+  if(S.mode==="cf"&&S.view==="signin"){if(S.me&&!S.pendingInvite&&S.authMode!=="reset"){const r=S.pid?roleFor(S.pid):null;S.view=r||"developer";history.replaceState(null,"","#"+S.view);}else{app.innerHTML=cfAuthView();return;}}
   if(S.mode==="cf"&&["developer","engineer","investor"].includes(S.view)&&S.pid){const r=roleFor(S.pid);if(r&&r!==S.view){S.view=r;history.replaceState(null,"","#"+r);}}
   if(S.view==="signin"){app.innerHTML=signinView();return;}
   if(S.view==="signup"){app.innerHTML=signupView();return;}
@@ -1616,6 +1617,7 @@ document.addEventListener("click",async e=>{
   if(act==="signin"){ls.set("st.role",t.dataset.role);go(t.dataset.role);return;}
   if(act==="signout"){closeModal();ls.set("st.role","");if(S.mode==="cf"){try{await cfApi("POST","/api/auth/logout");}catch(e){}S.me=null;S.memberships=[];S.projects=[];S.pid=null;}go("home");return;}
   if(act==="authmode"){S.authMode=t.value;render();return;}
+  if(act==="authmode-set"){S.authMode=t.dataset.m;if(t.dataset.m!=="reset")S.resetToken=null;render();const fi=document.querySelector(".auth-box input");if(fi)fi.focus();return;}
   if(act==="rm-member"){const p=P();if(!p)return;modal(`<h2>Remove ${esc(t.dataset.name)}?</h2><p>They'll lose access to ${esc(p.name)} straight away. Everything they've already posted stays on record.</p><div class="actions"><button class="btn danger" data-act="rm-member-ok" data-id="${esc(t.dataset.id)}">Remove</button><button class="btn" data-act="close">Cancel</button></div>`);return;}
   if(act==="rm-member-ok"){const p=P();if(!p)return;try{await cfApi("DELETE","/api/members?pid="+encodeURIComponent(p.id)+"&user="+encodeURIComponent(t.dataset.id));closeModal();delete S.team[p.id];toast("Removed from the project.");render();}catch(e){closeModal();showErr("Couldn't remove them",e.message||"Please try again.");}return;}
   if(act==="rm-invite"){const p=P();if(!p)return;try{await cfApi("DELETE","/api/invites/"+encodeURIComponent(t.dataset.id));delete S.team[p.id];toast("Invite cancelled. That link no longer works.");render();}catch(e){showErr("Couldn't cancel the invite",e.message||"Please try again.");}return;}
@@ -1707,6 +1709,12 @@ document.addEventListener("submit",async e=>{
   if(f.id==="auth-form"){const up=S.authMode==="up",body={name:up?v("au-name").trim():undefined,email:v("au-email").trim(),password:v("au-pass")};S.busy=true;render();
     try{const r=await cfApi("POST",up?"/api/auth/signup":"/api/auth/login",body);S.me=r.user;S.busy=false;await cfAfterAuth();}
     catch(err){S.busy=false;render();showErr(up?"Couldn't create your account":"Couldn't sign you in",err.code==="conflict"?"That email already has an account. Choose Sign in instead.":err.message||"Please try again.");}return;}
+  if(f.id==="forgot-form"){const em=v("fg-email").trim();S.busy=true;render();
+    try{await cfApi("POST","/api/auth/forgot",{email:em});S.busy=false;S.authMode="in";render();modal(`<h2>Check your email</h2><p>If there's a TrailConstruct account for <b>${esc(em)}</b>, we've sent it a link to choose a new password. The link expires in 1 hour.</p><p class="small muted">Nothing there after a few minutes? Check your spam folder.</p><div><button class="btn pri" data-act="close">OK</button></div>`);}
+    catch(err){S.busy=false;render();showErr("Couldn't send the reset link",err.message||"Please try again.");}return;}
+  if(f.id==="reset-form"){const a=v("rs-pass"),b=v("rs-pass2");if(a!==b){toast("The two passwords don't match.");return;}S.busy=true;render();
+    try{const r=await cfApi("POST","/api/auth/reset",{token:S.resetToken,password:a});S.resetToken=null;S.authMode="in";S.me=r.user;S.busy=false;toast("Password changed. You're signed in.");await cfAfterAuth();}
+    catch(err){S.busy=false;render();showErr("Couldn't change your password",err.message||"Please try again.");}return;}
   if(f.id==="delp-form"){const p=P();if(!p)return;if(v("dp-name").trim().toLowerCase()!==String(p.name||"").trim().toLowerCase()){toast("The name doesn't match.");return;}
     try{await cfApi("DELETE","/api/docs/projects/"+encodeURIComponent(p.id));closeModal();S.db.reset();S.pid=null;ls.set("st.pid","");await S.db.pull(true);toast("Project deleted.");render();}catch(e){closeModal();showErr("Couldn't delete the project",e.message||"Please try again.");}return;}
   if(f.id==="delacc-form"){try{await cfApi("DELETE","/api/me",{password:v("da-pass")});closeModal();S.me=null;S.memberships=[];S.projects=[];S.pid=null;S.db.reset();ls.set("st.pid","");toast("Your account has been deleted.");go("home");}catch(e){showErr("Couldn't delete your account",e.message||"Please try again.");}return;}
@@ -1827,7 +1835,17 @@ async function cfAfterAuth(){
 }
 function showErr(title,msg){modal(`<h2>${esc(title)}</h2><p>${esc(msg)}</p><div><button class="btn pri" data-act="close">OK</button></div>`);}
 function cfAuthView(){
-  const inv=S.pendingInvite,mode=S.authMode||"in";
+  const inv=S.pendingInvite,mode=S.authMode||"in",back=`<p class="small" style="text-align:center"><button type="button" class="link" data-act="authmode-set" data-m="in">Back to sign in</button></p>`;
+  if(mode==="forgot"||mode==="reset")return `<div class="auth"><div class="auth-box">
+    <a class="brand" href="#home">${MARK}<span>Trail<span class="wm2">Construct</span></span></a>
+    ${mode==="forgot"?`<h1 class="auth-h">Reset your password</h1><p class="small muted">Enter the email you signed up with. We'll send you a link to choose a new password.</p>
+    <form id="forgot-form"><label class="f" for="fg-email">Email<input type="email" id="fg-email" required autocomplete="email"></label>
+      <div><button class="btn pri" type="submit" ${S.busy?"disabled":""}>${S.busy?"Please wait…":"Send reset link"}</button></div></form>`
+    :`<h1 class="auth-h">Choose a new password</h1><p class="small muted">Use at least 8 characters. You'll be signed out on your other devices.</p>
+    <form id="reset-form"><label class="f" for="rs-pass">New password<input type="password" id="rs-pass" required minlength="8" autocomplete="new-password"></label>
+      <label class="f" for="rs-pass2">Type it again<input type="password" id="rs-pass2" required minlength="8" autocomplete="new-password"></label>
+      <div><button class="btn pri" type="submit" ${S.busy?"disabled":""}>${S.busy?"Please wait…":"Save new password"}</button></div></form>`}
+    ${back}<a class="link small" href="#home">Back to home</a></div></div>`;
   return `<div class="auth"><div class="auth-box">
     <a class="brand" href="#home">${MARK}<span>Trail<span class="wm2">Construct</span></span></a>
     ${inv?`<p class="note">You've been invited to a project. ${mode==="in"?"Sign in":"Create your account"} to join it.</p>`:""}
@@ -1835,7 +1853,7 @@ function cfAuthView(){
     <form id="auth-form">
       ${mode==="up"?`<label class="f" for="au-name">Full name<input type="text" id="au-name" required autocomplete="name"></label>`:""}
       <label class="f" for="au-email">Email<input type="email" id="au-email" required autocomplete="email"></label>
-      <label class="f" for="au-pass">Password<input type="password" id="au-pass" required minlength="8" autocomplete="${mode==="up"?"new-password":"current-password"}"></label>${mode==="up"?`<p class="small muted">By creating an account you agree to the <a href="#terms" target="_blank">Terms</a> and <a href="#privacy" target="_blank">Privacy policy</a>.</p>`:""}
+      <label class="f" for="au-pass">Password<input type="password" id="au-pass" required minlength="8" autocomplete="${mode==="up"?"new-password":"current-password"}"></label>${mode==="up"?`<p class="small muted">By creating an account you agree to the <a href="#terms" target="_blank">Terms</a> and <a href="#privacy" target="_blank">Privacy policy</a>.</p>`:`<p class="small" style="margin:-4px 0 0;text-align:right"><button type="button" class="link" data-act="authmode-set" data-m="forgot">Forgot password?</button></p>`}
       <div><button class="btn pri" type="submit" ${S.busy?"disabled":""}>${S.busy?"Please wait…":mode==="up"?"Create account":"Sign in"}</button></div>
     </form>
     ${!inv?`<p class="small" style="text-align:center">Developer setting up a site? <a class="link" href="#signup">Start here</a></p>`:""}
@@ -1862,6 +1880,8 @@ async function initCf(){
   if(!me||(me.status!==200&&me.status!==401)||!(me.headers.get("content-type")||"").includes("json"))return false;
   S.mode="cf";try{const c=await (await fetch("/api/config")).json();S.mapsKey=c.mapsKey||"";}catch(e){}
   S.db=makeCfDb();S.assets=cfAssets;S.downloads=cfDownloads;S.team={};S.canWrite=true;
+  const rm=location.hash.match(/^#reset-([a-f0-9]{64})$/);
+  if(rm){S.resetToken=rm[1];S.authMode="reset";S.view="signin";history.replaceState(null,"",location.pathname+"#signin");}
   const q=new URLSearchParams(location.search).get("invite");
   if(q){S.pendingInvite=q;try{sessionStorage.setItem("st.invite",q)}catch(e){}history.replaceState(null,"",location.pathname+"#signin");S.view="signin";S.authMode="up";}
   else{try{S.pendingInvite=sessionStorage.getItem("st.invite")||null}catch(e){}}

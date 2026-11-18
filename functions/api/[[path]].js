@@ -23,6 +23,10 @@ const LOCK_MS = { logs: 24 * 3600 * 1000, stock: 24 * 3600 * 1000, reports: 7 * 
 const LOCKED_COLS = Object.keys(LOCK_MS);
 const INVITE_DAYS = 14;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000, LOGIN_MAX_FAILS = 8;
+// Password reset links last 1 hour and work once. At most 3 per account and 10 per network address an hour.
+const RESET_MS = 60 * 60 * 1000, RESET_MAX_PER_USER = 3, RESET_MAX_PER_IP = 10;
+const FROM_DEFAULT = "TrailConstruct <no-reply@trailconstruct.com>";
+const sha256 = async (s) => hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)));
 
 const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json", "cache-control": "no-store", ...headers } });
@@ -129,6 +133,7 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS deleted (col TEXT NOT NULL, id TEXT NOT NULL, pid TEXT NOT NULL, deleted_at INTEGER NOT NULL, PRIMARY KEY (col, id))",
   "CREATE INDEX IF NOT EXISTS deleted_pid ON deleted(pid, deleted_at)",
   "CREATE TABLE IF NOT EXISTS login_fails (email TEXT NOT NULL, at INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS password_resets (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, used_at INTEGER)",
   "CREATE INDEX IF NOT EXISTS login_fails_email ON login_fails(email, at)",
   "CREATE TABLE IF NOT EXISTS leads (id TEXT PRIMARY KEY, name TEXT, company TEXT, email TEXT, phone TEXT, sites TEXT, message TEXT, created_at INTEGER NOT NULL)",
 ];
@@ -157,11 +162,30 @@ async function sendInviteEmail(env, { to, name, role, projectName, inviter, link
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
-      body: JSON.stringify({ from: env.EMAIL_FROM || "TrailConstruct <onboarding@resend.dev>", to: [to], subject: `You've been invited to ${projectName} on TrailConstruct`, html }),
+      body: JSON.stringify({ from: env.EMAIL_FROM || FROM_DEFAULT, to: [to], subject: `You've been invited to ${projectName} on TrailConstruct`, html }),
     });
     if (!r.ok) console.error("email failed", r.status, await r.text());
     return r.ok;
   } catch (e) { console.error("email error", e); return false; }
+}
+
+async function sendResetEmail(env, { to, name, link }) {
+  const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#15202a">
+  <div style="background:#1d3546;color:#fff;padding:18px 22px;border-bottom:4px solid #f0a500"><b style="font-size:20px">TrailConstruct</b><br><span style="font-size:13px;opacity:.8">Every stage, on record.</span></div>
+  <div style="padding:22px;border:1px solid #dfe2db;border-top:0">
+  <p>Hello${name ? " " + escHtml(name) : ""},</p>
+  <p>Someone asked to reset the password for your TrailConstruct account. Click the button to choose a new password.</p>
+  <p style="margin:26px 0"><a href="${link}" style="background:#f0a500;color:#1b1404;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Choose a new password</a></p>
+  <p style="font-size:13px;color:#5b6570">This link works once and expires in 1 hour. Or open: ${link}<br><br>If you didn't ask for this, ignore this email. Your password won't change.</p></div></div>`;
+  try {
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
+      body: JSON.stringify({ from: env.EMAIL_FROM || FROM_DEFAULT, to: [to], reply_to: env.REPLY_TO || "hello@trailconstruct.com", subject: "Reset your TrailConstruct password", html }),
+    });
+    if (!r.ok) console.error("reset email failed", r.status, await r.text());
+    return r.ok;
+  } catch (e) { console.error("reset email error", e); return false; }
 }
 
 export async function onRequest(ctx) {
@@ -185,13 +209,13 @@ export async function onRequest(ctx) {
       const lead = { id: randHex(10), name, company: String(b.company || "").trim().slice(0, 160), email, phone, sites: String(b.sites || "").slice(0, 20), message: String(b.message || "").trim().slice(0, 2000) };
       await env.DB.prepare("INSERT INTO leads (id, name, company, email, phone, sites, message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
         .bind(lead.id, lead.name, lead.company, lead.email, lead.phone, lead.sites, lead.message, Date.now()).run();
-      if (env.RESEND_API_KEY && env.CONTACT_TO) {
+      if (env.RESEND_API_KEY) {
         try {
           await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
             body: JSON.stringify({
-              from: env.EMAIL_FROM || "TrailConstruct <onboarding@resend.dev>", to: [env.CONTACT_TO], reply_to: lead.email || undefined,
+              from: env.EMAIL_FROM || FROM_DEFAULT, to: [env.CONTACT_TO || "hello@trailconstruct.com"], reply_to: lead.email || undefined,
               subject: `Enterprise enquiry: ${lead.company || lead.name} (${lead.sites || "?"} sites)`,
               html: `<p><b>${escHtml(lead.name)}</b>${lead.company ? " · " + escHtml(lead.company) : ""}</p><p>Email: ${escHtml(lead.email) || "—"}<br>Phone / WhatsApp: ${escHtml(lead.phone) || "—"}<br>Sites: ${escHtml(lead.sites) || "—"}</p><p>${escHtml(lead.message).replace(/\n/g, "<br>")}</p>`,
             }),
@@ -252,6 +276,51 @@ export async function onRequest(ctx) {
           const salt = randHex(16), nh = await hashPassword(String(password), salt, iterations);
           await env.DB.prepare("UPDATE users SET pass_hash = ?, salt = ?, iterations = ? WHERE id = ?").bind(nh, salt, iterations, u.id).run();
         }
+        const c = await startSession(env, u.id);
+        return json({ user: { id: u.id, name: u.name, email: u.email } }, 200, { "set-cookie": c });
+      }
+      // Forgot password: always answers the same way, so it can't be used to find out who has an account.
+      if (parts[1] === "forgot") {
+        if (!env.RESEND_API_KEY) return err(503, "Password reset by email isn't switched on yet. Contact hello@trailconstruct.com.");
+        const { email = "" } = await readBody(req);
+        const em = String(email).trim().toLowerCase().slice(0, 200);
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return err(400, "Enter a valid email address.");
+        const now = Date.now(), ipKey = "reset-ip:" + (req.headers.get("cf-connecting-ip") || "unknown");
+        const ipN = await env.DB.prepare("SELECT COUNT(*) AS n FROM login_fails WHERE email = ? AND at > ?").bind(ipKey, now - RESET_MS).first();
+        if (ipN && ipN.n >= RESET_MAX_PER_IP) return err(429, "Too many reset requests. Wait an hour and try again.");
+        await env.DB.prepare("INSERT INTO login_fails (email, at) VALUES (?, ?)").bind(ipKey, now).run();
+        const u = await env.DB.prepare("SELECT id, name, email FROM users WHERE email = ?").bind(em).first();
+        if (u) {
+          const recent = await env.DB.prepare("SELECT COUNT(*) AS n FROM password_resets WHERE user_id = ? AND created_at > ?").bind(u.id, now - RESET_MS).first();
+          if (!recent || recent.n < RESET_MAX_PER_USER) {
+            const token = randHex(32);
+            await env.DB.batch([
+              env.DB.prepare("DELETE FROM password_resets WHERE expires_at < ?").bind(now - 24 * 3600 * 1000),
+              env.DB.prepare("INSERT INTO password_resets (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)").bind(await sha256(token), u.id, now, now + RESET_MS),
+            ]);
+            const origin = env.APP_URL || url.origin;
+            await sendResetEmail(env, { to: u.email, name: u.name, link: `${origin}/#reset-${token}` });
+          }
+        }
+        return json({ ok: true });
+      }
+      if (parts[1] === "reset") {
+        const { token = "", password = "" } = await readBody(req);
+        if (!/^[a-f0-9]{64}$/.test(String(token))) return err(400, "This reset link isn't valid. Ask for a new one.");
+        if (String(password).length < 8) return err(400, "Use a password of at least 8 characters.");
+        const now = Date.now(), th = await sha256(String(token));
+        const r = await env.DB.prepare("SELECT * FROM password_resets WHERE token_hash = ?").bind(th).first();
+        if (!r || r.used_at || r.expires_at < now) return err(400, "This reset link has expired or was already used. Ask for a new one.");
+        const u = await env.DB.prepare("SELECT id, name, email FROM users WHERE id = ?").bind(r.user_id).first();
+        if (!u) return err(400, "This reset link isn't valid. Ask for a new one.");
+        const salt = randHex(16), hash = await hashPassword(String(password), salt, iterations);
+        await env.DB.batch([
+          env.DB.prepare("UPDATE users SET pass_hash = ?, salt = ?, iterations = ? WHERE id = ?").bind(hash, salt, iterations, u.id),
+          env.DB.prepare("UPDATE password_resets SET used_at = ? WHERE token_hash = ?").bind(now, th),
+          env.DB.prepare("DELETE FROM password_resets WHERE user_id = ? AND used_at IS NULL").bind(u.id),
+          env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(u.id), // signs out every other device
+          env.DB.prepare("DELETE FROM login_fails WHERE email = ?").bind(u.email),
+        ]);
         const c = await startSession(env, u.id);
         return json({ user: { id: u.id, name: u.name, email: u.email } }, 200, { "set-cookie": c });
       }
