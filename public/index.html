@@ -358,7 +358,7 @@ main .stats>.stat:nth-child(4):not([class*=" t"]){background:var(--rose)}
 .stp[aria-selected="true"] .stp-n{background:var(--surface)}
 .stp-bar{position:absolute;left:0;bottom:0;height:3px;width:100%;display:block}
 .stp-bar>i{display:block;height:100%;width:0;background:var(--ink);opacity:.35}
-.step-panel{display:grid;gap:28px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:clamp(18px,3vw,36px)}
+.step-panel{display:grid;gap:28px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:clamp(18px,3vw,36px)}
 @media (min-width:860px){.step-panel{grid-template-columns:1.1fr .9fr}}
 .step-panel.s1{border-top:5px solid var(--steel)}.step-panel.s2{border-top:5px solid var(--amber)}.step-panel.s3{border-top:5px solid var(--ok)}
 .lead2{font-size:1.15rem;line-height:1.5}
@@ -481,7 +481,7 @@ main .stats>.stat:nth-child(4):not([class*=" t"]){background:var(--rose)}
 .demo-page .bp{opacity:.7}
 .demo-head{position:relative;z-index:2;display:flex;align-items:center;gap:12px;padding:16px clamp(16px,4vw,56px);flex-wrap:wrap}
 .demo-head .brand{color:#fff}.demo-head .sp{flex:1}
-.demo-body{position:relative;z-index:2;max-width:1320px;width:100%;margin:0 auto;padding:16px clamp(16px,4vw,56px) 24px;display:grid;gap:32px;align-items:center}
+.demo-body{position:relative;z-index:2;max-width:1320px;width:100%;margin:0 auto;padding:16px clamp(16px,4vw,56px) 24px;display:grid;gap:32px;align-items:start;align-content:center}
 @media (min-width:900px){.demo-body{grid-template-columns:1fr 1fr;gap:56px}}
 .demo-copy{display:grid;gap:14px;justify-items:start}
 .demo-copy h1{font-size:clamp(2rem,5vw,3.4rem)}
@@ -527,7 +527,7 @@ main{max-width:1120px}
 .fund-opts button[aria-pressed="true"]{border:2px solid var(--steel);background:var(--sky)}
 .escrow{display:grid;gap:10px;counter-reset:e;padding:0;margin:0;list-style:none}
 @media (min-width:860px){.escrow{grid-template-columns:repeat(5,1fr)}}
-.escrow li{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:6px;position:relative}
+.escrow li{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:6px;align-content:start;position:relative}
 .escrow li::before{counter-increment:e;content:counter(e);width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:700;background:var(--sand);color:var(--warn)}
 .escrow li:last-child::before{background:var(--mint);color:var(--ok)}
 .escrow b{font-family:var(--display);font-size:1.15rem}
