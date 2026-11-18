@@ -1075,7 +1075,7 @@ function shell(role,tabs,body,narrow){
   return `<header class="apphead"><div class="apphead-in"><a class="brand" href="#home">${MARK}<span>Trail<span class="wm2">Construct</span></span></a>
     <span class="who">${ROLE_LABEL[role]}</span><span class="sp"></span>
     ${S.projects.length>1?`<label class="sr" for="proj">Project</label><select id="proj" class="proj">${S.projects.map(p=>`<option value="${esc(p.id)}" ${p.id===S.pid?"selected":""}>${esc(p.name)}</option>`).join("")}</select>`:""}
-    ${S.mode==="cf"&&S.me?`<button class="btn sm ghost" data-act="account">Account</button>`:`<button class="btn sm ghost" data-act="signout">Sign out</button>`}</div>
+    ${S.mode==="cf"&&S.me&&S.admin?`<button class="btn sm ghost" data-act="go-admin">Admin</button>`:""}${S.mode==="cf"&&S.me?`<button class="btn sm ghost" data-act="account">Account</button>`:`<button class="btn sm ghost" data-act="signout">Sign out</button>`}</div>
     ${tabs?`<nav class="tabs" role="tablist">${tabs.map(([k,l,n])=>`<button role="tab" data-act="tab" data-role="${role}" data-tab="${k}" aria-selected="${cur===k}">${l}${n?`<span class="count">${n}</span>`:""}</button>`).join("")}</nav>`:""}
   </header><main class="${narrow?"narrow":""}">${S.mode==="memory"?`<p class="note">Preview mode: changes aren't saved here. Open the published page to save.</p>`:""}${!S.canWrite&&role!=="investor"?`<p class="note">You have view access only.</p>`:""}${S.mode==="cf"&&S.pid&&tabs?billingBanner(role):""}${body}</main>`;
 }
@@ -1610,7 +1610,7 @@ function renderInner(){
   const app=document.getElementById("app"),v=S.view;
   if(v==="home"){app.innerHTML=homeView();return;}
   if(v==="privacy"||v==="terms"){app.innerHTML=legalView(v);return;}
-  if(S.mode==="cf"&&["developer","engineer","investor","admin"].includes(v)&&!S.me){S.view="signin";history.replaceState(null,"","#signin");}
+  if(S.mode==="cf"&&["developer","engineer","investor","admin"].includes(v)&&!S.me){if(v==="admin")S.afterLogin="admin";S.view="signin";history.replaceState(null,"","#signin");}
   if(S.mode==="cf"&&S.view==="signin"){if(S.me&&!S.pendingInvite&&S.authMode!=="reset"){const r=S.pid?roleFor(S.pid):null;S.view=r||"developer";history.replaceState(null,"","#"+S.view);}else{app.innerHTML=cfAuthView();return;}}
   if(S.mode==="cf"&&["developer","engineer","investor"].includes(S.view)&&S.pid){const r=roleFor(S.pid);if(r&&r!==S.view){S.view=r;history.replaceState(null,"","#"+r);}}
   if(S.view==="signin"){app.innerHTML=signinView();return;}
@@ -1974,6 +1974,8 @@ async function cfAfterAuth(){
   if(code){try{const r=await cfApi("POST","/api/invites/accept",{code});S.pendingInvite=null;try{sessionStorage.removeItem("st.invite")}catch(e){}S.pid=r.pid;ls.set("st.pid",r.pid);toast("You've joined the project.");}catch(e){toast(e.message||"That invite link isn't valid any more.");S.pendingInvite=null;}}
   try{const d=await cfApi("GET","/api/me");S.admin=d.admin||null;S.memberships=d.memberships||S.memberships;}catch(e){}
   await S.db.pull();pickProject();
+  if(S.afterLogin==="admin"&&S.admin){S.afterLogin=null;S.adm={};go("admin");return;}
+  S.afterLogin=null;
   const role=S.pid?roleFor(S.pid):null;
   go(role||"developer");
 }

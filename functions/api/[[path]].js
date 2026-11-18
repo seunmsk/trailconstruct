@@ -60,7 +60,7 @@ function billingState(b, now = Date.now()) {
   }
   return now <= b.grace_until ? "trial" : "locked";
 }
-const ADMIN_DEFAULT = "seunmsk@gmail.com";
+const ADMIN_DEFAULT = "hello@trailconstruct.com";
 // Photos: taken more than this long before upload are marked "posted later" (e.g. queued offline).
 const PHOTO_LATE_MS = 6 * 3600 * 1000, PHOTO_MAX_AGE_MS = 72 * 3600 * 1000;
 const ownerEmails = (env) => String(env.ADMIN_EMAILS || ADMIN_DEFAULT).toLowerCase().split(/[\s,]+/).filter(Boolean);
