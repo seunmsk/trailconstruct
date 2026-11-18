@@ -101,6 +101,10 @@ button,input,select,textarea{font:inherit;color:inherit}
 .auth{min-height:100%;display:grid;place-items:center;padding:24px 16px}
 .auth-box{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:24px;width:100%;max-width:440px;display:grid;gap:16px}
 .pw{position:relative;display:block}.pw input{padding-right:46px}.pw-eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--muted);padding:8px;border-radius:8px;cursor:pointer;display:grid;place-items:center}.pw-eye:hover{color:var(--ink)}.pw-eye:focus-visible{outline:2px solid var(--amber)}
+.actlog{list-style:none;margin:0;padding:0;display:grid}.actlog li{display:grid;grid-template-columns:118px 1fr;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:.92rem}.actlog li:first-child{border-top:0}@media (max-width:520px){.actlog li{grid-template-columns:1fr;gap:2px}}
+.paybox{background:var(--sunk);border-radius:12px;padding:12px 14px;display:grid;gap:6px}.paybox .row2{display:flex;justify-content:space-between;align-items:baseline;gap:10px}.paybox .tot{border-top:1px solid var(--line);padding-top:8px}.paybox .big{font-size:1.35rem}
+.bankbox{border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;gap:10px}.bankbox>div{display:grid;gap:2px}.bankbox .cp{display:flex;justify-content:space-between;align-items:center;gap:10px}.bankbox .cp>div{display:grid;gap:2px}.big2{font-size:1.1rem;letter-spacing:.04em}
+.tblwrap{overflow-x:auto}.adm{width:100%;border-collapse:collapse;font-size:.92rem}.adm th,.adm td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}.adm th{font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 .auth-h{font-family:var(--display);font-size:1.6rem;margin:0}
 .pick{display:grid;gap:10px}
 .pick button{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;align-items:center;text-align:left;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--sunk);cursor:pointer}
@@ -689,8 +693,8 @@ const store={
   async update(col,id,data){if(S.db)return queue(col+"/"+id,()=>S.db.collection(col).doc(id).update(data));const r=S[col].find(x=>x.id===id);if(!r)return;for(const k in data){if(data[k]&&typeof data[k]==="object"&&!Array.isArray(data[k]))r[k]={...(r[k]||{}),...data[k]};else r[k]=data[k];}render();},
   async del(col,id){if(S.db)return queue(col+"/"+id,()=>S.db.collection(col).doc(id).delete());S[col]=S[col].filter(x=>x.id!==id);render();}
 };
-async function uploadFile(file,pid){
-  if(S.assets){const r=await S.assets.upload(file,pid);return {id:r.id,url:r.url,takenAt:file.lastModified?new Date(file.lastModified).toISOString():null};}
+async function uploadFile(file,pid,meta){
+  if(S.assets){const r=await S.assets.upload(file,pid,meta);const out={id:r.id,url:r.url,takenAt:file.lastModified?new Date(file.lastModified).toISOString():null};if(r.checked)Object.assign(out,{v:r.v,dist:r.dist,uploadedAt:r.uploadedAt,late:!!r.late,checked:true});return out;}
   return {id:"local-"+Math.random().toString(36).slice(2),url:URL.createObjectURL(file)};
 }
 function subscribe(col,q){
@@ -829,7 +833,7 @@ function homeView(){
       <div class="demo-feed"><span class="dot-live"></span><span id="feed">${esc(FEED[0])}</span></div>
     </div>
   </section></div>
-  <section class="sec"><div class="sec-h"><p class="eyebrow">Why TrailConstruct</p><h2 class="sh">Building in Lagos runs on trust. TrailConstruct backs it up.</h2></div>
+  <section class="sec"><div class="sec-h"><p class="eyebrow">Why TrailConstruct</p><h2 class="sh">Building in Nigeria runs on trust. TrailConstruct backs it up.</h2></div>
     <div class="pains">
       <div class="pain reveal"><span class="pi p1">?</span><b>"Is anything happening on my site?"</b><p class="muted">Investors in London, Houston or Abuja wait weeks for news and hear it second-hand. TrailConstruct gives them a live view and a proper report.</p></div>
       <div class="pain reveal"><span class="pi p2">…</span><b>Updates lost in group chats</b><p class="muted">Voice notes, scattered photos and no record of who did what. Every update now lives in one place, by date and by stage.</p></div>
@@ -858,7 +862,7 @@ function homeView(){
         :ss.length>1?ss.map(s=>`<p class="small" style="margin-top:6px"><b>${esc(s.name)}</b></p><ul>${s.items.map(i=>`<li>${esc(i.label)}</li>`).join("")}</ul>`).join("")
         :`<ul>${ss[0].items.map(i=>`<li>${esc(i.label)}</li>`).join("")}</ul>`;
       return `<b>${esc(g)}</b><span class="muted small">${total} checklist items${ss.length>1?(isFrame?" across "+ss.length+" floor stages":" in "+ss.length+" parts"):""}</span>${body}`;})()}</div>
-    <p class="muted" style="max-width:66ch">Checklists follow how buildings go up in Lagos: LASPPPA permits, LASBCA stage inspections, German floor, decking for each floor, bio-digesters, stamped concrete and the Certificate of Completion and Fitness for Habitation.</p></section>
+    <p class="muted" style="max-width:66ch">Checklists follow how buildings go up in Nigeria: state planning permits and stage inspections (LASPPPA and LASBCA in Lagos), German floor, decking for each floor, bio-digesters, stamped concrete and the Certificate of Completion and Fitness for Habitation.</p></section>
   <section class="sec pricing" id="pricing"><div class="sec-h center"><p class="eyebrow">Pricing</p><h2 class="sh">Simple pricing. Pay per project.</h2><p class="muted">The developer pays. Site engineers and investors always join free. Prices are before 7.5% VAT.</p>
     <p class="pilot-note"><b>Every project starts with a 3-month pilot, paid upfront.</b> After 3 months, carry on monthly or yearly, or stop. No long contract.</p>
     <div class="billing" role="group" aria-label="Billing period"><button data-act="billing" data-v="0" aria-pressed="${!annual}">Monthly</button><button data-act="billing" data-v="1" aria-pressed="${annual}">Yearly <span class="save">2 months free</span></button></div></div>
@@ -971,7 +975,7 @@ function signupView(){
     <p class="small muted" style="margin-top:14px">After the pilot, how would you like to continue?</p>
     <div class="billing" role="group" aria-label="After the pilot"><button type="button" data-act="onb-bill" data-v="0" aria-pressed="${!d.annual}">Monthly · ${naira(withVat(rate))}</button><button type="button" data-act="onb-bill" data-v="1" aria-pressed="${!!d.annual}">Yearly · ${naira(withVat(rate*10))} <span class="save">2 months free</span></button></div>
     <p class="small muted">Prices include 7.5% VAT. You can stop after the 3-month pilot.</p>
-    <p class="note">Billing isn't connected in this prototype, so no payment is taken. Card and bank transfer payments come with the full build.</p>`;}
+    ${S.mode==="cf"?`<p class="note">After you create the project you'll get our bank details to pay by transfer. You can use the project for 7 days while we confirm payment.</p>`:`<p class="note">Billing isn't connected in this prototype, so no payment is taken.</p>`}`;}
   return `<div class="onb">${BLUEPRINT}<div class="onb-box">
     <div class="onb-top"><a class="brand" href="#home">${MARK}<span>Trail<span class="wm2">Construct</span></span></a><span class="small muted">Step ${st+1} of ${ONB_STEPS.length}</span></div>
     <ol class="onb-steps">${ONB_STEPS.map((x,i)=>`<li class="${i<st?"done":i===st?"cur":""}"><i></i><span>${x}</span></li>`).join("")}</ol>
@@ -1069,7 +1073,46 @@ function shell(role,tabs,body,narrow){
     ${S.projects.length>1?`<label class="sr" for="proj">Project</label><select id="proj" class="proj">${S.projects.map(p=>`<option value="${esc(p.id)}" ${p.id===S.pid?"selected":""}>${esc(p.name)}</option>`).join("")}</select>`:""}
     ${S.mode==="cf"&&S.me?`<button class="btn sm ghost" data-act="account">Account</button>`:`<button class="btn sm ghost" data-act="signout">Sign out</button>`}</div>
     ${tabs?`<nav class="tabs" role="tablist">${tabs.map(([k,l,n])=>`<button role="tab" data-act="tab" data-role="${role}" data-tab="${k}" aria-selected="${cur===k}">${l}${n?`<span class="count">${n}</span>`:""}</button>`).join("")}</nav>`:""}
-  </header><main class="${narrow?"narrow":""}">${S.mode==="memory"?`<p class="note">Preview mode: changes aren't saved here. Open the published page to save.</p>`:""}${!S.canWrite&&role!=="investor"?`<p class="note">You have view access only.</p>`:""}${body}</main>`;
+  </header><main class="${narrow?"narrow":""}">${S.mode==="memory"?`<p class="note">Preview mode: changes aren't saved here. Open the published page to save.</p>`:""}${!S.canWrite&&role!=="investor"?`<p class="note">You have view access only.</p>`:""}${S.mode==="cf"&&S.pid&&tabs?billingBanner(role):""}${body}</main>`;
+}
+/* ---------- billing (bank transfer) ---------- */
+const fmtDay=t=>new Date(t).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+function getBilling(pid){S.billing=S.billing||{};const b=S.billing[pid];
+  if(!b){S.billing[pid]={loading:true};cfApi("GET","/api/billing?pid="+encodeURIComponent(pid)).then(d=>{S.billing[pid]=d;render();}).catch(()=>{S.billing[pid]={state:"active",err:true};});return null;}
+  return b.loading?null:b;}
+function billingBanner(role){
+  const b=getBilling(S.pid);if(!b||b.err)return "";const dev=role==="developer",pay=b.payment,now=Date.now(),days=t=>Math.max(0,Math.ceil((t-now)/864e5));
+  const btn=dev?(pay&&pay.status==="sent"?"":`<button class="btn sm pri" data-act="pay-open">${b.state==="trial"?"Pay now":"Renew"}</button>`):"";
+  if(b.state==="locked")return `<div class="banner late"><div><b>This project is read-only</b><p class="small" style="margin:4px 0 0">${dev?(pay&&pay.status==="sent"?"We're confirming your transfer. Posting comes back as soon as it's confirmed.":"The subscription isn't paid, so nobody can post. Nothing has been deleted. Renew to switch it back on."):"The subscription isn't paid, so posting is paused. Everything is still here. Ask the developer to renew."}</p></div>${btn}</div>`;
+  if(!dev)return b.state==="due"?`<div class="banner due"><div><b>Posting pauses on ${fmtDay(b.readOnlyFrom)}</b><p class="small" style="margin:4px 0 0">The project's subscription has ended. Ask the developer to renew.</p></div></div>`:"";
+  if(pay&&pay.status==="sent")return `<div class="banner due"><div><b>Confirming your transfer</b><p class="small" style="margin:4px 0 0">${naira(pay.amount)} · ref ${esc(pay.ref)}. We'll confirm within a few hours on working days and email you a receipt.</p></div></div>`;
+  if(b.state==="trial")return `<div class="banner due"><div><b>Pay for your pilot · ${days(b.graceUntil)} day${days(b.graceUntil)===1?"":"s"} left</b><p class="small" style="margin:4px 0 0">You can use the project until ${fmtDay(b.graceUntil)} while you pay. After that it becomes read-only until payment is confirmed.</p></div>${btn}</div>`;
+  if(b.state==="due")return `<div class="banner late"><div><b>Your subscription has ended</b><p class="small" style="margin:4px 0 0">The project becomes read-only on ${fmtDay(b.readOnlyFrom)}. Renew to keep your team posting.</p></div>${btn}</div>`;
+  if(b.paidUntil&&b.paidUntil-now<7*864e5)return `<div class="banner due"><div><b>Subscription ends on ${fmtDay(b.paidUntil)}</b><p class="small" style="margin:4px 0 0">Renew now so nothing stops. The new period starts when the current one ends.</p></div>${btn}</div>`;
+  return "";
+}
+function payModal(){
+  const b=S.billing&&S.billing[S.pid],p=P();if(!b||!b.payment){modal(`<h2>Payment</h2><p>Loading…</p>`);return;}
+  const pay=b.payment,net=Math.round(pay.amount/1.075),bk=b.bank;
+  const choose=b.paidUntil||pay.kind!=="pilot"?`<div class="billing" role="group" aria-label="Renew for"><button type="button" data-act="pay-kind" data-v="monthly" aria-pressed="${pay.kind==="monthly"}">1 month · ${naira(b.prices.monthly.total)}</button><button type="button" data-act="pay-kind" data-v="yearly" aria-pressed="${pay.kind==="yearly"}">12 months · ${naira(b.prices.yearly.total)} <span class="save">2 months free</span></button></div>`:"";
+  modal(`<h2>${pay.kind==="pilot"?"Pay for your pilot":"Renew your subscription"}</h2><p class="small muted" style="margin-top:-6px">${esc(p?p.name:"")} · ${esc(pay.label)}</p>${choose}
+    <div class="paybox"><div class="row2"><span class="muted small">${esc(pay.label)}</span><span class="num">${naira(net)}</span></div><div class="row2"><span class="muted small">VAT 7.5%</span><span class="num">${naira(pay.amount-net)}</span></div><div class="row2 tot"><b>Amount to transfer</b><b class="num big">${naira(pay.amount)}</b></div></div>
+    <div class="bankbox"><div><span class="muted small">Bank</span><b>${esc(bk.bank)}</b></div><div><span class="muted small">Account name</span><b>${esc(bk.name)}</b></div>
+      <div class="cp"><div><span class="muted small">Account number</span><b class="num big2">${esc(bk.number)}</b></div><button class="btn sm" data-act="copy" data-text="${esc(bk.number)}">Copy</button></div>
+      <div class="cp"><div><span class="muted small">Narration / reference</span><b class="num big2">${esc(pay.ref)}</b></div><button class="btn sm" data-act="copy" data-text="${esc(pay.ref)}">Copy</button></div></div>
+    <p class="note">Put <b>${esc(pay.ref)}</b> in the transfer narration so we can match your payment.</p>
+    <div class="actions"><button class="btn amber" data-act="pay-sent">I've made the transfer</button><button class="btn ghost" data-act="close">Pay later</button></div>`);
+}
+async function refreshBilling(){if(S.billing)delete S.billing[S.pid];try{S.billing[S.pid]=await cfApi("GET","/api/billing?pid="+encodeURIComponent(S.pid));}catch(e){}render();}
+function adminView(){
+  const a=S.adminPay;if(!a){S.adminPay={loading:true};cfApi("GET","/api/admin/payments").then(d=>{S.adminPay=d;render();}).catch(e=>{S.adminPay={err:e.message||"Couldn't load."};render();});}
+  const when=t=>t?new Date(t).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"—";
+  const rows=(list,open)=>list.map(x=>`<tr><td class="num"><b>${esc(x.ref)}</b></td><td>${esc(x.project)}<br><span class="small muted">${esc(x.dev||"")} · ${esc(x.email||"")}</span></td><td class="num">${naira(x.amount)}<br><span class="small muted">${esc(x.label)}</span></td><td class="small">${open?(x.status==="sent"?"Marked sent "+when(x.sentAt):"<span class='muted'>Not marked sent yet</span>"):(x.status==="confirmed"?"Confirmed "+when(x.doneAt)+(x.paidUntil?"<br><span class='muted'>Project paid until "+fmtDay(x.paidUntil)+"</span>":""):"")}</td><td>${open?`<div class="actions"><button class="btn sm pri" data-act="adm-confirm" data-ref="${esc(x.ref)}">Confirm received</button>${x.status==="sent"?`<button class="btn sm ghost" data-act="adm-reject" data-ref="${esc(x.ref)}">Not received</button>`:""}</div>`:`<span class="pill ok">Paid</span>`}</td></tr>`).join("");
+  const body=!a||a.loading?`<div class="card"><div class="empty">Loading…</div></div>`:a.err?`<div class="card"><div class="empty">${esc(a.err)}</div></div>`
+    :`<section class="card"><div class="card-h"><h2>Payments to confirm</h2><button class="btn sm ghost" data-act="adm-refresh">Refresh</button></div><p class="small muted" style="margin:0">Check your bank app for each reference, then confirm. The developer gets a receipt by email.</p>
+      ${a.open.length?`<div class="tblwrap"><table class="adm"><thead><tr><th>Reference</th><th>Project · developer</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>${rows(a.open,true)}</tbody></table></div>`:`<div class="empty">Nothing waiting.</div>`}</section>
+      <section class="card"><h2>Recently confirmed</h2>${a.done.filter(x=>x.status==="confirmed").length?`<div class="tblwrap"><table class="adm"><tbody>${rows(a.done.filter(x=>x.status==="confirmed"),false)}</tbody></table></div>`:`<div class="empty">None yet.</div>`}</section>`;
+  return `<header class="apphead"><div class="apphead-in"><a class="brand" href="#home">${MARK}<span>Trail<span class="wm2">Construct</span></span></a><span class="who">Admin</span><span class="sp"></span><a class="btn sm ghost" href="#developer">Back to dashboard</a></div></header><main>${body}</main>`;
 }
 function noProject(role){
   return shell(role,null,`<div class="card"><h2>No projects yet</h2>${role==="developer"&&S.canWrite?`<p class="muted">Add your first site to start tracking.</p><div><button class="btn pri" data-act="new-project">Add a project</button></div>`:`<p class="muted">${S.mode==="cf"?"You're not on a project yet. Ask your developer for an invite link, or set up your own project.":"Your developer hasn't added a project yet."}</p>${S.mode==="cf"?`<div class="actions"><a class="btn pri" href="#signup">Set up a project</a></div>`:""}`}</div>`);
@@ -1125,7 +1168,7 @@ function devView(p){
     <section class="card"><h3>Recent spending</h3>${exps.length?`<div>${exps.slice(0,15).map(e=>`<div class="exp"><span>${esc(e.item)}</span><b class="num">${naira(e.amount)}</b><span class="small muted">${esc(stageName(p,e.stage))} · ${esc(fmtS(e.date))}</span>${S.canWrite?`<button class="link small" data-act="del-exp" data-id="${e.id}">Remove</button>`:"<span></span>"}</div>`).join("")}</div>`:`<div class="empty">No expenses recorded.</div>`}</section></div>`;
   }
   if(t==="project"){
-    body=(S.mode==="cf"?teamSection(p):"")+`<section class="card"><div class="card-h"><h2>Project details</h2>${S.canWrite?`<div class="actions"><button class="btn sm" data-act="edit-project">Edit</button><button class="btn sm" data-act="new-project">Add another project</button></div>`:""}</div>
+    body=(S.mode==="cf"?teamSection(p)+activitySection(p):"")+`<section class="card"><div class="card-h"><h2>Project details</h2>${S.canWrite?`<div class="actions"><button class="btn sm" data-act="edit-project">Edit</button><button class="btn sm" data-act="new-project">Add another project</button></div>`:""}</div>
       <dl class="kv"><dt>Name</dt><dd>${esc(p.name)}</dd><dt>Location</dt><dd>${esc(p.location||"—")}</dd><dt>Property</dt><dd>${esc(unitsText(p)||"—")}</dd><dt>Floors</dt><dd>${floorsLabel(p.floors)}</dd><dt>Developer</dt><dd>${esc(p.client||"—")}</dd><dt>Budget</dt><dd>${+p.budget?naira(p.budget):"Not set"}</dd><dt>Start</dt><dd>${esc(fmtD(p.startDate)||"Not set")}</dd><dt>Target completion</dt><dd>${esc(fmtD(p.targetDate)||"Not set")}</dd><dt>Foundation</dt><dd>${esc(FOUNDATIONS[p.foundationType]?FOUNDATIONS[p.foundationType].label:"Not decided yet")}</dd><dt>Sewage</dt><dd>${esc((SEWAGE[p.sewageType]||SEWAGE.septic).label)}</dd><dt>Site GPS</dt><dd>${p.siteLat!=null&&p.siteLat!==""?esc((+p.siteLat).toFixed(5)+", "+(+p.siteLng).toFixed(5))+" · photos within "+(+p.siteRadius||200)+" m"+(p.strictGps?" · GPS required":""):"Not set. Add it so site photos can be checked."}</dd><dt>Funding</dt><dd>${payOn(p)?"Milestone payments"+(+p.contractSum?" · "+naira(p.contractSum):""):"Paid up front"}</dd></dl></section>
     ${(p.team||[]).length?`<section class="card"><h2>Team</h2><div>${p.team.map(t=>`<div class="exp"><span>${esc(t.name)}</span><span class="pill ${t.role==="investor"?"ok":"active"}">${t.role==="investor"?"Investor":"Site engineer"}</span><span class="small muted">${esc(t.email||"")}</span><span></span></div>`).join("")}</div></section>`:""}
     ${S.mode==="cf"?`<section class="card"><h2>Delete this project</h2><p class="muted">Deletes the project for everyone: all updates, reports, photos, materials, the team list and invites. This can't be undone.</p><div><button class="btn sm danger" data-act="del-project">Delete project…</button></div></section>`:`<section class="card"><h2>Team access</h2><p class="muted">Share this page from its menu. Give site engineers <b>Contributor</b> access so they can post updates and photos. Investors can be <b>Viewers</b>: they only open the Investor workspace and see updates you send.</p></section>`}`;
@@ -1333,7 +1376,7 @@ function legalView(which){
 <h2>Site records</h2><p>To keep project history trustworthy, daily updates and store records lock 24 hours after posting, and weekly reports after 7 days. After that they can't be edited or deleted, except by deleting the whole project.</p>
 <h2>What TrailConstruct is not</h2><p>TrailConstruct is a record-keeping tool. It doesn't inspect, certify or guarantee construction work, materials, costs or schedules. Location checks on photos are a strong signal but not proof; phones and GPS can be wrong. Progress figures come from what your team enters. For structural, legal or financial decisions, rely on qualified professionals and your own checks.</p>
 <h2>Fair use</h2><p>Don't misuse the service: no attempts to access other people's projects, overload or attack the system, or upload false or misleading records.</p>
-<h2>Plans and payment</h2><p>Paid plans are charged as shown on our pricing page when billing starts, plus 7.5% VAT. Each new project starts with a 3-month pilot, paid upfront. After the pilot you can continue monthly or yearly, or stop; payments already made are not refunded. We'll tell you before any price change takes effect.</p>
+<h2>Plans and payment</h2><p>Paid plans are charged as shown on our pricing page when billing starts, plus 7.5% VAT. Each new project starts with a 3-month pilot, paid upfront. After the pilot you can continue monthly or yearly, or stop; payments already made are not refunded. We'll tell you before any price change takes effect.</p><p>Payment is by bank transfer for now, confirmed by us within working hours. A new project can be used for 7 days while its first payment is confirmed. If a project isn't paid by then, or a paid period ends and isn't renewed within 3 days, the project becomes read-only: nobody can post, but nothing is deleted, and posting comes back once payment is confirmed.</p>
 <h2>Ending use</h2><p>You can delete your account at any time. We may suspend accounts that break these terms or put others at risk.</p>
 <h2>Liability</h2><p>We provide TrailConstruct "as is" and work to keep it available and accurate, but can't promise it will always be uninterrupted or error-free. As far as the law allows, we aren't liable for indirect losses, and our total liability is limited to what you paid us in the 12 months before the claim.</p>
 <h2>Law</h2><p>These terms are governed by the laws of the Federal Republic of Nigeria, and the courts of Lagos State have jurisdiction.</p>
@@ -1349,7 +1392,7 @@ const idb={db:null,
   all(){return this.tx("readonly",st=>st.getAll());},
   del(key){return this.tx("readwrite",st=>st.delete(key));}};
 async function saveForLater(data,shots){
-  try{await idb.put({key:"o"+Date.now()+Math.random().toString(36).slice(2,6),data,shots:(shots||[]).map(s=>({blob:s.blob,v:s.v,dist:s.dist,gps:s.gps,takenAt:s.takenAt}))});return true;}
+  try{await idb.put({key:"o"+Date.now()+Math.random().toString(36).slice(2,6),data,shots:(shots||[]).map(s=>({blob:s.blob,v:s.v,dist:s.dist,gps:s.gps,takenAt:s.takenAt,orig:s.orig}))});return true;}
   catch(e){const q=outbox.get();q.push(data);outbox.set(q);return false;} // very old phones: text only
 }
 async function outboxCount(){let n=outbox.get().length;try{n+=(await idb.all()).length;}catch(e){}return n;}
@@ -1362,8 +1405,9 @@ async function flushOutbox(){
     for(const it of items){
       try{
         const data=it.data;data.photos=data.photos||[];
-        while(it.shots.length){const s=it.shots[0];const up=await uploadFile(new File([s.blob],"site-photo.jpg",{type:"image/jpeg",lastModified:Date.parse(s.takenAt)||Date.now()}),data.pid);
-          data.photos.push({...up,v:s.v,dist:s.dist,gps:s.gps,takenAt:s.takenAt});it.shots.shift();await idb.put(it);} // progress is kept if the signal drops halfway
+        while(it.shots.length){const s=it.shots[0];
+          try{data.photos.push(await uploadShot(s,data.pid));}catch(e){if(e&&e.code==="rejected"){toast("A saved photo wasn't accepted: "+e.message);}else throw e;}
+          it.shots.shift();await idb.put(it);} // progress is kept if the signal drops halfway
         await S.db.collection("logs").add(data);await idb.del(it.key);sent++;
       }catch(e){break;}
     }
@@ -1420,8 +1464,14 @@ function stampPhoto(file,lines){
       c.toBlob(b=>{URL.revokeObjectURL(u);b?res(b):rej(new Error("stamp"));},"image/jpeg",.82);}catch(e){rej(e);}};
     im.onerror=()=>{URL.revokeObjectURL(u);rej(new Error("load"));};im.src=u;});
 }
+async function sha256Hex(buf){return [...new Uint8Array(await crypto.subtle.digest("SHA-256",buf))].map(b=>b.toString(16).padStart(2,"0")).join("");}
+async function uploadShot(s,pid){const up=await uploadFile(new File([s.blob],"site-photo.jpg",{type:"image/jpeg",lastModified:Date.parse(s.takenAt)||Date.now()}),pid,{takenAt:s.takenAt,gps:s.gps,orig:s.orig});
+  return {v:s.v,dist:s.dist,gps:s.gps,takenAt:s.takenAt,...up};}
 async function checkShot(p,file){
   const ex=await readExif(file),now=Date.now();
+  let orig=null;try{orig=await sha256Hex(await file.arrayBuffer());}catch(e){}
+  if(orig&&S.mode==="cf"){try{const d=await cfApi("GET","/api/photo-check?pid="+encodeURIComponent(p.id)+"&h="+orig);if(d&&d.dup)return {ok:false,why:`This photo was already posted on ${fmtS(d.dup.slice(0,10))}. Take a new one.`};}catch(e){}}
+  if((S.shots||[]).some(x=>x.orig&&x.orig===orig))return {ok:false,why:"You've already added this photo."};
   const taken=exifTime(ex.dt)||(file.lastModified?new Date(file.lastModified):null);
   const ageMin=taken?(now-taken.getTime())/60000:null;
   if(ageMin!=null&&ageMin>LIVE_MIN)return {ok:false,why:`This photo was taken ${ageMin>1440?Math.round(ageMin/1440)+" days":ageMin>90?Math.round(ageMin/60)+" hours":Math.round(ageMin)+" minutes"} ago. Take a new photo on site.`};
@@ -1435,10 +1485,10 @@ async function checkShot(p,file){
   const when=new Date(taken||now),stampT=when.toLocaleString("en-GB",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
   const lines=[`TrailConstruct · ${p.name}`,`${stampT}${ex.gps?` · ${ex.gps.lat.toFixed(5)}, ${ex.gps.lng.toFixed(5)}`:""}`,v==="onsite"?`On site, ${fmtDist(dist)} from the pin`:v==="nogps"?"Location not recorded by camera":"Live photo"];
   const blob=await stampPhoto(file,lines);
-  return {ok:true,blob,preview:URL.createObjectURL(blob),v,dist,gps:ex.gps||null,takenAt:when.toISOString()};
+  return {ok:true,blob,preview:URL.createObjectURL(blob),v,dist,gps:ex.gps||null,takenAt:when.toISOString(),orig};
 }
-const VBADGE={onsite:["ok","On site"],nogps:["","No GPS"],nosite:["","Live"],gps:["","Live · GPS"]};
-const vBadge=p=>p&&p.v&&VBADGE[p.v]?`<span class="vb ${VBADGE[p.v][0]}">${VBADGE[p.v][0]==="ok"?"✓ ":""}${VBADGE[p.v][1]}</span>`:"";
+const VBADGE={onsite:["ok","On site"],nogps:["","No GPS"],nosite:["","Live"],gps:["","Live · GPS"],offsite:["","Added by developer"]};
+const vBadge=p=>(p&&p.v&&VBADGE[p.v]?`<span class="vb ${VBADGE[p.v][0]}" title="${p.checked?"Checked by TrailConstruct when uploaded":""}">${VBADGE[p.v][0]==="ok"?"✓ ":""}${VBADGE[p.v][1]}</span>`:"")+(p&&p.late?`<span class="vb" title="Taken more than 6 hours before it was uploaded, for example saved offline">Posted later</span>`:"");
 function renderShots(){const el=document.getElementById("shots");if(!el)return;
   el.innerHTML=S.shots.length?`<div class="photos">${S.shots.map((s,i)=>`<div class="ph shot"><img src="${esc(s.preview)}" alt="New site photo">${vBadge(s)}<button type="button" class="rm" data-act="shot-rm" data-i="${i}" aria-label="Remove photo">×</button></div>`).join("")}</div>`:"";}
 
@@ -1509,12 +1559,13 @@ function renderInner(){
   const app=document.getElementById("app"),v=S.view;
   if(v==="home"){app.innerHTML=homeView();return;}
   if(v==="privacy"||v==="terms"){app.innerHTML=legalView(v);return;}
-  if(S.mode==="cf"&&["developer","engineer","investor"].includes(v)&&!S.me){S.view="signin";history.replaceState(null,"","#signin");}
+  if(S.mode==="cf"&&["developer","engineer","investor","admin"].includes(v)&&!S.me){S.view="signin";history.replaceState(null,"","#signin");}
   if(S.mode==="cf"&&S.view==="signin"){if(S.me&&!S.pendingInvite&&S.authMode!=="reset"){const r=S.pid?roleFor(S.pid):null;S.view=r||"developer";history.replaceState(null,"","#"+S.view);}else{app.innerHTML=cfAuthView();return;}}
   if(S.mode==="cf"&&["developer","engineer","investor"].includes(S.view)&&S.pid){const r=roleFor(S.pid);if(r&&r!==S.view){S.view=r;history.replaceState(null,"","#"+r);}}
   if(S.view==="signin"){app.innerHTML=signinView();return;}
   if(S.view==="signup"){app.innerHTML=signupView();return;}
   if(S.view==="demo"){app.innerHTML=demoView();return;}
+  if(S.view==="admin"){app.innerHTML=S.mode==="cf"&&S.me&&S.admin?adminView():shell("developer",null,`<div class="card"><div class="empty">Not available.</div></div>`);return;}
   if(S.mode==="loading"||(S.db&&!S.loaded.projects)){app.innerHTML=shell(v,null,`<div class="card"><div class="empty">${S.slow?"Can't reach the project data yet. It will appear when the connection returns.":"Loading your projects…"}</div></div>`);return;}
   const vv=S.view,p=P();if(!p){app.innerHTML=noProject(vv);return;}
   app.innerHTML=vv==="developer"?devView(p):vv==="engineer"?engView(p):invView(p);
@@ -1523,7 +1574,7 @@ function go(view){S.view=view;history.replaceState(null,"","#"+view);render();wi
 
 /* ---------- modals ---------- */
 function modal(html){const L=document.getElementById("layer");L.innerHTML=`<div class="modal" data-act="backdrop"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;addEyes(L);const f=L.querySelector("input,button");if(f)f.focus();}
-function closeModal(){document.getElementById("layer").innerHTML="";}
+function closeModal(){document.getElementById("layer").innerHTML="";if(S.payNext&&S.billing&&S.billing[S.pid]&&S.billing[S.pid].payment){S.payNext=false;payModal();}}
 function projectForm(p){p=p||{};
   modal(`<h2>${p.id?"Edit project":"New project"}</h2><form id="proj-form" data-id="${esc(p.id||"")}">
     <label class="f" for="pf-name">Project name<input type="text" id="pf-name" required value="${esc(p.name||"")}"></label>
@@ -1621,6 +1672,15 @@ document.addEventListener("click",async e=>{
   if(act==="signin"){ls.set("st.role",t.dataset.role);go(t.dataset.role);return;}
   if(act==="signout"){closeModal();ls.set("st.role","");if(S.mode==="cf"){try{await cfApi("POST","/api/auth/logout");}catch(e){}S.me=null;S.memberships=[];S.projects=[];S.pid=null;}go("home");return;}
   if(act==="authmode"){S.authMode=t.value;render();return;}
+  if(act==="go-admin"){closeModal();S.adminPay=null;go("admin");return;}
+  if(act==="pay-open"){payModal();return;}
+  if(act==="pay-kind"){try{await cfApi("POST","/api/billing/renew",{pid:S.pid,kind:t.dataset.v});await refreshBilling();payModal();}catch(e){toast(e.message||"Couldn't change that.");}return;}
+  if(act==="pay-sent"){try{await cfApi("POST","/api/billing/sent",{pid:S.pid});closeModal();await refreshBilling();modal(`<h2>Thank you</h2><p>We'll check for your transfer and confirm it, usually within a few hours on working days. You'll get a receipt by email.</p><div><button class="btn pri" data-act="close">OK</button></div>`);}catch(e){toast(e.message||"Please try again.");}return;}
+  if(act==="adm-refresh"){S.adminPay=null;render();return;}
+  if(act==="adm-confirm"||act==="adm-reject"){const ok=act==="adm-confirm";if(!confirm(ok?`Confirm you've received payment ${t.dataset.ref}? The developer gets a receipt.`:`Mark ${t.dataset.ref} as not received? The developer gets an email asking them to check.`))return;
+    try{await cfApi("POST","/api/admin/payments/"+encodeURIComponent(t.dataset.ref)+"/"+(ok?"confirm":"reject"));toast(ok?"Payment confirmed. Receipt sent.":"Developer has been told.");S.adminPay=null;if(S.billing)S.billing={};render();}catch(e){toast(e.message||"Couldn't update.");}return;}
+  if(act==="act-refresh"){delete S.activity[S.pid];render();return;}
+  if(act==="act-more"){S.activityMore=true;render();return;}
   if(act==="pw-eye"){const i=t.parentNode.querySelector("input"),show=i.type==="password";i.type=show?"text":"password";t.innerHTML=show?EYE_OFF:EYE;t.setAttribute("aria-label",show?"Hide password":"Show password");t.setAttribute("aria-pressed",String(show));i.focus();return;}
   if(act==="authmode-set"){S.authMode=t.dataset.m;if(t.dataset.m!=="reset")S.resetToken=null;render();const fi=document.querySelector(".auth-box input");if(fi)fi.focus();return;}
   if(act==="rm-member"){const p=P();if(!p)return;modal(`<h2>Remove ${esc(t.dataset.name)}?</h2><p>They'll lose access to ${esc(p.name)} straight away. Everything they've already posted stays on record.</p><div class="actions"><button class="btn danger" data-act="rm-member-ok" data-id="${esc(t.dataset.id)}">Remove</button><button class="btn" data-act="close">Cancel</button></div>`);return;}
@@ -1628,6 +1688,9 @@ document.addEventListener("click",async e=>{
   if(act==="rm-invite"){const p=P();if(!p)return;try{await cfApi("DELETE","/api/invites/"+encodeURIComponent(t.dataset.id));delete S.team[p.id];toast("Invite cancelled. That link no longer works.");render();}catch(e){showErr("Couldn't cancel the invite",e.message||"Please try again.");}return;}
   if(act==="del-project"){const p=P();if(!p)return;modal(`<h2>Delete ${esc(p.name)}?</h2><p>This removes the project for everyone, with all its updates, reports, photos and materials. It can't be undone.</p><form id="delp-form"><label class="f" for="dp-name">Type the project name to confirm<input type="text" id="dp-name" required autocomplete="off" placeholder="${esc(p.name)}"></label><div class="actions"><button class="btn danger" type="submit">Delete project</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);return;}
   if(act==="account"){modal(`<h2>Your account</h2><dl class="kv"><dt>Name</dt><dd>${esc(S.me&&S.me.name||"—")}</dd><dt>Email</dt><dd>${esc(S.me&&S.me.email||"")}</dd></dl><p class="small muted"><a href="#privacy" target="_blank">Privacy policy</a> · <a href="#terms" target="_blank">Terms</a></p>
+    <details><summary>Change password</summary><form id="pw-form"><label class="f" for="pw-cur">Current password<input type="password" id="pw-cur" required autocomplete="current-password"></label><label class="f" for="pw-new">New password<input type="password" id="pw-new" required minlength="8" autocomplete="new-password"></label><p class="small muted">At least 8 characters. You'll stay signed in here and be signed out on your other devices.</p><div><button class="btn pri" type="submit">Change password</button></div></form></details>
+    ${S.admin?`<p><button class="btn" data-act="go-admin">Payments to confirm (admin)</button></p>`:""}
+    ${S.admin?`<details><summary>Backup (admin)</summary><p class="small muted">Downloads every account, project and record as one file. Photos stay in storage. Keep the file somewhere safe; it has people's names and emails.</p><div><a class="btn" href="/api/admin/backup" download>Download full backup</a></div></details>`:""}
     <details><summary>Delete my account</summary><form id="delacc-form"><p class="small muted">Removes your login and your access to every project. What you posted to a project stays on that project's record. If you're the only developer on a project, delete it or make someone else a developer first.</p><label class="f" for="da-pass">Your password<input type="password" id="da-pass" required autocomplete="current-password"></label><div><button class="btn danger" type="submit">Delete my account</button></div></form></details>
     <div class="actions"><button class="btn pri" data-act="signout">Sign out</button><button class="btn" data-act="close">Close</button></div>`);return;}
   if(act==="copy"){try{await navigator.clipboard.writeText(t.dataset.text);toast("Link copied.");}catch(e){modal(`<h2>Invite link</h2><p class="small">Copy this link:</p><input type="text" readonly value="${esc(t.dataset.text)}" style="width:100%"><div><button class="btn" data-act="close">Close</button></div>`);}return;}
@@ -1701,8 +1764,8 @@ document.addEventListener("submit",async e=>{
     const nid="p-"+Date.now().toString(36);
     try{await store.set("projects",nid,{name:(d.pname||"New project").trim(),location:(d.loc||"").trim(),propType:d.ptype||"",sewageType:d.sew||"septic",foundationType:d.fdn||"",unitCount:+d.unitn||0,blockCount:+d.blocks||0,beds:d.beds||"",units:unitsText({propType:d.ptype,unitCount:d.unitn,blockCount:d.blocks,beds:d.beds}),client:(d.company||"").trim(),owner:(d.name||"").trim(),floors:+d.floors||0,budget:Math.max(0,+d.budget||0),startDate:d.start||"",durationMonths:d.dur&&d.dur!=="custom"?+d.dur:0,targetDate:finalTarget(d.start,d.dur,d.target),payMode:!PAY_SOON&&d.payMode==="milestone"?"milestone":"upfront",...(()=>{const g=parseLatLng(d.gps);return g?{siteLat:g.lat,siteLng:g.lng,siteRadius:200}:{};})(),contractSum:Math.max(0,+d.contract||0),checks:p0.checks,team:d.team,plan:{name:"Single site",billing:d.annual?"yearly":"monthly"},createdAt:new Date().toISOString()});
       S.pid=nid;ls.set("st.pid",nid);ls.set("st.role","developer");S.tab.developer="overview";
-      if(S.mode==="cf"){await S.db.pull();const links=[];for(const m of d.team){try{const r=await cfApi("POST","/api/invites",{pid:nid,role:m.role,name:m.name,email:m.email});links.push({...m,code:r.code,emailed:r.emailed});}catch(e){}}
-        if(links.length)setTimeout(()=>modal(`<h2>Your team is invited</h2><p class="small muted">${links.some(l=>l.emailed)?"We've emailed everyone who has an email address. You can also send the links on WhatsApp.":"Send each person their link on WhatsApp or copy it. They open it to join."}</p>${links.map(l=>`<div class="exp"><span>${esc(l.name)} · ${ROLE_LABEL[l.role]}${l.emailed?` · <span class="pill ok">Emailed</span>`:""}</span><span class="actions">${waLink(`You've been invited to follow ${d.pname} on TrailConstruct. Join here: ${location.origin}/?invite=${l.code}`,"WhatsApp")}<button class="btn sm" data-act="copy" data-text="${esc(location.origin+"/?invite="+l.code)}">Copy</button></span><span></span><span></span></div>`).join("")}<div><button class="btn pri" data-act="close">Done</button></div>`),400);}S.onb={step:0,d:{floors:2,phase:0,team:[],annual:false}};S.busy=false;toast("Project created. Welcome to TrailConstruct.");go("developer");}
+      if(S.mode==="cf"){await S.db.pull();S.showPayAfterInvites=true;const links=[];for(const m of d.team){try{const r=await cfApi("POST","/api/invites",{pid:nid,role:m.role,name:m.name,email:m.email});links.push({...m,code:r.code,emailed:r.emailed});}catch(e){}}
+        S.payNext=!!links.length;if(links.length)setTimeout(()=>modal(`<h2>Your team is invited</h2><p class="small muted">${links.some(l=>l.emailed)?"We've emailed everyone who has an email address. You can also send the links on WhatsApp.":"Send each person their link on WhatsApp or copy it. They open it to join."}</p>${links.map(l=>`<div class="exp"><span>${esc(l.name)} · ${ROLE_LABEL[l.role]}${l.emailed?` · <span class="pill ok">Emailed</span>`:""}</span><span class="actions">${waLink(`You've been invited to follow ${d.pname} on TrailConstruct. Join here: ${location.origin}/?invite=${l.code}`,"WhatsApp")}<button class="btn sm" data-act="copy" data-text="${esc(location.origin+"/?invite="+l.code)}">Copy</button></span><span></span><span></span></div>`).join("")}<div><button class="btn pri" data-act="close">Done</button></div>`),400);}if(S.mode==="cf"&&S.showPayAfterInvites){S.showPayAfterInvites=false;refreshBilling().then(()=>{if(!S.payNext)payModal();});}S.onb={step:0,d:{floors:2,phase:0,team:[],annual:false}};S.busy=false;toast("Project created. Welcome to TrailConstruct.");go("developer");}
     catch(err){S.busy=false;onErr(err);}
     return;
   }
@@ -1722,6 +1785,7 @@ document.addEventListener("submit",async e=>{
     catch(err){S.busy=false;render();showErr("Couldn't change your password",err.message||"Please try again.");}return;}
   if(f.id==="delp-form"){const p=P();if(!p)return;if(v("dp-name").trim().toLowerCase()!==String(p.name||"").trim().toLowerCase()){toast("The name doesn't match.");return;}
     try{await cfApi("DELETE","/api/docs/projects/"+encodeURIComponent(p.id));closeModal();S.db.reset();S.pid=null;ls.set("st.pid","");await S.db.pull(true);toast("Project deleted.");render();}catch(e){closeModal();showErr("Couldn't delete the project",e.message||"Please try again.");}return;}
+  if(f.id==="pw-form"){try{await cfApi("POST","/api/me/password",{current:v("pw-cur"),next:v("pw-new")});closeModal();toast("Password changed.");}catch(e){showErr("Couldn't change your password",e.message||"Please try again.");}return;}
   if(f.id==="delacc-form"){try{await cfApi("DELETE","/api/me",{password:v("da-pass")});closeModal();S.me=null;S.memberships=[];S.projects=[];S.pid=null;S.db.reset();ls.set("st.pid","");toast("Your account has been deleted.");go("home");}catch(e){showErr("Couldn't delete your account",e.message||"Please try again.");}return;}
   if(f.id==="inv-form"){const p=P();if(!p)return;try{const em=v("iv-email").trim();const r=await cfApi("POST","/api/invites",{pid:p.id,role:v("iv-role"),name:v("iv-name").trim(),email:em});delete S.team[p.id];toast(r.emailed?`Invite emailed to ${em}. You can also send the link on WhatsApp.`:"Invite link created. Send it on WhatsApp or copy it.");render();}catch(err){toast(err.message||"Couldn't create the invite.");}return;}
   if(f.id==="proj-form"){
@@ -1746,7 +1810,9 @@ document.addEventListener("submit",async e=>{
     const data={pid:p.id,date:v("lg-date"),stage:v("lg-stage"),work:v("lg-work").trim(),workers:Math.max(0,parseInt(v("lg-workers"),10)||0),weather:v("lg-weather"),issues:v("lg-issues").trim(),by,createdAt:new Date().toISOString(),photos:[]};
     const keep=async why=>{const full=await saveForLater(data,files);ls.set("st.draft.log","{}");S.shots=[];S.busy=false;toast(why+" Saved on this phone"+(files.length&&!full?" (this phone can't keep the photos, add them later)":" with its photos")+". It will post when you're back online.");render();};
     if(!navigator.onLine&&S.mode==="cf"){await keep("No signal.");return;}
-    try{for(let i=0;i<files.length;i++){S.busy="Uploading photo "+(i+1)+" of "+files.length+"…";render();const s=files[i],up=await uploadFile(new File([s.blob],"site-photo.jpg",{type:"image/jpeg",lastModified:Date.parse(s.takenAt)||Date.now()}),p.id);data.photos.push({...up,v:s.v,dist:s.dist,gps:s.gps,takenAt:s.takenAt});}
+    try{for(let i=0;i<files.length;i++){S.busy="Uploading photo "+(i+1)+" of "+files.length+"…";render();const s=files[i];
+        try{s.up=s.up||await uploadShot(s,p.id);}catch(e){if(e&&e.code==="rejected"){S.shots=S.shots.filter(x=>x!==s);S.busy=false;render();modal(`<h2>Photo not accepted</h2><p>${esc(e.message)}</p><p class="small muted">We've taken it out. Your update hasn't been posted yet. Add another photo or post without it.</p><div><button class="btn pri" data-act="close">OK</button></div>`);return;}throw e;}
+        data.photos.push(s.up);}
       S.busy="Posting…";render();await store.add("logs",data);ls.set("st.draft.log","{}");S.shots=[];S.busy=false;toast("Update posted.");render();}
     catch(err){S.busy=false;if(S.mode==="cf"&&(err&&(err.code==="unavailable"||err instanceof TypeError))){data.photos=[];await keep("Signal dropped.");return;}onErr(err);}return;
   }
@@ -1777,7 +1843,7 @@ document.addEventListener("input",e=>{
   if(e.target.id==="calc-n"){S.home.projects=+e.target.value;const n=S.home.projects,a=S.home.annual,r=n>=5?22000:25000;document.querySelector(".calc-n").textContent=n;document.getElementById("calc-total").textContent=naira(n*r*(a?10:1));document.getElementById("calc-note").textContent=n>=5?"Portfolio rate applied":"Add "+(5-n)+" more for the Portfolio rate";return;}
 if(["up-title","up-brief","up-next"].includes(e.target.id))saveDraftFields();});
 document.addEventListener("keydown",e=>{const L=document.getElementById("layer");if(!L.innerHTML)return;if(e.key==="Escape")closeModal();const b=L.querySelectorAll("[data-act=gnav]");if(b.length&&e.key==="ArrowLeft")b[0].click();if(b.length&&e.key==="ArrowRight")b[1].click();});
-window.addEventListener("hashchange",()=>{const h=location.hash.slice(1);if(["home","signin","signup","demo","developer","engineer","investor","privacy","terms"].includes(h)&&h!==S.view){S.view=h;render();window.scrollTo(0,0);}});
+window.addEventListener("hashchange",()=>{const h=location.hash.slice(1);if(["home","signin","signup","demo","developer","engineer","investor","privacy","terms","admin"].includes(h)&&h!==S.view){S.view=h;render();window.scrollTo(0,0);}});
 
 /* ---------- preview data (only when shared storage is unavailable) ---------- */
 function previewSeed(){
@@ -1789,12 +1855,14 @@ function previewSeed(){
 }
 
 /* ---------- Cloudflare mode: own backend (D1 + R2), real accounts ---------- */
-async function cfApi(method,url,body,raw){
-  const r=await fetch(url,{method,credentials:"same-origin",headers:raw?{"content-type":raw.type||"application/octet-stream"}:body?{"content-type":"application/json"}:{},body:raw||(body?JSON.stringify(body):undefined)});
+async function cfApi(method,url,body,raw,extra){
+  const r=await fetch(url,{method,credentials:"same-origin",headers:{...(raw?{"content-type":raw.type||"application/octet-stream"}:body?{"content-type":"application/json"}:{}),...(extra||{})},body:raw||(body?JSON.stringify(body):undefined)});
   let d=null;try{d=await r.json();}catch(e){}
   if(r.status===401){S.me=null;throw {code:"unauthenticated",message:(d&&d.error)||"Please sign in."};}
   if(r.status===403)throw {code:"forbidden",message:(d&&d.error)||"Not allowed."};
   if(r.status===429)throw {code:"rate",message:(d&&d.error)||"Too many attempts. Wait a few minutes and try again."};
+  if(r.status===402){if(S.pid&&S.billing)delete S.billing[S.pid];throw {code:"locked",message:(d&&d.error)||"This project is read-only until its subscription is paid."};}
+  if(r.status===422||r.status===415||r.status===413||(r.status===409&&url.startsWith("/api/upload")))throw {code:"rejected",message:(d&&d.error)||"This photo wasn't accepted."};
   if(!r.ok)throw {code:r.status===409?"conflict":"unavailable",message:(d&&d.error)||("The server couldn't finish this (error "+r.status+"). Please try again in a minute.")};
   return d;
 }
@@ -1828,12 +1896,14 @@ function makeCfDb(){
     onSnapshot(next){(subs[col]=subs[col]||[]).push(rows=>next({docs:rows.map(x=>({id:x.id,exists:true,data:()=>x.data})),size:rows.length,empty:!rows.length,metadata:{fromCache:false,hasPendingWrites:false}}));return ()=>{};}});
   return {collection:coll,doc:p=>{const [c,i]=p.split("/");return docRef(c,i);},pull,reset(){since=0;memSig="";for(const c in cache)delete cache[c];}};
 }
-const cfAssets={async upload(file,pid){const d=await cfApi("POST","/api/upload?pid="+encodeURIComponent(pid||S.pid||""),null,file);return d;}};
+const cfAssets={async upload(file,pid,meta){const m=meta||{},h={};if(m.takenAt)h["x-taken-at"]=m.takenAt;if(m.gps){h["x-lat"]=String(m.gps.lat);h["x-lng"]=String(m.gps.lng);}if(m.orig)h["x-orig-hash"]=m.orig;
+  const d=await cfApi("POST","/api/upload?pid="+encodeURIComponent(pid||S.pid||""),null,file,h);return d;}};
 const cfDownloads={async save({filename,data}){const b=data instanceof Blob?data:new Blob([data]);const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);return {status:"saved"};}};
 const roleFor=pid=>((S.memberships||[]).find(m=>m.pid===pid)||{}).role||null;
 async function cfAfterAuth(){
   const code=S.pendingInvite;
   if(code){try{const r=await cfApi("POST","/api/invites/accept",{code});S.pendingInvite=null;try{sessionStorage.removeItem("st.invite")}catch(e){}S.pid=r.pid;ls.set("st.pid",r.pid);toast("You've joined the project.");}catch(e){toast(e.message||"That invite link isn't valid any more.");S.pendingInvite=null;}}
+  try{const d=await cfApi("GET","/api/me");S.admin=!!d.admin;S.memberships=d.memberships||S.memberships;}catch(e){}
   await S.db.pull();pickProject();
   const role=S.pid?roleFor(S.pid):null;
   go(role||"developer");
@@ -1865,6 +1935,14 @@ function cfAuthView(){
     <a class="link small" href="#home">Back to home</a>
   </div></div>`;
 }
+function activitySection(p){
+  const a=S.activity[p.id];
+  if(!a){S.activity[p.id]={loading:true};cfApi("GET","/api/audit?pid="+encodeURIComponent(p.id)).then(d=>{S.activity[p.id]=d;render();}).catch(()=>{S.activity[p.id]={items:[]};render();});}
+  const items=(a&&a.items)||[],n=S.activityMore?items.length:Math.min(items.length,12);
+  const when=t=>new Date(t).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+  return `<section class="card"><div class="card-h"><h2>Activity</h2><button class="btn sm ghost" data-act="act-refresh">Refresh</button></div><p class="small muted" style="margin:0">Who did what on this project. Only developers can see this.</p>
+    ${!a||a.loading?`<div class="empty">Loading…</div>`:!items.length?`<div class="empty">Nothing yet.</div>`:`<ul class="actlog">${items.slice(0,n).map(x=>`<li><span class="small muted num">${when(x.at)}</span><span><b>${esc(x.who||"Someone")}</b>${x.role?` <span class="small muted">(${esc(ROLE_LABEL[x.role]||x.role)})</span>`:""} ${esc(x.action)}</span></li>`).join("")}</ul>${items.length>n?`<div><button class="btn sm" data-act="act-more">Show all ${items.length}</button></div>`:""}`}</section>`;
+}
 function teamSection(p){
   const t=S.team[p.id];
   if(!t){cfApi("GET","/api/members?pid="+encodeURIComponent(p.id)).then(d=>{S.team[p.id]=d;render();}).catch(()=>{});return `<section class="card"><h2>Team</h2><div class="empty">Loading team…</div></section>`;}
@@ -1884,14 +1962,14 @@ async function initCf(){
   try{me=await fetch("/api/me",{credentials:"same-origin"});}catch(e){return false;}
   if(!me||(me.status!==200&&me.status!==401)||!(me.headers.get("content-type")||"").includes("json"))return false;
   S.mode="cf";try{const c=await (await fetch("/api/config")).json();S.mapsKey=c.mapsKey||"";}catch(e){}
-  S.db=makeCfDb();S.assets=cfAssets;S.downloads=cfDownloads;S.team={};S.canWrite=true;
+  S.db=makeCfDb();S.assets=cfAssets;S.downloads=cfDownloads;S.team={};S.activity={};S.canWrite=true;
   const rm=location.hash.match(/^#reset-([a-f0-9]{64})$/);
   if(rm){S.resetToken=rm[1];S.authMode="reset";S.view="signin";history.replaceState(null,"",location.pathname+"#signin");}
   const q=new URLSearchParams(location.search).get("invite");
   if(q){S.pendingInvite=q;try{sessionStorage.setItem("st.invite",q)}catch(e){}history.replaceState(null,"",location.pathname+"#signin");S.view="signin";S.authMode="up";}
   else{try{S.pendingInvite=sessionStorage.getItem("st.invite")||null}catch(e){}}
   ["projects","logs","reports","updates","expenses","requests","matreqs","stock","milestones"].forEach(c=>subscribe(c,S.db.collection(c)));
-  if(me.status===200){const d=await me.json();S.me=d.user;S.memberships=d.memberships||[];await S.db.pull();if(S.pendingInvite){await cfAfterAuth();return true;}}
+  if(me.status===200){const d=await me.json();S.me=d.user;S.admin=!!d.admin;S.memberships=d.memberships||[];await S.db.pull();if(S.pendingInvite){await cfAfterAuth();return true;}}
   else{S.me=null;S.loaded.projects=true;}
   setInterval(()=>{if(S.me&&document.visibilityState==="visible")S.db.pull();},20000);
   document.addEventListener("visibilitychange",()=>{if(S.me&&document.visibilityState==="visible")S.db.pull();});
@@ -1953,7 +2031,7 @@ function setPin(prefix,pick){
 
 
 /* ---------- start ---------- */
-(function(){const h=location.hash.slice(1);if(["home","signin","signup","demo","developer","engineer","investor","privacy","terms"].includes(h))S.view=h;})();
+(function(){const h=location.hash.slice(1);if(["home","signin","signup","demo","developer","engineer","investor","privacy","terms","admin"].includes(h))S.view=h;})();
 render();
 (async function init(){
   const C=window.claude;
