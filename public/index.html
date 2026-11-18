@@ -1162,7 +1162,7 @@ function adminView(){
       ${own?`<form id="adm-addadmin"><h3>Add an admin</h3><div class="row"><label class="f" for="aa-email">Their email<input type="email" id="aa-email" required></label><label class="f" for="aa-role">Access<select id="aa-role"><option value="payments">Payments only</option><option value="full">Full access</option></select></label></div><p class="small muted">They sign in with this email at trailconstruct.com (they need an account), then open Account → Admin.</p><div><button class="btn pri" type="submit">Add admin</button></div></form>`:""}</section>`;}
   if(tab==="log"){const a=admLoad("log","/api/admin/log");
     body=admWrap(a)||`<section class="card"><h2>Admin log</h2><p class="small muted" style="margin:0">Every action taken on this page.</p>${a.items.length?`<ul class="actlog">${a.items.map(x=>`<li><span class="small muted num">${admWhen(x.at)}</span><span><b>${esc(x.who||"")}</b> ${esc(x.action)}</span></li>`).join("")}</ul>`:`<div class="empty">Nothing yet.</div>`}</section>`;}
-  return `<header class="apphead"><div class="apphead-in"><a class="brand" href="#home">${MARK}<span>Trail<span class="wm2">Construct</span></span></a><span class="who">Admin${role==="payments"?" · payments":""}</span><span class="sp"></span><button class="btn sm ghost" data-act="adm-reload">Refresh</button><a class="btn sm ghost" href="#developer">Dashboard</a></div>
+  return `<header class="apphead"><div class="apphead-in"><a class="brand" href="#home">${MARK}<span>Trail<span class="wm2">Construct</span></span></a><span class="who">Admin${role==="payments"?" · payments":""}</span><span class="sp"></span><button class="btn sm ghost" data-act="adm-reload">Refresh</button><a class="btn sm ghost" href="#developer">Dashboard</a><button class="btn sm ghost" data-act="signout">Sign out</button></div>
     <nav class="tabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" data-act="adm-tab" data-t="${k}" aria-selected="${tab===k}">${l}${k==="payments"&&S.adm&&S.adm.overview&&S.adm.overview.toConfirm?`<span class="count">${S.adm.overview.toConfirm}</span>`:""}</button>`).join("")}</nav></header><main class="adm-main">${body}</main>`;
 }
 function noProject(role){
@@ -1974,7 +1974,8 @@ async function cfAfterAuth(){
   if(code){try{const r=await cfApi("POST","/api/invites/accept",{code});S.pendingInvite=null;try{sessionStorage.removeItem("st.invite")}catch(e){}S.pid=r.pid;ls.set("st.pid",r.pid);toast("You've joined the project.");}catch(e){toast(e.message||"That invite link isn't valid any more.");S.pendingInvite=null;}}
   try{const d=await cfApi("GET","/api/me");S.admin=d.admin||null;S.memberships=d.memberships||S.memberships;}catch(e){}
   await S.db.pull();pickProject();
-  if(S.afterLogin==="admin"&&S.admin){S.afterLogin=null;S.adm={};go("admin");return;}
+  // Admins land on the admin page when they came from the admin link, or when they have no projects of their own.
+  if(S.admin&&(S.afterLogin==="admin"||!(S.memberships||[]).length)){S.afterLogin=null;S.adm={};go("admin");return;}
   S.afterLogin=null;
   const role=S.pid?roleFor(S.pid):null;
   go(role||"developer");
@@ -2040,7 +2041,7 @@ async function initCf(){
   if(q){S.pendingInvite=q;try{sessionStorage.setItem("st.invite",q)}catch(e){}history.replaceState(null,"",location.pathname+"#signin");S.view="signin";S.authMode="up";}
   else{try{S.pendingInvite=sessionStorage.getItem("st.invite")||null}catch(e){}}
   ["projects","logs","reports","updates","expenses","requests","matreqs","stock","milestones"].forEach(c=>subscribe(c,S.db.collection(c)));
-  if(me.status===200){const d=await me.json();S.me=d.user;S.admin=d.admin||null;S.memberships=d.memberships||[];await S.db.pull();if(S.pendingInvite){await cfAfterAuth();return true;}}
+  if(me.status===200){const d=await me.json();S.me=d.user;S.admin=d.admin||null;S.memberships=d.memberships||[];if(S.admin&&!S.memberships.length&&["developer","signin"].includes(S.view)){S.view="admin";history.replaceState(null,"","#admin");}await S.db.pull();if(S.pendingInvite){await cfAfterAuth();return true;}}
   else{S.me=null;S.loaded.projects=true;}
   setInterval(()=>{if(S.me&&document.visibilityState==="visible")S.db.pull();},20000);
   document.addEventListener("visibilitychange",()=>{if(S.me&&document.visibilityState==="visible")S.db.pull();});
