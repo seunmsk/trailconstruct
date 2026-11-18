@@ -423,6 +423,9 @@ main .stats>.stat:nth-child(4):not([class*=" t"]){background:var(--rose)}
 @media (min-width:860px){.plans{grid-template-columns:repeat(3,1fr);align-items:stretch}}
 .plan-card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:26px;display:grid;gap:12px;align-content:start}
 .plan-card .btn{margin-top:auto}
+.pilot-note{margin:12px auto 0;max-width:640px;font-size:.95rem;background:var(--amber-soft);border-radius:12px;padding:10px 14px}
+.pilot-line{margin:0;color:var(--ink)}
+.qty-total{flex-wrap:wrap}
 .plan-card.hot{border:2px solid var(--amber);background:linear-gradient(180deg,var(--sand),var(--surface) 40%)}
 .badge{position:absolute;top:-12px;left:24px;background:var(--amber);color:#1b1404;font-size:.74rem;font-weight:700;padding:3px 10px;border-radius:999px}
 .plan-name{font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:.8rem;color:var(--muted)}
@@ -785,7 +788,8 @@ const STEPS=[
 const FAQ=[
   ["Do investors see everything the engineers post?","No. Engineer updates go to the developer only. Investors see what the developer chooses to send: a briefing, selected photos and the PDF report."],
   ["Does it work on a phone?","Yes. TrailConstruct is built phone-first, because that's where site engineers work. It opens in any browser, with no app to install."],
-  ["Who pays?","The developer pays ₦25,000 per project per month. Site engineers and investors join free."],
+  ["Who pays?","The developer pays ₦25,000 + VAT per project per month, or ₦22,000 + VAT from 5 projects. Site engineers and investors join free."],
+  ["Is there a minimum?","Yes. Every new project starts with a 3-month pilot, paid upfront: ₦75,000 + VAT (₦80,625). That gives your team time to get into the habit and your investors time to see the difference. After 3 months you can carry on monthly or yearly, or stop."],
   ["Can I track more than one site?","Yes. Add as many projects as you run and switch between them from the top of the dashboard."],
   ["Which stages does it cover?","Eleven phases, from approvals and setting out through foundation, every floor of the frame, roofing, M&E, finishes, external works and handover. Each phase has its own checklist."],
   ["What if the site has poor network?","Drafts save on the phone as the engineer types. With no signal, the update is kept on the phone and posts by itself when the network returns."],
@@ -794,12 +798,14 @@ const FAQ=[
   ["Can photos be faked or reused?","Engineers take photos live in the app. Each photo is checked for when and where it was taken, so old photos and photos taken away from the site's GPS pin are rejected. Accepted photos are stamped with the date, time and location."],
   ["Does it work with WhatsApp?","Yes. Reminders, site updates and investor updates can be sent to WhatsApp in one tap."]
 ];
+const VAT=0.075,withVat=n=>Math.round(n*(1+VAT));
 function priceTotal(plan){const a=S.home.annual,n=plan==="s"?S.home.qs:S.home.qp,r=plan==="s"?25000:22000;return naira(n*r*(a?10:1));}
+function priceVat(plan){const a=S.home.annual,n=plan==="s"?S.home.qs:S.home.qp,r=plan==="s"?25000:22000;return naira(withVat(n*r*(a?10:1)))+" with 7.5% VAT";}
 function priceNote(plan,bump){const a=S.home.annual,per=a?"a year":"a month";
   if(plan==="s")return bump==="max"?"From 5 projects, Portfolio is cheaper at ₦22,000 per project.":S.home.qs>1?`${S.home.qs} projects × ${naira(a?250000:25000)}`:"";
   return bump==="max"?"Running 20 or more sites? See Enterprise.":`You save ${naira(S.home.qp*3000*(a?10:1))} ${per} compared with Single site.`;}
 function updatePricing(plan,bump){const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
-  set("qty-"+plan,plan==="s"?S.home.qs:S.home.qp);set("tot-"+plan,priceTotal(plan));set("note-"+plan,priceNote(plan,bump));}
+  set("qty-"+plan,plan==="s"?S.home.qs:S.home.qp);set("tot-"+plan,priceTotal(plan));set("note-"+plan,priceNote(plan,bump));set("vat-"+plan,priceVat(plan));}
 function homeView(){
   const demo={floors:2,checks:{}};stagesFor(demo).forEach(s=>{if(["pre","set","fdn","lv0","lv1","lv2","roof"].includes(s.id))s.items.forEach(i=>demo.checks[i.id]=true);});["me1.0","me1.1","pls.0","pls.1","pls.2","pls.3","fin.0","fin.1"].forEach(k=>demo.checks[k]=true);
   const pr=progress(demo),items=stagesFor({floors:2}).reduce((a,s)=>a+s.items.length,0),st=S.home.step,step=STEPS[st];
@@ -812,7 +818,7 @@ function homeView(){
     <div class="hero-copy"><span class="kicker">Construction tracking for Nigerian developers</span><h1>Know exactly where your building <em>stands</em>.</h1>
       <p class="lead">From the first profile board to the last coat of paint, TrailConstruct keeps site engineers, developers and investors on the same page. No more chasing WhatsApp voice notes or blurry photos. Just clear progress you can trust.</p>
       <div class="actions"><a class="btn amber lg" href="#signup">Start tracking a project</a><a class="btn outline lg" href="#demo"><span class="play" aria-hidden="true">▶</span> Take the product tour</a></div>
-      <p class="hero-note">₦25,000 per project per month · Investors and engineers join free</p></div>
+      <p class="hero-note">₦25,000 + VAT per project per month · Start with a 3-month pilot · Investors and engineers join free</p></div>
     <div class="demo float" aria-label="Example investor view">
       <div class="demo-top"><div><h3>4 semi-detached duplexes</h3><p class="small muted">Ikoyi, Lagos · Ground + 2 floors · example</p></div><span class="pill active">Finishes</span></div>
       <div style="display:flex;gap:16px;align-items:center"><span class="${S.ringDone?"":"ring-anim"}">${ring(pr.overall,104)}</span><div class="small" style="display:grid;gap:4px"><span><b>Now:</b> tiling & interior fittings</span><span><b>Next:</b> M&E second fix</span><span class="muted">Last update 2 days ago · 6 photos</span></div></div>
@@ -850,14 +856,15 @@ function homeView(){
         :`<ul>${ss[0].items.map(i=>`<li>${esc(i.label)}</li>`).join("")}</ul>`;
       return `<b>${esc(g)}</b><span class="muted small">${total} checklist items${ss.length>1?(isFrame?" across "+ss.length+" floor stages":" in "+ss.length+" parts"):""}</span>${body}`;})()}</div>
     <p class="muted" style="max-width:66ch">Checklists follow how buildings go up in Lagos: LASPPPA permits, LASBCA stage inspections, German floor, decking for each floor, bio-digesters, stamped concrete and the Certificate of Completion and Fitness for Habitation.</p></section>
-  <section class="sec pricing" id="pricing"><div class="sec-h center"><p class="eyebrow">Pricing</p><h2 class="sh">Simple pricing. Pay per project.</h2><p class="muted">The developer pays. Site engineers and investors always join free.</p>
+  <section class="sec pricing" id="pricing"><div class="sec-h center"><p class="eyebrow">Pricing</p><h2 class="sh">Simple pricing. Pay per project.</h2><p class="muted">The developer pays. Site engineers and investors always join free. Prices are before 7.5% VAT.</p>
+    <p class="pilot-note"><b>Every project starts with a 3-month pilot, paid upfront.</b> After 3 months, carry on monthly or yearly, or stop. No long contract.</p>
     <div class="billing" role="group" aria-label="Billing period"><button data-act="billing" data-v="0" aria-pressed="${!annual}">Monthly</button><button data-act="billing" data-v="1" aria-pressed="${annual}">Yearly <span class="save">2 months free</span></button></div></div>
     <div class="plans">
-      <div class="plan-card reveal"><span class="plan-name">Single site</span><div class="plan-price"><b class="num">${naira(annual?250000:25000)}</b><span>per project / ${annual?"year":"month"}</span></div><p class="muted small">For a developer running 1 to 4 sites.</p>
-        <div class="qty"><div class="qty-row"><span class="small muted">Projects</span><div class="qty-ctl"><button type="button" data-act="qty" data-plan="s" data-d="-1" aria-label="Fewer projects">−</button><b class="num" id="qty-s">${S.home.qs}</b><button type="button" data-act="qty" data-plan="s" data-d="1" aria-label="More projects">+</button></div></div><div class="qty-total"><b class="num" id="tot-s">${priceTotal("s")}</b><span class="small muted" id="per-s">${annual?"total per year":"total per month"}</span></div><p class="small qty-note" id="note-s">${priceNote("s")}</p></div>
+      <div class="plan-card reveal"><span class="plan-name">Single site</span><div class="plan-price"><b class="num">${naira(annual?250000:25000)}</b><span>per project / ${annual?"year":"month"} + VAT</span></div><p class="muted small">For a developer running 1 to 4 sites.</p><p class="small pilot-line">3-month pilot: <b>₦75,000 + VAT</b> (₦80,625) per project</p>
+        <div class="qty"><div class="qty-row"><span class="small muted">Projects</span><div class="qty-ctl"><button type="button" data-act="qty" data-plan="s" data-d="-1" aria-label="Fewer projects">−</button><b class="num" id="qty-s">${S.home.qs}</b><button type="button" data-act="qty" data-plan="s" data-d="1" aria-label="More projects">+</button></div></div><div class="qty-total"><b class="num" id="tot-s">${priceTotal("s")}</b><span class="small muted" id="per-s">${annual?"total per year":"total per month"} + VAT</span><span class="small muted" id="vat-s">${priceVat("s")}</span></div><p class="small qty-note" id="note-s">${priceNote("s")}</p></div>
         <ul class="ticks"><li>Unlimited site engineers and investors</li><li>Daily updates, photos and stage checklists</li><li>Investor updates and PDF reports</li><li>Budget against progress</li></ul><a class="btn pri" href="#signup">Get started</a></div>
-      <div class="plan-card hot reveal"><span class="badge">Most popular</span><span class="plan-name">Portfolio</span><div class="plan-price"><b class="num">${naira(annual?220000:22000)}</b><span>per project / ${annual?"year":"month"}</span></div><p class="muted small">5 or more active projects.</p>
-        <div class="qty"><div class="qty-row"><span class="small muted">Projects</span><div class="qty-ctl"><button type="button" data-act="qty" data-plan="p" data-d="-1" aria-label="Fewer projects">−</button><b class="num" id="qty-p">${S.home.qp}</b><button type="button" data-act="qty" data-plan="p" data-d="1" aria-label="More projects">+</button></div></div><div class="qty-total"><b class="num" id="tot-p">${priceTotal("p")}</b><span class="small muted" id="per-p">${annual?"total per year":"total per month"}</span></div><p class="small qty-note" id="note-p">${priceNote("p")}</p></div>
+      <div class="plan-card hot reveal"><span class="badge">Most popular</span><span class="plan-name">Portfolio</span><div class="plan-price"><b class="num">${naira(annual?220000:22000)}</b><span>per project / ${annual?"year":"month"} + VAT</span></div><p class="muted small">5 or more active projects.</p><p class="small pilot-line">3-month pilot: <b>₦66,000 + VAT</b> (₦70,950) per project</p>
+        <div class="qty"><div class="qty-row"><span class="small muted">Projects</span><div class="qty-ctl"><button type="button" data-act="qty" data-plan="p" data-d="-1" aria-label="Fewer projects">−</button><b class="num" id="qty-p">${S.home.qp}</b><button type="button" data-act="qty" data-plan="p" data-d="1" aria-label="More projects">+</button></div></div><div class="qty-total"><b class="num" id="tot-p">${priceTotal("p")}</b><span class="small muted" id="per-p">${annual?"total per year":"total per month"} + VAT</span><span class="small muted" id="vat-p">${priceVat("p")}</span></div><p class="small qty-note" id="note-p">${priceNote("p")}</p></div>
         <ul class="ticks"><li>Everything in Single site</li><li>All sites on one dashboard</li><li>Priority support on WhatsApp</li><li>Help onboarding your site teams</li></ul><a class="btn amber" href="#signup">Get started</a></div>
       <div class="plan-card reveal"><span class="plan-name">Enterprise</span><div class="plan-price"><b>Custom</b><span>for 20+ sites</span></div><p class="muted small">Construction firms and fund managers.</p>
         <ul class="ticks"><li>Everything in Portfolio</li><li>Reports with your company branding</li><li>Independent site verification visits</li><li>Dedicated account manager</li></ul><button type="button" class="btn" data-act="contact">Talk to us</button></div>
@@ -957,8 +964,10 @@ function signupView(){
       <div class="row"><label class="f" for="t-${r}-n">Name<input type="text" id="t-${r}-n" placeholder="${r==="engineer"?"e.g. Eng. Chinedu Afolabi":"e.g. Mrs Ngozi Adewale"}"></label><label class="f" for="t-${r}-e">Email<input type="email" id="t-${r}-e"></label></div>
       <div><button type="button" class="btn sm" data-act="onb-add" data-role="${r}">Add ${r==="engineer"?"engineer":"investor"}</button></div></div>`).join("")}`;
   if(st===4){const n=1,rate=25000;body=`<h2>Your plan</h2>
-    <div class="billing" role="group" aria-label="Billing period"><button type="button" data-act="onb-bill" data-v="0" aria-pressed="${!d.annual}">Monthly</button><button type="button" data-act="onb-bill" data-v="1" aria-pressed="${!!d.annual}">Yearly <span class="save">2 months free</span></button></div>
-    <div class="summary"><div><span class="muted small">Plan</span><b>Single site</b></div><div><span class="muted small">Project</span><b>${esc(d.pname||"Your project")}</b></div><div><span class="muted small">Team invited</span><b>${d.team.length}</b></div><div class="sum-total"><span class="muted small">Total</span><b class="num">${naira(d.annual?rate*10:rate)}</b><span class="small muted">per ${d.annual?"year":"month"}</span></div></div>
+    <div class="summary"><div><span class="muted small">Plan</span><b>Single site</b></div><div><span class="muted small">Project</span><b>${esc(d.pname||"Your project")}</b></div><div><span class="muted small">Team invited</span><b>${d.team.length}</b></div><div class="sum-total"><span class="muted small">First payment: 3-month pilot</span><b class="num">${naira(withVat(rate*3))}</b><span class="small muted">${naira(rate*3)} + 7.5% VAT, paid upfront</span></div></div>
+    <p class="small muted" style="margin-top:14px">After the pilot, how would you like to continue?</p>
+    <div class="billing" role="group" aria-label="After the pilot"><button type="button" data-act="onb-bill" data-v="0" aria-pressed="${!d.annual}">Monthly · ${naira(withVat(rate))}</button><button type="button" data-act="onb-bill" data-v="1" aria-pressed="${!!d.annual}">Yearly · ${naira(withVat(rate*10))} <span class="save">2 months free</span></button></div>
+    <p class="small muted">Prices include 7.5% VAT. You can stop after the 3-month pilot.</p>
     <p class="note">Billing isn't connected in this prototype, so no payment is taken. Card and bank transfer payments come with the full build.</p>`;}
   return `<div class="onb">${BLUEPRINT}<div class="onb-box">
     <div class="onb-top"><a class="brand" href="#home">${MARK}<span>Trail<span class="wm2">Construct</span></span></a><span class="small muted">Step ${st+1} of ${ONB_STEPS.length}</span></div>
@@ -1318,7 +1327,7 @@ function legalView(which){
 <h2>Site records</h2><p>To keep project history trustworthy, daily updates and store records lock 24 hours after posting, and weekly reports after 7 days. After that they can't be edited or deleted, except by deleting the whole project.</p>
 <h2>What TrailConstruct is not</h2><p>TrailConstruct is a record-keeping tool. It doesn't inspect, certify or guarantee construction work, materials, costs or schedules. Location checks on photos are a strong signal but not proof; phones and GPS can be wrong. Progress figures come from what your team enters. For structural, legal or financial decisions, rely on qualified professionals and your own checks.</p>
 <h2>Fair use</h2><p>Don't misuse the service: no attempts to access other people's projects, overload or attack the system, or upload false or misleading records.</p>
-<h2>Plans and payment</h2><p>Paid plans are charged as shown on our pricing page when billing starts. We'll tell you before any price change takes effect.</p>
+<h2>Plans and payment</h2><p>Paid plans are charged as shown on our pricing page when billing starts, plus 7.5% VAT. Each new project starts with a 3-month pilot, paid upfront. After the pilot you can continue monthly or yearly, or stop; payments already made are not refunded. We'll tell you before any price change takes effect.</p>
 <h2>Ending use</h2><p>You can delete your account at any time. We may suspend accounts that break these terms or put others at risk.</p>
 <h2>Liability</h2><p>We provide TrailConstruct "as is" and work to keep it available and accurate, but can't promise it will always be uninterrupted or error-free. As far as the law allows, we aren't liable for indirect losses, and our total liability is limited to what you paid us in the 12 months before the claim.</p>
 <h2>Law</h2><p>These terms are governed by the laws of the Federal Republic of Nigeria, and the courts of Lagos State have jurisdiction.</p>
