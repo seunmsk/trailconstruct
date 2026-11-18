@@ -100,6 +100,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 /* ---------- sign in ---------- */
 .auth{min-height:100%;display:grid;place-items:center;padding:24px 16px}
 .auth-box{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:24px;width:100%;max-width:440px;display:grid;gap:16px}
+.pw{position:relative;display:block}.pw input{padding-right:46px}.pw-eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--muted);padding:8px;border-radius:8px;cursor:pointer;display:grid;place-items:center}.pw-eye:hover{color:var(--ink)}.pw-eye:focus-visible{outline:2px solid var(--amber)}
 .auth-h{font-family:var(--display);font-size:1.6rem;margin:0}
 .pick{display:grid;gap:10px}
 .pick button{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;align-items:center;text-align:left;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--sunk);cursor:pointer}
@@ -1023,7 +1024,10 @@ function demoView(){
 let homeTimers=[];
 function clearHomeTimers(){homeTimers.forEach(clearInterval);homeTimers=[];}
 const reduce=()=>window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
-function afterRender(){
+const EYE=`<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>`,EYE_OFF=`<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.9 10.9 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1M6.6 6.6A17.4 17.4 0 0 0 2 12s3.6 7 10 7a10.6 10.6 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>`;
+// Adds a show/hide button to every password box.
+function addEyes(root){(root||document).querySelectorAll('input[type=password]:not([data-pw])').forEach(i=>{i.dataset.pw="1";const w=document.createElement("span");w.className="pw";i.parentNode.insertBefore(w,i);w.appendChild(i);w.insertAdjacentHTML("beforeend",`<button type="button" class="pw-eye" data-act="pw-eye" aria-label="Show password" aria-pressed="false">${EYE}</button>`);});}
+function afterRender(){addEyes();
   if(S.view==="signup"&&S.onb.step===1)mountPlaces("o-ac",pick=>setPin("o",pick));
   clearHomeTimers();
   if(S.view==="home"){
@@ -1518,7 +1522,7 @@ function renderInner(){
 function go(view){S.view=view;history.replaceState(null,"","#"+view);render();window.scrollTo(0,0);}
 
 /* ---------- modals ---------- */
-function modal(html){const L=document.getElementById("layer");L.innerHTML=`<div class="modal" data-act="backdrop"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;const f=L.querySelector("input,button");if(f)f.focus();}
+function modal(html){const L=document.getElementById("layer");L.innerHTML=`<div class="modal" data-act="backdrop"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;addEyes(L);const f=L.querySelector("input,button");if(f)f.focus();}
 function closeModal(){document.getElementById("layer").innerHTML="";}
 function projectForm(p){p=p||{};
   modal(`<h2>${p.id?"Edit project":"New project"}</h2><form id="proj-form" data-id="${esc(p.id||"")}">
@@ -1617,6 +1621,7 @@ document.addEventListener("click",async e=>{
   if(act==="signin"){ls.set("st.role",t.dataset.role);go(t.dataset.role);return;}
   if(act==="signout"){closeModal();ls.set("st.role","");if(S.mode==="cf"){try{await cfApi("POST","/api/auth/logout");}catch(e){}S.me=null;S.memberships=[];S.projects=[];S.pid=null;}go("home");return;}
   if(act==="authmode"){S.authMode=t.value;render();return;}
+  if(act==="pw-eye"){const i=t.parentNode.querySelector("input"),show=i.type==="password";i.type=show?"text":"password";t.innerHTML=show?EYE_OFF:EYE;t.setAttribute("aria-label",show?"Hide password":"Show password");t.setAttribute("aria-pressed",String(show));i.focus();return;}
   if(act==="authmode-set"){S.authMode=t.dataset.m;if(t.dataset.m!=="reset")S.resetToken=null;render();const fi=document.querySelector(".auth-box input");if(fi)fi.focus();return;}
   if(act==="rm-member"){const p=P();if(!p)return;modal(`<h2>Remove ${esc(t.dataset.name)}?</h2><p>They'll lose access to ${esc(p.name)} straight away. Everything they've already posted stays on record.</p><div class="actions"><button class="btn danger" data-act="rm-member-ok" data-id="${esc(t.dataset.id)}">Remove</button><button class="btn" data-act="close">Cancel</button></div>`);return;}
   if(act==="rm-member-ok"){const p=P();if(!p)return;try{await cfApi("DELETE","/api/members?pid="+encodeURIComponent(p.id)+"&user="+encodeURIComponent(t.dataset.id));closeModal();delete S.team[p.id];toast("Removed from the project.");render();}catch(e){closeModal();showErr("Couldn't remove them",e.message||"Please try again.");}return;}
@@ -1710,7 +1715,7 @@ document.addEventListener("submit",async e=>{
     try{const r=await cfApi("POST",up?"/api/auth/signup":"/api/auth/login",body);S.me=r.user;S.busy=false;await cfAfterAuth();}
     catch(err){S.busy=false;render();showErr(up?"Couldn't create your account":"Couldn't sign you in",err.code==="conflict"?"That email already has an account. Choose Sign in instead.":err.message||"Please try again.");}return;}
   if(f.id==="forgot-form"){const em=v("fg-email").trim();S.busy=true;render();
-    try{await cfApi("POST","/api/auth/forgot",{email:em});S.busy=false;S.authMode="in";render();modal(`<h2>Check your email</h2><p>If there's a TrailConstruct account for <b>${esc(em)}</b>, we've sent it a link to choose a new password. The link expires in 1 hour.</p><p class="small muted">Nothing there after a few minutes? Check your spam folder.</p><div><button class="btn pri" data-act="close">OK</button></div>`);}
+    try{await cfApi("POST","/api/auth/forgot",{email:em});S.busy=false;S.authMode="in";render();modal(`<h2>Check your email</h2><p>If <b>${esc(em)}</b> has a TrailConstruct account, we've sent an email there with a link to create a new password. The link expires in 1 hour.</p><p class="small muted">Nothing there after a few minutes? Check your spam folder.</p><div><button class="btn pri" data-act="close">OK</button></div>`);}
     catch(err){S.busy=false;render();showErr("Couldn't send the reset link",err.message||"Please try again.");}return;}
   if(f.id==="reset-form"){const a=v("rs-pass"),b=v("rs-pass2");if(a!==b){toast("The two passwords don't match.");return;}S.busy=true;render();
     try{const r=await cfApi("POST","/api/auth/reset",{token:S.resetToken,password:a});S.resetToken=null;S.authMode="in";S.me=r.user;S.busy=false;toast("Password changed. You're signed in.");await cfAfterAuth();}
