@@ -228,6 +228,7 @@ async function sendInviteEmail(env, { to, name, role, projectName, inviter, link
   <p><b>${escHtml(inviter || "Your developer")}</b> has added you to <b>${escHtml(projectName)}</b> on TrailConstruct as ${ROLE_NAME[role] || "a team member"}.</p>
   <p>${role === "investor" ? "You'll be able to see the project's progress, site photos and download progress reports." : role === "engineer" ? "You'll post daily site updates and photos, and send a weekly report." : "You'll have full access to manage the project."}</p>
   <p style="margin:26px 0"><a href="${link}" style="background:#f0a500;color:#1b1404;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Join the project</a></p>
+  ${role === "engineer" ? `<p>New to TrailConstruct? This 2-minute guide shows you how to post from site: <a href="${new URL(link).origin}/#guide">${new URL(link).origin}/#guide</a></p>` : ""}
   <p style="font-size:13px;color:#5b6570">Or open this link: ${link}<br>If you weren't expecting this, you can ignore this email.</p></div></div>`;
   try {
     const r = await fetch("https://api.resend.com/emails", {

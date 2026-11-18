@@ -508,7 +508,7 @@ main .stats>.stat:nth-child(4):not([class*=" t"]){background:var(--rose)}
 .demo-dots{position:relative;z-index:2;max-width:1320px;width:100%;margin:0 auto;padding:12px clamp(16px,4vw,56px) 28px;display:grid;grid-template-columns:repeat(10,1fr);gap:6px}
 .demo-dots button{border:0;background:none;padding:0;display:grid;gap:6px;text-align:left;cursor:pointer;color:rgba(255,255,255,.55);font-size:.72rem}
 .demo-dots i{height:5px;border-radius:5px;background:rgba(255,255,255,.2)}
-.demo-dots button.s1[aria-current="step"] i{background:var(--sky-ink)}.demo-dots button.s2[aria-current="step"] i{background:var(--amber)}.demo-dots button.s3[aria-current="step"] i{background:#5cc184}
+.demo-dots button.s1[aria-current="step"] i{background:#7fb6dc}.demo-dots button.s2[aria-current="step"] i{background:var(--amber)}.demo-dots button.s3[aria-current="step"] i{background:#5cc184}
 .demo-dots button[aria-current="step"]{color:#fff}
 @media (max-width:760px){.demo-dots span{display:none}}
 .apphead-in,.tabs{max-width:1120px}
@@ -1018,20 +1018,44 @@ const DEMO=[
   {who:"Investor",c:"s3",t:"Download the full PDF report",d:"Every update becomes a branded PDF with the briefing, progress by phase, budget (if included) and site photos. Ready for records, co-investors or the bank.",
    m:`<div class="mk pdf"><div class="pdf-h"><b>TrailConstruct</b><small>Investor progress report</small></div><div class="pdf-b"><b>Palm Court Residences</b><small>Progress update, 16 Nov 2026</small><div class="pdf-big">66%<small> complete</small></div>${[["Foundation",100],["Frame",100],["Roofing",100],["Finishes",13],["Handover",0]].map(([n,v])=>`<div class="pdf-r"><span>${n}</span><i><i style="width:${v}%"></i></i></div>`).join("")}<div class="mk-ph"><i></i><i></i><i></i><i></i></div></div></div>`}
 ];
-function demoView(){
-  const i=S.demo.i,x=DEMO[i];
+// Quick-start for site engineers: same look as the product tour, about two minutes.
+const GUIDE=[
+  {who:"Site engineer",c:"s1",t:"Open your invite link",d:"Your developer sends you a link on WhatsApp or by email. Open it, choose Create account, and enter your name, email and a password. You're added to the project straight away.",
+   m:`<div class="mk"><div class="mk-banner" style="background:var(--sky);color:var(--sky-ink)">You've been invited to Palm Court Residences as a site engineer</div><div class="mk-f"><span>Full name</span><b>Eng. Emeka Ojo</b></div><div class="mk-f"><span>Email</span><b>emeka@example.com</b></div><div class="mk-f"><span>Password</span><b>••••••••••</b></div><div class="mk-btn">Create account</div></div>`},
+  {who:"Site engineer",c:"s1",t:"Put it on your home screen",d:"So it opens like an app. iPhone: in Safari tap Share, then Add to Home Screen. Android: in Chrome tap the three dots, then Add to Home screen. Nothing to download.",
+   m:`<div class="mk"><div class="mk-h">Add to Home Screen</div><div class="mk-ringrow"><span class="mk-ring" style="border-radius:14px;background:var(--deep);color:var(--amber)">TC</span><div><small>Name</small><b>TrailConstruct</b></div></div><div class="mk-f"><span>iPhone</span><b>Share → Add to Home Screen</b></div><div class="mk-f"><span>Android</span><b>⋮ → Add to Home screen</b></div></div>`},
+  {who:"Site engineer",c:"s1",t:"Allow location and camera",d:"When your phone asks, tap Allow. Photos are checked against the site's location, so they only go through when you're on site. Without location, your photos can't be checked.",
+   m:`<div class="mk"><div class="mk-f" style="text-align:center"><b>"trailconstruct.com" would like to use your current location</b></div><div class="mk-row"><div class="mk-btn" style="background:var(--sunk);color:var(--ink)">Don't allow</div><div class="mk-btn">Allow</div></div><div class="mk-banner" style="background:var(--mint);color:var(--ok)">Tap Allow</div></div>`},
+  {who:"Site engineer",c:"s1",t:"Post today's update",d:"At close of work, open Today. Choose the stage, say what was done, how many workers were on site, the weather and any issues. It takes about a minute. What you type is saved as you go.",
+   m:STEPS[0].mock},
+  {who:"Site engineer",c:"s1",t:"Take photos live on site",d:"Tap Add photo and take it there and then. Photos older than 30 minutes, taken away from the site, or posted before are not accepted. Each one is stamped with the date, time and location.",
+   m:`<div class="mk"><div class="mk-h">Photos</div><div class="mk-ph"><i></i><i></i><i></i><i class="add">+</i></div><div class="mk-row"><span class="mk-chip" style="background:var(--mint);color:var(--ok)">✓ On site</span><span class="mk-chip" style="background:var(--mint);color:var(--ok)">✓ On site</span><span class="mk-chip" style="background:var(--mint);color:var(--ok)">✓ On site</span></div><div class="mk-f"><span>Stamp</span><b>18 Nov 2026, 17:42 · On site, 35 m from the pin</b></div></div>`},
+  {who:"Site engineer",c:"s1",t:"No network? Post anyway",d:"If the signal drops, tap Post as normal. The update and its photos are kept on your phone and post by themselves when the network comes back. Don't post it twice.",
+   m:`<div class="mk"><div class="mk-banner">No signal. Saved on this phone with its photos.</div><div class="mk-f"><span>Waiting to post</span><b>Today's update · 3 photos</b></div><div class="mk-banner" style="background:var(--mint);color:var(--ok)">Back online · 1 saved update posted</div></div>`},
+  {who:"Site engineer",c:"s1",t:"Tick the checklist",d:"Open Checklist and tick each item as it's finished. The project's percentage updates by itself, and your developer and investors see the progress.",
+   m:`<div class="mk"><div class="mk-h">Finishes</div>${[["Floor & wall tiling",1],["Ceiling finish (POP / PVC)",1],["Painting — undercoats",0],["Doors hung & ironmongery",0]].map(([l,d])=>`<div class="mk-f" style="grid-template-columns:auto 1fr;align-items:center;gap:10px;display:grid"><b style="color:${d?"var(--ok)":"var(--muted)"}">${d?"☑":"☐"}</b><b>${l}</b></div>`).join("")}</div>`},
+  {who:"Site engineer",c:"s1",t:"Request materials, log the store",d:"Need cement or rods? Open Materials and send a request. Your developer approves it. Log each delivery when it arrives and what was used, so the store balance stays right.",
+   m:DEMO[4].m},
+  {who:"Site engineer",c:"s1",t:"Friday: send the weekly report",d:"Every Friday open Weekly report. Write a short summary of the week and the plan for next week. Your daily updates and photos are attached for you. Late reports show in red for the developer.",
+   m:DEMO[5].m},
+  {who:"Site engineer",c:"s1",t:"That's it. Need help?",d:"Post every working day and send the report on Fridays. If something doesn't work, message your developer or TrailConstruct at hello@trailconstruct.com. You can open this guide again from your dashboard.",
+   m:`<div class="mk"><div class="mk-h">Your week</div><div class="mk-f"><span>Monday to Saturday</span><b>Post today's update with photos</b></div><div class="mk-f"><span>As you go</span><b>Tick the checklist · log materials</b></div><div class="mk-f"><span>Friday</span><b>Send the weekly report</b></div><div class="mk-btn">Go to my site</div></div>`}
+];
+function demoView(){return tourView(DEMO,"Product tour","#home","Close tour",`<a class="btn amber" href="#signup">Start my project</a>`);}
+function guideView(){const dest=S.mode==="cf"&&!S.me?"#signin":"#engineer";return tourView(GUIDE,"Engineer guide",dest,S.me?"Close guide":"Close",`<a class="btn amber" href="${dest}">${S.me?"Go to my site":"Sign in"}</a>`);}
+function tourView(STEPS_,label,closeHref,closeText,endBtn){
+  const i=Math.min(S.demo.i,STEPS_.length-1),x=STEPS_[i];
   return `<div class="demo-page">${BLUEPRINT}
-  <header class="demo-head"><a class="brand" href="#home">${MARK}<span>Trail<span class="wm2">Construct</span></span></a><span class="kicker" style="margin:0">Product tour</span><span class="sp"></span><a class="btn outline sm" href="#home">Close tour</a></header>
+  <header class="demo-head"><a class="brand" href="#home">${MARK}<span>Trail<span class="wm2">Construct</span></span></a><span class="kicker" style="margin:0">${label}</span><span class="sp"></span><a class="btn outline sm" href="${closeHref}">${closeText}</a></header>
   <div class="demo-body">
-    <div class="demo-copy"><span class="who-tag ${x.c}">${esc(x.who)}</span><p class="demo-count num">Step ${i+1} of ${DEMO.length}</p><h1>${esc(x.t)}</h1><p class="lead">${esc(x.d)}</p>
-      <div class="actions">${i>0?`<button class="btn outline" data-act="demo-go" data-i="${i-1}">Back</button>`:""}${i<DEMO.length-1?`<button class="btn amber" data-act="demo-go" data-i="${i+1}">Next</button>`:`<a class="btn amber" href="#signup">Start my project</a>`}
+    <div class="demo-copy"><span class="who-tag ${x.c}">${esc(x.who)}</span><p class="demo-count num">Step ${i+1} of ${STEPS_.length}</p><h1>${esc(x.t)}</h1><p class="lead">${esc(x.d)}</p>
+      <div class="actions">${i>0?`<button class="btn outline" data-act="demo-go" data-i="${i-1}">Back</button>`:""}${i<STEPS_.length-1?`<button class="btn amber" data-act="demo-go" data-i="${i+1}">Next</button>`:endBtn}
       <button class="btn outline" data-act="demo-play" aria-pressed="${S.demo.play}">${S.demo.play?"Pause":"Autoplay"}</button></div></div>
     <div class="demo-stage" key="${i}">${x.m}</div>
   </div>
-  <nav class="demo-dots" aria-label="Tour steps">${DEMO.map((s,k)=>`<button data-act="demo-go" data-i="${k}" aria-current="${k===i?"step":"false"}" class="${s.c}"><i></i><span>${esc(s.t)}</span></button>`).join("")}</nav>
+  <nav class="demo-dots" style="grid-template-columns:repeat(${STEPS_.length},1fr)" aria-label="Steps">${STEPS_.map((s,k)=>`<button data-act="demo-go" data-i="${k}" aria-current="${k===i?"step":"false"}" class="${s.c}"><i></i><span>${esc(s.t)}</span></button>`).join("")}</nav>
   </div>`;
 }
-
 /* ---------- home interactivity ---------- */
 let homeTimers=[];
 function clearHomeTimers(){homeTimers.forEach(clearInterval);homeTimers=[];}
@@ -1053,7 +1077,7 @@ function afterRender(){addEyes();
       document.querySelectorAll("[data-count]").forEach(el=>io2.observe(el));
     }
   }
-  if(S.view==="demo"&&S.demo.play&&!reduce())homeTimers.push(setInterval(()=>{if(S.demo.i<DEMO.length-1){S.demo.i++;render();}else{S.demo.play=false;render();}},6000));
+  if((S.view==="demo"||S.view==="guide")&&S.demo.play&&!reduce()){const L=(S.view==="guide"?GUIDE:DEMO).length;homeTimers.push(setInterval(()=>{if(S.demo.i<L-1){S.demo.i++;render();}else{S.demo.play=false;render();}},7000));}
 }
 
 
@@ -1081,7 +1105,7 @@ function shell(role,tabs,body,narrow){
     ${S.projects.length>1?`<label class="sr" for="proj">Project</label><select id="proj" class="proj">${S.projects.map(p=>`<option value="${esc(p.id)}" ${p.id===S.pid?"selected":""}>${esc(p.name)}</option>`).join("")}</select>`:""}
     ${S.mode==="cf"&&S.me&&S.admin?`<button class="btn sm ghost" data-act="go-admin">Admin</button>`:""}${S.mode==="cf"&&S.me?`<button class="btn sm ghost" data-act="account">Account</button>`:`<button class="btn sm ghost" data-act="signout">Sign out</button>`}</div>
     ${tabs?`<nav class="tabs" role="tablist">${tabs.map(([k,l,n])=>`<button role="tab" data-act="tab" data-role="${role}" data-tab="${k}" aria-selected="${cur===k}">${l}${n?`<span class="count">${n}</span>`:""}</button>`).join("")}</nav>`:""}
-  </header><main class="${narrow?"narrow":""}">${S.mode==="memory"?`<p class="note">Preview mode: changes aren't saved here. Open the published page to save.</p>`:""}${!S.canWrite&&role!=="investor"?`<p class="note">You have view access only.</p>`:""}${S.mode==="cf"&&S.pid&&tabs?billingBanner(role):""}${body}</main>`;
+  </header><main class="${narrow?"narrow":""}">${S.mode==="memory"?`<p class="note">Preview mode: changes aren't saved here. Open the published page to save.</p>`:""}${!S.canWrite&&role!=="investor"?`<p class="note">You have view access only.</p>`:""}${S.mode==="cf"&&S.pid&&tabs?billingBanner(role):""}${role==="engineer"&&tabs&&!ls.get("st.guide.hide")?`<div class="banner done guide-ban"><div><b>New to TrailConstruct?</b><p class="small" style="margin:4px 0 0">A 2-minute guide to posting from site.</p></div><span class="actions"><a class="btn sm pri" href="#guide">Open the guide</a><button class="btn sm ghost" data-act="guide-hide">Hide</button></span></div>`:""}${body}</main>`;
 }
 /* ---------- billing (bank transfer) ---------- */
 const fmtDay=t=>new Date(t).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
@@ -1626,7 +1650,10 @@ function renderInner(){
   if(S.mode==="cf"&&["developer","engineer","investor"].includes(S.view)&&S.pid){const r=roleFor(S.pid);if(r&&r!==S.view){S.view=r;history.replaceState(null,"","#"+r);}}
   if(S.view==="signin"){app.innerHTML=signinView();return;}
   if(S.view==="signup"){app.innerHTML=signupView();return;}
+  if((S.view==="demo"||S.view==="guide")&&S.tourView!==S.view){S.tourView=S.view;S.demo.i=0;S.demo.play=false;}
+  if(S.view!=="demo"&&S.view!=="guide")S.tourView=null;
   if(S.view==="demo"){app.innerHTML=demoView();return;}
+  if(S.view==="guide"){app.innerHTML=guideView();return;}
   if(S.view==="admin"){app.innerHTML=S.mode==="cf"&&S.me&&S.admin?adminView():shell("developer",null,`<div class="card"><div class="empty">Not available.</div></div>`);return;}
   if(S.mode==="loading"||(S.db&&!S.loaded.projects)){app.innerHTML=shell(v,null,`<div class="card"><div class="empty">${S.slow?"Can't reach the project data yet. It will appear when the connection returns.":"Loading your projects…"}</div></div>`);return;}
   const vv=S.view,p=P();if(!p){app.innerHTML=noProject(vv);return;}
@@ -1723,7 +1750,7 @@ document.addEventListener("click",async e=>{
   if(act==="phase-chip"){S.home.phase=+t.dataset.i;const y=window.scrollY;render();window.scrollTo(0,y);return;}
   if(act==="billing"){S.home.annual=t.dataset.v==="1";const y=window.scrollY;render();window.scrollTo(0,y);return;}
   if(act==="demo-go"){S.demo.i=+t.dataset.i;render();return;}
-  if(act==="demo-play"){S.demo.play=!S.demo.play;if(S.demo.play&&S.demo.i===DEMO.length-1)S.demo.i=0;render();return;}
+  if(act==="demo-play"){const L=(S.view==="guide"?GUIDE:DEMO).length;S.demo.play=!S.demo.play;if(S.demo.play&&S.demo.i>=L-1)S.demo.i=0;render();return;}
   if(act==="onb-back"){S.onb.step=Math.max(0,S.onb.step-1);render();window.scrollTo(0,0);return;}
   if(act==="onb-pay"){S.onb.d.payMode=t.dataset.v;render();return;}
   if(act==="onb-phase"){S.onb.d.phase=+t.dataset.i;render();return;}
@@ -1734,6 +1761,7 @@ document.addEventListener("click",async e=>{
   if(act==="signin"){ls.set("st.role",t.dataset.role);go(t.dataset.role);return;}
   if(act==="signout"){closeModal();ls.set("st.role","");if(S.mode==="cf"){try{await cfApi("POST","/api/auth/logout");}catch(e){}S.me=null;S.memberships=[];S.projects=[];S.pid=null;}go("home");return;}
   if(act==="authmode"){S.authMode=t.value;render();return;}
+  if(act==="guide-hide"){ls.set("st.guide.hide","1");render();toast("You can open the guide again from Account.");return;}
   if(act==="go-admin"){closeModal();S.adm={};go("admin");return;}
   if(act==="pay-open"){payModal();return;}
   if(act==="pay-kind"){try{await cfApi("POST","/api/billing/renew",{pid:S.pid,kind:t.dataset.v});await refreshBilling();payModal();}catch(e){toast(e.message||"Couldn't change that.");}return;}
@@ -1760,7 +1788,7 @@ document.addEventListener("click",async e=>{
   if(act==="rm-member-ok"){const p=P();if(!p)return;try{await cfApi("DELETE","/api/members?pid="+encodeURIComponent(p.id)+"&user="+encodeURIComponent(t.dataset.id));closeModal();delete S.team[p.id];toast("Removed from the project.");render();}catch(e){closeModal();showErr("Couldn't remove them",e.message||"Please try again.");}return;}
   if(act==="rm-invite"){const p=P();if(!p)return;try{await cfApi("DELETE","/api/invites/"+encodeURIComponent(t.dataset.id));delete S.team[p.id];toast("Invite cancelled. That link no longer works.");render();}catch(e){showErr("Couldn't cancel the invite",e.message||"Please try again.");}return;}
   if(act==="del-project"){const p=P();if(!p)return;modal(`<h2>Delete ${esc(p.name)}?</h2><p>This removes the project for everyone, with all its updates, reports, photos and materials. It can't be undone.</p><form id="delp-form"><label class="f" for="dp-name">Type the project name to confirm<input type="text" id="dp-name" required autocomplete="off" placeholder="${esc(p.name)}"></label><div class="actions"><button class="btn danger" type="submit">Delete project</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);return;}
-  if(act==="account"){modal(`<h2>Your account</h2><dl class="kv"><dt>Name</dt><dd>${esc(S.me&&S.me.name||"—")}</dd><dt>Email</dt><dd>${esc(S.me&&S.me.email||"")}</dd></dl><p class="small muted"><a href="#privacy" target="_blank">Privacy policy</a> · <a href="#terms" target="_blank">Terms</a></p>
+  if(act==="account"){modal(`<h2>Your account</h2><dl class="kv"><dt>Name</dt><dd>${esc(S.me&&S.me.name||"—")}</dd><dt>Email</dt><dd>${esc(S.me&&S.me.email||"")}</dd></dl><p class="small muted"><a href="#guide" data-act="close">Engineer guide</a> · <a href="#demo" data-act="close">Product tour</a> · <a href="#privacy" target="_blank">Privacy policy</a> · <a href="#terms" target="_blank">Terms</a></p>
     <details><summary>Change password</summary><form id="pw-form"><label class="f" for="pw-cur">Current password<input type="password" id="pw-cur" required autocomplete="current-password"></label><label class="f" for="pw-new">New password<input type="password" id="pw-new" required minlength="8" autocomplete="new-password"></label><p class="small muted">At least 8 characters. You'll stay signed in here and be signed out on your other devices.</p><div><button class="btn pri" type="submit">Change password</button></div></form></details>
     ${S.admin?`<p><button class="btn" data-act="go-admin">Open admin page</button></p>`:""}
     
@@ -1840,7 +1868,7 @@ document.addEventListener("submit",async e=>{
     try{await store.set("projects",nid,{name:(d.pname||"New project").trim(),location:(d.loc||"").trim(),propType:d.ptype||"",sewageType:d.sew||"septic",foundationType:d.fdn||"",unitCount:+d.unitn||0,blockCount:+d.blocks||0,beds:d.beds||"",units:unitsText({propType:d.ptype,unitCount:d.unitn,blockCount:d.blocks,beds:d.beds}),client:(d.company||"").trim(),owner:(d.name||"").trim(),floors:+d.floors||0,budget:Math.max(0,+d.budget||0),startDate:d.start||"",durationMonths:d.dur&&d.dur!=="custom"?+d.dur:0,targetDate:finalTarget(d.start,d.dur,d.target),payMode:!PAY_SOON&&d.payMode==="milestone"?"milestone":"upfront",...(()=>{const g=parseLatLng(d.gps);return g?{siteLat:g.lat,siteLng:g.lng,siteRadius:200}:{};})(),contractSum:Math.max(0,+d.contract||0),checks:p0.checks,team:d.team,plan:{name:"Single site",billing:d.annual?"yearly":"monthly"},createdAt:new Date().toISOString()});
       S.pid=nid;ls.set("st.pid",nid);ls.set("st.role","developer");S.tab.developer="overview";
       if(S.mode==="cf"){await S.db.pull();S.showPayAfterInvites=true;const links=[];for(const m of d.team){try{const r=await cfApi("POST","/api/invites",{pid:nid,role:m.role,name:m.name,email:m.email});links.push({...m,code:r.code,emailed:r.emailed});}catch(e){}}
-        S.payNext=!!links.length;if(links.length)setTimeout(()=>modal(`<h2>Your team is invited</h2><p class="small muted">${links.some(l=>l.emailed)?"We've emailed everyone who has an email address. You can also send the links on WhatsApp.":"Send each person their link on WhatsApp or copy it. They open it to join."}</p>${links.map(l=>`<div class="exp"><span>${esc(l.name)} · ${ROLE_LABEL[l.role]}${l.emailed?` · <span class="pill ok">Emailed</span>`:""}</span><span class="actions">${waLink(`You've been invited to follow ${d.pname} on TrailConstruct. Join here: ${location.origin}/?invite=${l.code}`,"WhatsApp")}<button class="btn sm" data-act="copy" data-text="${esc(location.origin+"/?invite="+l.code)}">Copy</button></span><span></span><span></span></div>`).join("")}<div><button class="btn pri" data-act="close">Done</button></div>`),400);}if(S.mode==="cf"&&S.showPayAfterInvites){S.showPayAfterInvites=false;refreshBilling().then(()=>{if(!S.payNext)payModal();});}S.onb={step:0,d:{floors:2,phase:0,team:[],annual:false}};S.busy=false;toast("Project created. Welcome to TrailConstruct.");go("developer");}
+        S.payNext=!!links.length;if(links.length)setTimeout(()=>modal(`<h2>Your team is invited</h2><p class="small muted">${links.some(l=>l.emailed)?"We've emailed everyone who has an email address. You can also send the links on WhatsApp.":"Send each person their link on WhatsApp or copy it. They open it to join."}</p>${links.map(l=>`<div class="exp"><span>${esc(l.name)} · ${ROLE_LABEL[l.role]}${l.emailed?` · <span class="pill ok">Emailed</span>`:""}</span><span class="actions">${waLink(`You've been invited to follow ${d.pname} on TrailConstruct. Join here: ${location.origin}/?invite=${l.code}${l.role==="engineer"?`\n\nNew to it? 2-minute guide: ${location.origin}/#guide`:""}`,"WhatsApp")}<button class="btn sm" data-act="copy" data-text="${esc(location.origin+"/?invite="+l.code)}">Copy</button></span><span></span><span></span></div>`).join("")}<div><button class="btn pri" data-act="close">Done</button></div>`),400);}if(S.mode==="cf"&&S.showPayAfterInvites){S.showPayAfterInvites=false;refreshBilling().then(()=>{if(!S.payNext)payModal();});}S.onb={step:0,d:{floors:2,phase:0,team:[],annual:false}};S.busy=false;toast("Project created. Welcome to TrailConstruct.");go("developer");}
     catch(err){S.busy=false;onErr(err);}
     return;
   }
@@ -1925,7 +1953,7 @@ document.addEventListener("input",e=>{
   if(e.target.id==="calc-n"){S.home.projects=+e.target.value;const n=S.home.projects,a=S.home.annual,r=n>=5?22000:25000;document.querySelector(".calc-n").textContent=n;document.getElementById("calc-total").textContent=naira(n*r*(a?10:1));document.getElementById("calc-note").textContent=n>=5?"Portfolio rate applied":"Add "+(5-n)+" more for the Portfolio rate";return;}
 if(["up-title","up-brief","up-next"].includes(e.target.id))saveDraftFields();});
 document.addEventListener("keydown",e=>{const L=document.getElementById("layer");if(!L.innerHTML)return;if(e.key==="Escape")closeModal();const b=L.querySelectorAll("[data-act=gnav]");if(b.length&&e.key==="ArrowLeft")b[0].click();if(b.length&&e.key==="ArrowRight")b[1].click();});
-window.addEventListener("hashchange",()=>{const h=location.hash.slice(1);if(["home","signin","signup","demo","developer","engineer","investor","privacy","terms","admin"].includes(h)&&h!==S.view){S.view=h;render();window.scrollTo(0,0);}});
+window.addEventListener("hashchange",()=>{const h=location.hash.slice(1);if(["home","signin","signup","demo","developer","engineer","investor","privacy","terms","admin","guide"].includes(h)&&h!==S.view){S.view=h;render();window.scrollTo(0,0);}});
 
 /* ---------- preview data (only when shared storage is unavailable) ---------- */
 function previewSeed(){
@@ -1988,6 +2016,7 @@ async function cfAfterAuth(){
   try{const d=await cfApi("GET","/api/me");S.admin=d.admin||null;S.memberships=d.memberships||S.memberships;}catch(e){}
   await S.db.pull();pickProject();
   // Admins land on the admin page when they came from the admin link, or when they have no projects of their own.
+  if(code&&S.pid&&roleFor(S.pid)==="engineer"&&!ls.get("st.guided")){ls.set("st.guided","1");go("guide");return;}
   if(S.admin&&(S.afterLogin==="admin"||!(S.memberships||[]).length)){S.afterLogin=null;S.adm={};go("admin");return;}
   S.afterLogin=null;
   const role=S.pid?roleFor(S.pid):null;
@@ -2034,7 +2063,7 @@ function teamSection(p){
   const link=c=>location.origin+"/?invite="+c;
   return `<section class="card"><h2>Team</h2>
     <div>${(t.members||[]).map(m=>`<div class="exp"><span>${esc(m.name||m.email)}${m.id===t.me?" (you)":""}</span><span class="pill ${m.role==="investor"?"ok":m.role==="engineer"?"active":""}">${ROLE_LABEL[m.role]||m.role}</span><span class="small muted">${esc(m.email)}</span><span>${m.id!==t.me?`<button class="btn sm ghost" data-act="rm-member" data-id="${esc(m.id)}" data-name="${esc(m.name||m.email)}">Remove</button>`:""}</span></div>`).join("")}</div>
-    ${(t.invites||[]).length?`<h3>Pending invites</h3>${t.invites.map(i=>`<div class="exp"><span>${esc(i.name||i.email||"Invite")} · ${ROLE_LABEL[i.role]}</span><span class="actions">${waLink(`You've been invited to follow ${p.name} on TrailConstruct as ${ROLE_LABEL[i.role]}. Join here: ${link(i.code)}`,"Send")}<button class="btn sm" data-act="copy" data-text="${esc(link(i.code))}">Copy link</button><button class="btn sm ghost" data-act="rm-invite" data-id="${esc(i.code)}">Cancel</button></span><span class="small muted">${esc(i.email||"")}</span><span></span></div>`).join("")}<p class="small muted">Invite links work once and expire after 14 days.</p>`:""}
+    ${(t.invites||[]).length?`<h3>Pending invites</h3>${t.invites.map(i=>`<div class="exp"><span>${esc(i.name||i.email||"Invite")} · ${ROLE_LABEL[i.role]}</span><span class="actions">${waLink(`You've been invited to follow ${p.name} on TrailConstruct as ${ROLE_LABEL[i.role]}. Join here: ${link(i.code)}${i.role==="engineer"?`\n\nNew to it? 2-minute guide: ${location.origin}/#guide`:""}`,"Send")}<button class="btn sm" data-act="copy" data-text="${esc(link(i.code))}">Copy link</button><button class="btn sm ghost" data-act="rm-invite" data-id="${esc(i.code)}">Cancel</button></span><span class="small muted">${esc(i.email||"")}</span><span></span></div>`).join("")}<p class="small muted">Invite links work once and expire after 14 days.</p>`:""}
     <form id="inv-form"><h3>Invite someone</h3><div class="row"><label class="f" for="iv-name">Name<input type="text" id="iv-name" required></label><label class="f" for="iv-email">Email<input type="email" id="iv-email"></label><label class="f" for="iv-role">Role<select id="iv-role"><option value="engineer">Site engineer</option><option value="investor">Investor</option><option value="developer">Developer (full access)</option></select></label></div><div><button class="btn pri" type="submit">Create invite link</button></div></form>
   </section>`;
 }
@@ -2116,7 +2145,7 @@ function setPin(prefix,pick){
 
 
 /* ---------- start ---------- */
-(function(){const h=location.hash.slice(1);if(["home","signin","signup","demo","developer","engineer","investor","privacy","terms","admin"].includes(h))S.view=h;})();
+(function(){const h=location.hash.slice(1);if(["home","signin","signup","demo","developer","engineer","investor","privacy","terms","admin","guide"].includes(h))S.view=h;})();
 render();
 (async function init(){
   const C=window.claude;
