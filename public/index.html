@@ -1239,7 +1239,7 @@ function devView(p){
   if(t==="investor")body=composeView(p,pr,ups);
   if(t==="materials")body=materialsView(p,"developer");
   if(t==="payments")body=paymentsView(p,"developer");
-  if(t==="stages")body=outstandingCard(p,50)+`<section class="card"><div class="card-h"><h2>Stages</h2><span class="small muted">Tap a stage to open its checklist</span></div>${phaseStrip(pr)}${stageList(p)}</section>`;
+  if(t==="stages")body=outstandingCard(p,50)+`<section class="card"><div class="card-h"><h2>Stages</h2>${S.canWrite?`<button class="btn sm" data-act="set-stage">Set current stage</button>`:`<span class="small muted">Tap a stage to open its checklist</span>`}</div>${phaseStrip(pr)}${stageList(p)}</section>`;
   if(t==="budget"){
     const exps=expOf(p.id),spent=exps.reduce((a,e)=>a+(+e.amount||0),0),budget=+p.budget||0;
     body=`<section class="card"><h2>Budget</h2>
@@ -1664,6 +1664,16 @@ function go(view){S.view=view;history.replaceState(null,"","#"+view);render();wi
 /* ---------- modals ---------- */
 function modal(html){const L=document.getElementById("layer");L.innerHTML=`<div class="modal" data-act="backdrop"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;addEyes(L);const f=L.querySelector("input,button");if(f)f.focus();}
 function closeModal(){document.getElementById("layer").innerHTML="";if(S.payNext&&S.billing&&S.billing[S.pid]&&S.billing[S.pid].payment){S.payNext=false;payModal();}}
+// Ticks every checklist item in the phases before phase number idx. With untickLater, clears the rest.
+function checksUpTo(proj,idx,untickLater){const pr=progress(proj),done=new Set(pr.phases.slice(0,idx).map(x=>x.name)),out={};
+  stagesFor(proj).forEach(st=>st.items.forEach(i=>{if(done.has(st.group))out[i.id]=true;else if(untickLater)out[i.id]=false;}));return out;}
+function phaseNames(proj){return progress(proj).phases.map(x=>x.name);}
+function stageModal(p){const names=phaseNames(p),cur=progress(p).phases.findIndex(x=>x.pct<.999);
+  modal(`<h2>Set the current stage</h2><p class="small muted">Choose the phase work is on now. Everything before it is marked done, so the percentage is right. You can still tick single items in the checklist.</p>
+    <form id="stage-form"><label class="f" for="sg-phase">Work is now on<select id="sg-phase">${names.map((n,i)=>`<option value="${i}" ${i===(cur<0?names.length-1:cur)?"selected":""}>${esc(n)}</option>`).join("")}<option value="${names.length}">Complete: everything done</option></select></label>
+    <label class="chk"><input type="checkbox" id="sg-untick"> Also untick items in this phase and the ones after it</label>
+    <p class="small muted">The change shows in the activity log.</p>
+    <div class="actions"><button class="btn pri" type="submit">Save stage</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);}
 function projectForm(p){p=p||{};
   modal(`<h2>${p.id?"Edit project":"New project"}</h2><form id="proj-form" data-id="${esc(p.id||"")}">
     <label class="f" for="pf-name">Project name<input type="text" id="pf-name" required value="${esc(p.name||"")}"></label>
@@ -1671,6 +1681,7 @@ function projectForm(p){p=p||{};
     ${propFields("pf",p.propType?p:{...p,propType:""},()=>"")}${!p.propType&&p.units?`<p class="small muted">Currently: ${esc(p.units)}. Choose a type above to update it.</p>`:""}
     <div class="row">${foundationSelect("pf-fdn",p.foundationType||"","")}${sewageSelect("pf-sew",p.sewageType,"")}</div>
     <label class="f" for="pf-client">Developer / company<input type="text" id="pf-client" value="${esc(p.client||"")}"></label>
+    ${p.id?"":`<label class="f" for="pf-phase">Where is the project now?<select id="pf-phase">${phaseNames({floors:2}).map((n,i)=>`<option value="${i}">${esc(n)}</option>`).join("")}</select></label><p class="small muted" style="margin-top:-6px">Everything before this phase is marked done, so a project that's already under way starts at the right percentage.</p>`}
     <div class="row"><label class="f" for="pf-floors">Floors above ground<select id="pf-floors">${[...Array(31).keys()].map(n=>`<option value="${n}" ${(+p.floors||0)===n?"selected":""}>${floorsOption(n)}</option>`).join("")}</select></label>
     <label class="f" for="pf-budget">Budget (₦)<input type="number" id="pf-budget" min="0" step="1" value="${esc(p.budget||"")}"></label></div>
     ${durBlock("pf",p.startDate,p.durationMonths?String(p.durationMonths):(p.targetDate?"custom":""),p.targetDate,()=>"")}
@@ -1804,6 +1815,7 @@ document.addEventListener("click",async e=>{
   if(act==="pdf"){const u=S.updates.find(x=>x.id===t.dataset.id);if(u&&p)makePDF(p,u);return;}
   if(act==="new-project"){projectForm();return;}
   if(act==="edit-project"){projectForm(p);return;}
+  if(act==="set-stage"){if(p)stageModal(p);return;}
   if(act==="pick"){saveDraftFields();const id=t.dataset.id,s=S.draft.sel;const i=s.indexOf(id);if(i<0)s.push(id);else s.splice(i,1);render();return;}
   if(act==="clear-draft"){S.draft={sel:[],extra:[],title:"",briefing:"",next:"",budget:false,fromReport:null};render();return;}
   if(!S.canWrite||!p)return;
@@ -1902,10 +1914,11 @@ document.addEventListener("submit",async e=>{
     data.units=data.propType?unitsText(data):((f.dataset.id&&P()?P().units:"")||"");
     {const g=parseLatLng(v("pf-gps"));if(v("pf-gps").trim()&&!g){toast("Couldn't read that location. Use \"6.4561, 3.4318\" or a Google Maps link.");return;}data.siteLat=g?g.lat:"";data.siteLng=g?g.lng:"";}
     if(f.dataset.id)await store.update("projects",f.dataset.id,data);
-    else{const nid="p-"+Date.now().toString(36);await store.set("projects",nid,{...data,checks:{},createdAt:new Date().toISOString()});S.pid=nid;ls.set("st.pid",nid);}
+    else{const nid="p-"+Date.now().toString(36);await store.set("projects",nid,{...data,checks:checksUpTo({floors:data.floors},+v("pf-phase")||0,false),createdAt:new Date().toISOString()});S.pid=nid;ls.set("st.pid",nid);}
     closeModal();toast("Project saved.");render();return;
   }
   if(!p)return;
+  if(f.id==="stage-form"){const idx=+v("sg-phase");try{await store.update("projects",p.id,{checks:checksUpTo(p,idx,document.getElementById("sg-untick").checked)});closeModal();toast("Stage saved.");if(S.activity)delete S.activity[p.id];render();}catch(e){onErr(e);}return;}
   if(f.id==="req-form"){await store.add("matreqs",{pid:p.id,item:v("rq-item").trim(),qty:+v("rq-qty")||0,unit:v("rq-unit"),needBy:v("rq-need"),note:v("rq-note").trim(),by:ls.get("st.name")||"Site engineer",status:"pending",createdAt:new Date().toISOString()});toast("Request sent to the developer.");return;}
   if(f.id==="mv-form"){const type=(f.querySelector("input[name=mv-type]:checked")||{}).value||"in";await store.add("stock",{pid:p.id,item:v("mv-item").trim(),qty:+v("mv-qty")||0,unit:v("mv-unit"),type,note:v("mv-note").trim(),by:ls.get("st.name")||"Site",date:ymd(new Date()),createdAt:new Date().toISOString()});toast(type==="in"?"Delivery recorded.":"Usage recorded.");return;}
   if(f.id==="ms-form"){const n=msOf(p.id).length;await store.add("milestones",{pid:p.id,name:v("ms-name").trim(),phase:v("ms-phase"),amount:Math.max(0,+v("ms-amt")||0),order:n,status:"pending",createdAt:new Date().toISOString()});toast("Milestone added.");return;}
