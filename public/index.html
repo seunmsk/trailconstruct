@@ -1427,7 +1427,7 @@ async function checkShot(p,file){
   else if(!ex.gps){if(site&&p.strictGps)return {ok:false,why:"This photo has no location. Turn on location for your camera, then take it again."};v=site?"nogps":"nosite";}
   else if(v!=="onsite")v="gps";
   const when=new Date(taken||now),stampT=when.toLocaleString("en-GB",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
-  const lines=[`TrailConstruct · ${p.name}`,`${stampT}${ex.gps?` · ${ex.gps.lat.toFixed(5)}, ${ex.gps.lng.toFixed(5)}`:""}`,v==="onsite"?`Verified on site (${fmtDist(dist)} from pin)`:v==="nogps"?"Location not recorded by camera":"Live photo"];
+  const lines=[`TrailConstruct · ${p.name}`,`${stampT}${ex.gps?` · ${ex.gps.lat.toFixed(5)}, ${ex.gps.lng.toFixed(5)}`:""}`,v==="onsite"?`On site, ${fmtDist(dist)} from the pin`:v==="nogps"?"Location not recorded by camera":"Live photo"];
   const blob=await stampPhoto(file,lines);
   return {ok:true,blob,preview:URL.createObjectURL(blob),v,dist,gps:ex.gps||null,takenAt:when.toISOString()};
 }
@@ -1670,7 +1670,7 @@ document.addEventListener("change",async e=>{
     if(k==="ptype"){setTimeout(()=>{const y=window.scrollY;render();window.scrollTo(0,y);},0);}
     else if(["unitn","blocks","beds"].includes(k)){const s=document.getElementById("o-psum");if(s)s.innerHTML=`Shows as: <b style="color:var(--ink)">${esc(unitsText({propType:d.ptype,unitCount:d.unitn,blockCount:d.blocks,beds:d.beds}))}</b>`;}return;}
   if(e.target.id==="lg-cam"){const f=e.target.files&&e.target.files[0];e.target.value="";const p=P();if(!f||!p)return;if(S.shots.length>=8){toast("8 photos per update. Post this one first.");return;}
-    toast("Checking photo…");try{const r=await checkShot(p,f);if(!r.ok){modal(`<h2>Photo not accepted</h2><p>${esc(r.why)}</p><div><button class="btn pri" data-act="close">OK</button></div>`);return;}S.shots.push(r);renderShots();toast(r.v==="onsite"?"Verified on site.":"Photo added.");}catch(err){toast("Couldn't read that photo. Try again.");}return;}
+    toast("Checking photo…");try{const r=await checkShot(p,f);if(!r.ok){modal(`<h2>Photo not accepted</h2><p>${esc(r.why)}</p><div><button class="btn pri" data-act="close">OK</button></div>`);return;}S.shots.push(r);renderShots();toast(r.v==="onsite"?"Location checked: on site.":"Photo added.");}catch(err){toast("Couldn't read that photo. Try again.");}return;}
   if(["pf-start","pf-dur","pf-target"].includes(e.target.id)){const g=id=>(document.getElementById(id)||{}).value||"";const dur=g("pf-dur");const tl=document.getElementById("pf-tlabel");if(tl)tl.hidden=dur!=="custom";const n=document.getElementById("pf-dnote");if(n)n.innerHTML=durNote(g("pf-start"),dur,g("pf-target"));return;}
   if(["pf-ptype","pf-unitn","pf-blocks","pf-beds"].includes(e.target.id)){const g=id=>(document.getElementById(id)||{}).value||"";const txt=unitsText({propType:g("pf-ptype"),unitCount:g("pf-unitn"),blockCount:g("pf-blocks"),beds:g("pf-beds")});let s=document.getElementById("pf-psum");if(!s){s=document.createElement("p");s.id="pf-psum";s.className="small muted";document.querySelector(".propbox").appendChild(s);}s.innerHTML=`Shows as: <b style="color:var(--ink)">${esc(txt)}</b>`;return;}
   if(e.target.id==="proj"){S.pid=e.target.value;ls.set("st.pid",S.pid);render();return;}
