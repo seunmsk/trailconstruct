@@ -28,7 +28,16 @@ const RESET_MS = 60 * 60 * 1000, RESET_MAX_PER_USER = 3, RESET_MAX_PER_IP = 10;
 const FROM_DEFAULT = "TrailConstruct <no-reply@trailconstruct.com>";
 const ALERT_TO_DEFAULT = "hello@trailconstruct.com";
 // ---------- billing (manual bank transfer for now) ----------
-const BANK = { bank: "Wema Bank", name: "Eppcheck Technologies Ltd", number: "0126784194" };
+const BANK_DEFAULT = { bank: "Wema Bank", name: "Eppcheck Technologies Ltd", number: "0126784194" };
+// Settings the admin can change: bank details, homepage notice, WhatsApp number.
+async function getSettings(env) {
+  const out = { bank: { ...BANK_DEFAULT }, announcement: "", whatsapp: "" };
+  try {
+    const r = await env.DB.prepare("SELECT key, value FROM settings").all();
+    for (const x of r.results || []) { try { const v = JSON.parse(x.value); if (x.key === "bank" && v && v.number) out.bank = v; else if (x.key in out) out[x.key] = v; } catch (e) {} }
+  } catch (e) {}
+  return out;
+}
 const VAT = 0.075, DAY = 864e5;
 const GRACE_DAYS = 7;        // a new project can be used for 7 days before the pilot is paid
 const AFTER_EXPIRY_DAYS = 3; // after a paid period ends, 3 more days before the project becomes read-only
@@ -54,7 +63,23 @@ function billingState(b, now = Date.now()) {
 const ADMIN_DEFAULT = "seunmsk@gmail.com";
 // Photos: taken more than this long before upload are marked "posted later" (e.g. queued offline).
 const PHOTO_LATE_MS = 6 * 3600 * 1000, PHOTO_MAX_AGE_MS = 72 * 3600 * 1000;
-const isAdmin = (env, user) => !!user && String(env.ADMIN_EMAILS || ADMIN_DEFAULT).toLowerCase().split(/[\s,]+/).includes(String(user.email).toLowerCase());
+const ownerEmails = (env) => String(env.ADMIN_EMAILS || ADMIN_DEFAULT).toLowerCase().split(/[\s,]+/).filter(Boolean);
+// "owner" (set in Cloudflare, can manage admins), "full" (everything else) or "payments" (confirm payments only).
+async function adminRole(env, user) {
+  if (!user) return null;
+  const em = String(user.email).toLowerCase();
+  if (ownerEmails(env).includes(em)) return "owner";
+  const r = await env.DB.prepare("SELECT role FROM admins WHERE email = ?").bind(em).first();
+  return r ? r.role : null;
+}
+// Why a project can't be changed right now, or null if it can.
+async function projectLock(env, pid) {
+  const pz = await env.DB.prepare("SELECT reason FROM pauses WHERE pid = ?").bind(pid).first();
+  if (pz) return "This project has been paused by TrailConstruct" + (pz.reason ? ": " + pz.reason : ".") + " Contact hello@trailconstruct.com.";
+  const bl = await env.DB.prepare("SELECT * FROM billing WHERE pid = ?").bind(pid).first();
+  if (billingState(bl) === "locked") return "This project is read-only because its subscription isn't paid. The developer can renew it from the dashboard.";
+  return null;
+}
 function distM(a, b) {
   const R = 6371000, r = (x) => (x * Math.PI) / 180, dLat = r(b.lat - a.lat), dLng = r(b.lng - a.lng);
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLng / 2) ** 2;
@@ -97,7 +122,7 @@ async function currentUser(req, env) {
   const t = cookie(req, "st_s");
   if (!t || !/^[a-f0-9]{64}$/.test(t)) return null;
   return env.DB.prepare(
-    "SELECT u.id, u.name, u.email FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND s.expires_at > ?"
+    "SELECT u.id, u.name, u.email FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND s.expires_at > ? AND u.id NOT IN (SELECT user_id FROM suspensions)"
   ).bind(t, Date.now()).first();
 }
 async function startSession(env, userId) {
@@ -174,6 +199,10 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS billing (pid TEXT PRIMARY KEY, plan_after TEXT NOT NULL DEFAULT 'monthly', paid_until INTEGER, grace_until INTEGER NOT NULL, reminded TEXT, created_at INTEGER NOT NULL)",
   "CREATE TABLE IF NOT EXISTS payments (ref TEXT PRIMARY KEY, pid TEXT NOT NULL, user_id TEXT NOT NULL, kind TEXT NOT NULL, amount INTEGER NOT NULL, status TEXT NOT NULL, created_at INTEGER NOT NULL, sent_at INTEGER, done_at INTEGER, done_by TEXT)",
   "CREATE INDEX IF NOT EXISTS payments_pid ON payments(pid, created_at)",
+  "CREATE TABLE IF NOT EXISTS admins (email TEXT PRIMARY KEY, role TEXT NOT NULL CHECK (role IN ('full','payments')), added_by TEXT, added_at INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS suspensions (user_id TEXT PRIMARY KEY, reason TEXT, by_email TEXT, at INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS pauses (pid TEXT PRIMARY KEY, reason TEXT, by_email TEXT, at INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL)",
   "CREATE TABLE IF NOT EXISTS alerts (kind TEXT PRIMARY KEY, at INTEGER NOT NULL)",
   "CREATE TABLE IF NOT EXISTS password_resets (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, used_at INTEGER)",
   "CREATE INDEX IF NOT EXISTS login_fails_email ON login_fails(email, at)",
@@ -261,7 +290,7 @@ async function sendMail(env, to, subject, inner) {
   } catch (e) { console.error("mail error", e); return false; }
 }
 const btn = (href, text) => `<p style="margin:24px 0"><a href="${href}" style="background:#f0a500;color:#1b1404;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold">${text}</a></p>`;
-const bankBlock = (ref, total) => `<table style="border-collapse:collapse;font-size:15px;margin:8px 0 4px">${[["Amount", naira(total)], ["Bank", BANK.bank], ["Account name", BANK.name], ["Account number", BANK.number], ["Narration", ref]].map(([a, b]) => `<tr><td style="padding:4px 16px 4px 0;color:#5b6570">${a}</td><td style="padding:4px 0"><b>${b}</b></td></tr>`).join("")}</table>`;
+const bankBlock = (ref, total, BANK) => `<table style="border-collapse:collapse;font-size:15px;margin:8px 0 4px">${[["Amount", naira(total)], ["Bank", BANK.bank], ["Account name", BANK.name], ["Account number", BANK.number], ["Narration", ref]].map(([a, b]) => `<tr><td style="padding:4px 16px 4px 0;color:#5b6570">${a}</td><td style="padding:4px 0"><b>${b}</b></td></tr>`).join("")}</table>`;
 async function projectName(env, pid) {
   const r = await env.DB.prepare("SELECT data FROM docs WHERE col = 'projects' AND id = ?").bind(pid).first();
   return r ? JSON.parse(r.data).name || "your project" : "your project";
@@ -299,6 +328,15 @@ async function billingReminders(env, origin, pid, b) {
   } catch (e) { console.error("reminder", e); }
 }
 
+async function sendReceipt(env, dev, ref, name, kind, amount, until) {
+  const net = Math.round(amount / (1 + VAT));
+  return sendMail(env, dev.email, `Payment received: ${naira(amount)} for ${name}`,
+    `<p>Hello ${escHtml(dev.name || "")},</p><p>We've received your payment. Thank you.</p><table style="border-collapse:collapse;font-size:15px">${[["Receipt", ref], ["Project", escHtml(name)], ["For", KINDS[kind].label], ["Amount before VAT", naira(net)], ["VAT (7.5%)", naira(amount - net)], ["Total paid", naira(amount)], ["Paid until", fmtDate(until)]].map(([a, b2]) => `<tr><td style="padding:4px 16px 4px 0;color:#5b6570">${a}</td><td style="padding:4px 0"><b>${b2}</b></td></tr>`).join("")}</table><p style="font-size:13px;color:#5b6570;margin-top:18px">Trail Construct Limited · Surulere, Lagos · hello@trailconstruct.com</p>`);
+}
+async function adminLog(env, user, action) {
+  try { await env.DB.prepare("INSERT INTO audit (pid, user_id, user_name, role, action, at) VALUES ('_admin', ?, ?, 'admin', ?, ?)").bind(user.id, user.name || user.email, action, Date.now()).run(); } catch (e) { console.error("adminlog", e); }
+}
+
 async function sendResetEmail(env, { to, name, link }) {
   const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#15202a">
   <div style="background:#1d3546;color:#fff;padding:18px 22px;border-bottom:4px solid #f0a500"><b style="font-size:20px">TrailConstruct</b><br><span style="font-size:13px;opacity:.8">Every stage, on record.</span></div>
@@ -328,7 +366,7 @@ export async function onRequest(ctx) {
   try {
     await ensureSchema(env);
     // ---------- public settings for the web app ----------
-    if (parts[0] === "config" && m === "GET") return json({ mapsKey: env.GOOGLE_MAPS_KEY || "", email: !!env.RESEND_API_KEY });
+    if (parts[0] === "config" && m === "GET") { const st = await getSettings(env); return json({ mapsKey: env.GOOGLE_MAPS_KEY || "", email: !!env.RESEND_API_KEY, announcement: st.announcement || "", whatsapp: st.whatsapp || "" }); }
 
     // ---------- enterprise / contact enquiries (no login needed) ----------
     if (parts[0] === "contact" && m === "POST") {
@@ -399,6 +437,7 @@ export async function onRequest(ctx) {
         };
         const u = await env.DB.prepare("SELECT * FROM users WHERE email = ?").bind(em).first();
         if (!u) return fail();
+        if (await env.DB.prepare("SELECT 1 FROM suspensions WHERE user_id = ?").bind(u.id).first()) return err(403, "This account has been paused. Contact hello@trailconstruct.com.");
         const h = await hashPassword(String(password), u.salt, u.iterations || iterations);
         if (!safeEqual(h, u.pass_hash)) return fail();
         await env.DB.prepare("DELETE FROM login_fails WHERE email = ?").bind(em).run();
@@ -466,7 +505,7 @@ export async function onRequest(ctx) {
     if (!user) return err(401, "Please sign in.");
 
     // ---------- who am I ----------
-    if (parts[0] === "me" && m === "GET" && !parts[1]) return json({ user, admin: isAdmin(env, user), memberships: await memberships(env, user.id) });
+    if (parts[0] === "me" && m === "GET" && !parts[1]) return json({ user, admin: await adminRole(env, user), memberships: await memberships(env, user.id) });
     if (parts[0] === "me" && m === "DELETE" && !parts[1]) {
       const { password = "" } = await readBody(req);
       const u = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(user.id).first();
@@ -511,11 +550,12 @@ export async function onRequest(ctx) {
       const state = billingState(b);
       if (m === "GET") {
         if (b) ctx.waitUntil(billingReminders(env, env.APP_URL || url.origin, pid, b));
-        const out = { state, paidUntil: b && b.paid_until, graceUntil: b && b.grace_until, readOnlyFrom: b ? (b.paid_until ? b.paid_until + AFTER_EXPIRY_DAYS * DAY : b.grace_until) : null };
+        const pz = await env.DB.prepare("SELECT reason FROM pauses WHERE pid = ?").bind(pid).first();
+        const out = { state: pz ? "paused" : state, pauseReason: pz ? pz.reason || "" : undefined, paidUntil: b && b.paid_until, graceUntil: b && b.grace_until, readOnlyFrom: b ? (b.paid_until ? b.paid_until + AFTER_EXPIRY_DAYS * DAY : b.grace_until) : null };
         if (role !== "developer") return json(out);
         const pay = b ? await openPayment(env, pid) : null;
         const n = await devProjectCount(env, user.id);
-        return json({ ...out, planAfter: b && b.plan_after, bank: BANK, payment: pay && { ref: pay.ref, kind: pay.kind, label: KINDS[pay.kind].label, amount: pay.amount, status: pay.status, sentAt: pay.sent_at },
+        return json({ ...out, planAfter: b && b.plan_after, bank: (await getSettings(env)).bank, payment: pay && { ref: pay.ref, kind: pay.kind, label: KINDS[pay.kind].label, amount: pay.amount, status: pay.status, sentAt: pay.sent_at },
           prices: Object.fromEntries(Object.keys(KINDS).map((k) => [k, priceFor(k, n)])) });
       }
       if (role !== "developer") return err(403, "Only the developer manages payment.");
@@ -537,15 +577,173 @@ export async function onRequest(ctx) {
           await env.DB.prepare("UPDATE payments SET status = 'sent', sent_at = ? WHERE ref = ?").bind(Date.now(), pay.ref).run();
           const name = await projectName(env, pid);
           ctx.waitUntil(sendMail(env, env.ALERT_TO || ALERT_TO_DEFAULT, `Payment to confirm: ${naira(pay.amount)} · ${pay.ref}`,
-            `<p><b>${escHtml(user.name || user.email)}</b> says they've transferred <b>${naira(pay.amount)}</b> for <b>${escHtml(name)}</b>.</p><p>Reference: <b>${pay.ref}</b><br>For: ${KINDS[pay.kind].label}<br>Email: ${escHtml(user.email)}</p>${btn((env.APP_URL || url.origin) + "/#admin", "Open payments page")}<p style="font-size:13px;color:#5b6570">Check your ${BANK.bank} app for the reference, then confirm it on the payments page.</p>`));
+            `<p><b>${escHtml(user.name || user.email)}</b> says they've transferred <b>${naira(pay.amount)}</b> for <b>${escHtml(name)}</b>.</p><p>Reference: <b>${pay.ref}</b><br>For: ${KINDS[pay.kind].label}<br>Email: ${escHtml(user.email)}</p>${btn((env.APP_URL || url.origin) + "/#admin", "Open payments page")}<p style="font-size:13px;color:#5b6570">Check your bank app for the reference, then confirm it on the payments page.</p>`));
           await logActivity(env, { pid, user, role, action: `marked a ${naira(pay.amount)} transfer as sent (${pay.ref})` });
         }
         return json({ ok: true });
       }
       return err(404, "Not found");
     }
+    // ---------- admin console ----------
+    if (parts[0] === "admin" && ["overview", "projects", "users", "admins", "leads", "settings", "log"].includes(parts[1])) {
+      const arole = await adminRole(env, user);
+      if (!arole) return err(403, "Not allowed");
+      const full = arole === "owner" || arole === "full";
+      const now = Date.now(), sec = parts[1];
+      if (sec === "overview" && m === "GET") {
+        const one = async (q, ...b) => { const r = await env.DB.prepare(q).bind(...b).first(); return r ? Object.values(r)[0] || 0 : 0; };
+        const bills = (await env.DB.prepare("SELECT b.*, (SELECT 1 FROM pauses p WHERE p.pid = b.pid) AS paused FROM billing b").all()).results || [];
+        const states = { active: 0, trial: 0, due: 0, locked: 0, paused: 0 };
+        for (const b of bills) states[b.paused ? "paused" : billingState(b, now) === "active" ? (b.paid_until ? "active" : "trial") : billingState(b, now)]++;
+        const monthStart = new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Lagos" })); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+        return json({ role: arole,
+          projects: await one("SELECT COUNT(*) FROM docs WHERE col = 'projects'"), users: await one("SELECT COUNT(*) FROM users"),
+          paying: states.active, trial: states.trial, due: states.due, locked: states.locked, paused: states.paused,
+          toConfirm: await one("SELECT COUNT(*) FROM payments WHERE status = 'sent'"),
+          monthRevenue: full ? await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status = 'confirmed' AND done_at >= ?", monthStart.getTime() - 3600 * 1000) : null,
+          totalRevenue: full ? await one("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status = 'confirmed'") : null,
+          endingSoon: bills.filter((b) => b.paid_until && b.paid_until > now && b.paid_until - now < 7 * DAY).length,
+          newLeads: full ? await one("SELECT COUNT(*) FROM leads WHERE created_at > ?", now - 7 * DAY) : null });
+      }
+      if (!full) return err(403, "Your admin access covers payments only.");
+      if (sec === "projects" && m === "GET") {
+        const r = await env.DB.prepare(`SELECT d.id, d.data, d.created_at, b.paid_until, b.grace_until, b.plan_after, p.reason AS pause_reason,
+          (SELECT GROUP_CONCAT(u.name || ' <' || u.email || '>', '; ') FROM members mm JOIN users u ON u.id = mm.user_id WHERE mm.project_id = d.id AND mm.role = 'developer') AS devs,
+          (SELECT COUNT(*) FROM members mm WHERE mm.project_id = d.id) AS team,
+          (SELECT MAX(updated_at) FROM docs x WHERE x.pid = d.id AND x.col = 'logs') AS last_log
+          FROM docs d LEFT JOIN billing b ON b.pid = d.id LEFT JOIN pauses p ON p.pid = d.id WHERE d.col = 'projects' ORDER BY d.created_at DESC LIMIT 500`).all();
+        return json({ items: (r.results || []).map((x) => { const pd = JSON.parse(x.data); const b = x.grace_until ? { paid_until: x.paid_until, grace_until: x.grace_until } : null;
+          return { pid: x.id, name: pd.name || "(no name)", location: pd.location || "", devs: x.devs || "", team: x.team, createdAt: x.created_at, lastLog: x.last_log,
+            state: x.pause_reason != null ? "paused" : b ? (billingState(b, now) === "active" ? (b.paid_until ? "active" : "trial") : billingState(b, now)) : "legacy",
+            paidUntil: x.paid_until, graceUntil: x.grace_until, planAfter: x.plan_after, pauseReason: x.pause_reason }; }) });
+      }
+      if (sec === "projects" && m === "POST" && parts[2] && parts[3]) {
+        const pid = parts[2], act = parts[3], b0 = await readBody(req), name = await projectName(env, pid);
+        if (!(await env.DB.prepare("SELECT 1 FROM docs WHERE col = 'projects' AND id = ?").bind(pid).first())) return err(404, "Project not found");
+        if (act === "pause") {
+          const reason = String(b0.reason || "").trim().slice(0, 200);
+          await env.DB.prepare("INSERT INTO pauses (pid, reason, by_email, at) VALUES (?, ?, ?, ?) ON CONFLICT(pid) DO UPDATE SET reason = excluded.reason, by_email = excluded.by_email, at = excluded.at").bind(pid, reason, user.email, now).run();
+          await adminLog(env, user, `paused ${name}${reason ? ": " + reason : ""}`);
+          return json({ ok: true });
+        }
+        if (act === "unpause") {
+          await env.DB.prepare("DELETE FROM pauses WHERE pid = ?").bind(pid).run();
+          await adminLog(env, user, `unpaused ${name}`);
+          return json({ ok: true });
+        }
+        const b = await env.DB.prepare("SELECT * FROM billing WHERE pid = ?").bind(pid).first();
+        if (act === "extend") {
+          const days = Math.max(1, Math.min(366, parseInt(b0.days, 10) || 0));
+          if (!b) await env.DB.prepare("INSERT INTO billing (pid, plan_after, grace_until, paid_until, created_at) VALUES (?, 'monthly', ?, ?, ?)").bind(pid, now, now + days * DAY, now).run();
+          else if (b.paid_until) await env.DB.prepare("UPDATE billing SET paid_until = ? WHERE pid = ?").bind(Math.max(b.paid_until, now) + days * DAY, pid).run();
+          else await env.DB.prepare("UPDATE billing SET grace_until = ? WHERE pid = ?").bind(Math.max(b.grace_until, now) + days * DAY, pid).run();
+          await adminLog(env, user, `gave ${name} ${days} extra day${days === 1 ? "" : "s"}`);
+          return json({ ok: true });
+        }
+        if (act === "record") { // payment received some other way (cash, another account)
+          const kind = KINDS[b0.kind] ? b0.kind : "monthly";
+          const devs = await developersOf(env, pid); if (!devs.length) return err(400, "This project has no developer.");
+          const open = await openPayment(env, pid);
+          if (open) await env.DB.prepare("UPDATE payments SET status = 'cancelled', done_at = ? WHERE ref = ?").bind(now, open.ref).run();
+          const pay = await newPayment(env, pid, devs[0].id, kind);
+          const amount = Math.max(0, parseInt(b0.amount, 10) || pay.amount);
+          await env.DB.prepare("UPDATE payments SET amount = ? WHERE ref = ?").bind(amount, pay.ref).run();
+          const from = b && b.paid_until && b.paid_until > now ? b.paid_until : now, until = addMonths(from, KINDS[kind].months);
+          await env.DB.batch([
+            env.DB.prepare("UPDATE payments SET status = 'confirmed', done_at = ?, done_by = ? WHERE ref = ?").bind(now, user.email, pay.ref),
+            b ? env.DB.prepare("UPDATE billing SET paid_until = ? WHERE pid = ?").bind(until, pid)
+              : env.DB.prepare("INSERT INTO billing (pid, plan_after, grace_until, paid_until, created_at) VALUES (?, 'monthly', ?, ?, ?)").bind(pid, now, until, now),
+          ]);
+          if (b0.receipt !== false) ctx.waitUntil(sendReceipt(env, devs[0], pay.ref, name, kind, amount, until));
+          await adminLog(env, user, `recorded a ${naira(amount)} payment (${KINDS[kind].label}) for ${name}. Paid until ${fmtDate(until)}`);
+          return json({ ok: true, paidUntil: until });
+        }
+        return err(404, "Not found");
+      }
+      if (sec === "users" && m === "GET") {
+        const r = await env.DB.prepare(`SELECT u.id, u.name, u.email, u.created_at, s.reason AS susp_reason,
+          (SELECT GROUP_CONCAT(mm.role) FROM members mm WHERE mm.user_id = u.id) AS roles,
+          (SELECT MAX(x.expires_at) - ${SESSION_DAYS * 864e5} FROM sessions x WHERE x.user_id = u.id) AS last_seen
+          FROM users u LEFT JOIN suspensions s ON s.user_id = u.id ORDER BY u.created_at DESC LIMIT 1000`).all();
+        const owners = ownerEmails(env);
+        return json({ items: (r.results || []).map((x) => { const rs = (x.roles || "").split(",").filter(Boolean); const c = (k) => rs.filter((y) => y === k).length;
+          return { id: x.id, name: x.name, email: x.email, createdAt: x.created_at, lastSeen: x.last_seen, suspended: x.susp_reason != null, reason: x.susp_reason, owner: owners.includes(String(x.email).toLowerCase()),
+            developer: c("developer"), engineer: c("engineer"), investor: c("investor") }; }) });
+      }
+      if (sec === "users" && m === "POST" && parts[2] && parts[3]) {
+        const uid = parts[2], act = parts[3], b0 = await readBody(req);
+        const u = await env.DB.prepare("SELECT id, name, email FROM users WHERE id = ?").bind(uid).first();
+        if (!u) return err(404, "User not found");
+        if (act === "suspend") {
+          if (ownerEmails(env).includes(String(u.email).toLowerCase()) || u.id === user.id) return err(400, "You can't pause this account.");
+          const reason = String(b0.reason || "").trim().slice(0, 200);
+          await env.DB.batch([
+            env.DB.prepare("INSERT INTO suspensions (user_id, reason, by_email, at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET reason = excluded.reason, at = excluded.at").bind(uid, reason, user.email, now),
+            env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(uid),
+          ]);
+          await adminLog(env, user, `paused the account of ${u.name || u.email}${reason ? ": " + reason : ""}`);
+          return json({ ok: true });
+        }
+        if (act === "unsuspend") {
+          await env.DB.prepare("DELETE FROM suspensions WHERE user_id = ?").bind(uid).run();
+          await adminLog(env, user, `unpaused the account of ${u.name || u.email}`);
+          return json({ ok: true });
+        }
+        if (act === "reset") {
+          const token = randHex(32);
+          await env.DB.prepare("INSERT INTO password_resets (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)").bind(await sha256(token), u.id, now, now + RESET_MS).run();
+          const ok = await sendResetEmail(env, { to: u.email, name: u.name, link: `${env.APP_URL || url.origin}/#reset-${token}` });
+          await adminLog(env, user, `sent a password reset email to ${u.email}`);
+          return json({ ok: true, emailed: ok });
+        }
+        return err(404, "Not found");
+      }
+      if (sec === "admins") {
+        if (m === "GET") {
+          const r = await env.DB.prepare("SELECT email, role, added_by, added_at FROM admins ORDER BY added_at").all();
+          return json({ me: arole, owners: ownerEmails(env), items: r.results || [] });
+        }
+        if (arole !== "owner") return err(403, "Only the owner can change who's an admin.");
+        if (m === "POST") {
+          const b0 = await readBody(req), em = String(b0.email || "").trim().toLowerCase(), role = b0.role === "full" ? "full" : "payments";
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return err(400, "Enter a valid email address.");
+          await env.DB.prepare("INSERT INTO admins (email, role, added_by, added_at) VALUES (?, ?, ?, ?) ON CONFLICT(email) DO UPDATE SET role = excluded.role").bind(em, role, user.email, now).run();
+          await adminLog(env, user, `made ${em} an admin (${role === "full" ? "full access" : "payments only"})`);
+          return json({ ok: true });
+        }
+        if (m === "DELETE" && parts[2]) {
+          await env.DB.prepare("DELETE FROM admins WHERE email = ?").bind(String(parts[2]).toLowerCase()).run();
+          await adminLog(env, user, `removed ${parts[2]} as an admin`);
+          return json({ ok: true });
+        }
+      }
+      if (sec === "leads" && m === "GET") {
+        const r = await env.DB.prepare("SELECT * FROM leads ORDER BY created_at DESC LIMIT 300").all();
+        return json({ items: r.results || [] });
+      }
+      if (sec === "settings") {
+        if (m === "GET") return json(await getSettings(env));
+        if (m === "PUT") {
+          const b0 = await readBody(req), writes = [];
+          if (b0.bank) { const bk = { bank: String(b0.bank.bank || "").trim().slice(0, 80), name: String(b0.bank.name || "").trim().slice(0, 120), number: String(b0.bank.number || "").replace(/\D/g, "").slice(0, 20) };
+            if (!bk.bank || !bk.name || bk.number.length < 10) return err(400, "Add the bank, account name and a 10-digit account number.");
+            writes.push(["bank", bk]); }
+          if ("announcement" in b0) writes.push(["announcement", String(b0.announcement || "").trim().slice(0, 240)]);
+          if ("whatsapp" in b0) writes.push(["whatsapp", String(b0.whatsapp || "").replace(/[^\d+]/g, "").slice(0, 20)]);
+          for (const [k, v] of writes) await env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at").bind(k, JSON.stringify(v), now).run();
+          await adminLog(env, user, `changed settings: ${writes.map((w) => w[0]).join(", ")}`);
+          return json({ ok: true });
+        }
+      }
+      if (sec === "log" && m === "GET") {
+        const r = await env.DB.prepare("SELECT user_name AS who, action, at FROM audit WHERE pid = '_admin' ORDER BY at DESC LIMIT 300").all();
+        return json({ items: r.results || [] });
+      }
+      return err(404, "Not found");
+    }
     if (parts[0] === "admin" && parts[1] === "payments") {
-      if (!isAdmin(env, user)) return err(403, "Not allowed");
+      const arole = await adminRole(env, user);
+      if (!arole) return err(403, "Not allowed");
       if (m === "GET") {
         const q = (where) => env.DB.prepare(`SELECT p.*, u.name AS dev_name, u.email AS dev_email, d.data AS pdata, b.paid_until FROM payments p LEFT JOIN users u ON u.id = p.user_id LEFT JOIN docs d ON d.col = 'projects' AND d.id = p.pid LEFT JOIN billing b ON b.pid = p.pid WHERE ${where} ORDER BY COALESCE(p.sent_at, p.created_at) DESC LIMIT 100`).all();
         const shape = (x) => ({ ref: x.ref, pid: x.pid, project: x.pdata ? JSON.parse(x.pdata).name : "(deleted project)", dev: x.dev_name, email: x.dev_email, kind: x.kind, label: KINDS[x.kind] ? KINDS[x.kind].label : x.kind, amount: x.amount, status: x.status, createdAt: x.created_at, sentAt: x.sent_at, doneAt: x.done_at, paidUntil: x.paid_until });
@@ -564,16 +762,16 @@ export async function onRequest(ctx) {
           env.DB.prepare("UPDATE payments SET status = 'confirmed', done_at = ?, done_by = ? WHERE ref = ?").bind(now, user.email, ref),
           env.DB.prepare("UPDATE billing SET paid_until = ? WHERE pid = ?").bind(until, pay.pid),
         ]);
-        const net = Math.round(pay.amount / (1 + VAT));
-        if (dev) ctx.waitUntil(sendMail(env, dev.email, `Payment received: ${naira(pay.amount)} for ${name}`,
-          `<p>Hello ${escHtml(dev.name || "")},</p><p>We've received your payment. Thank you.</p><table style="border-collapse:collapse;font-size:15px">${[["Receipt", ref], ["Project", escHtml(name)], ["For", KINDS[pay.kind].label], ["Amount before VAT", naira(net)], ["VAT (7.5%)", naira(pay.amount - net)], ["Total paid", naira(pay.amount)], ["Paid until", fmtDate(until)]].map(([a, b2]) => `<tr><td style="padding:4px 16px 4px 0;color:#5b6570">${a}</td><td style="padding:4px 0"><b>${b2}</b></td></tr>`).join("")}</table><p style="font-size:13px;color:#5b6570;margin-top:18px">Trail Construct Limited · Surulere, Lagos · hello@trailconstruct.com</p>`));
+        if (dev) ctx.waitUntil(sendReceipt(env, dev, ref, name, pay.kind, pay.amount, until));
         await logActivity(env, { pid: pay.pid, user: { id: null, name: "TrailConstruct" }, action: `confirmed payment ${ref} (${naira(pay.amount)}). Paid until ${fmtDate(until)}` });
+        await adminLog(env, user, `confirmed payment ${ref} (${naira(pay.amount)}) for ${name}`);
         return json({ ok: true, paidUntil: until });
       }
       if (action === "reject" && m === "POST") {
         await env.DB.prepare("UPDATE payments SET status = 'awaiting', sent_at = NULL WHERE ref = ?").bind(ref).run();
+        await adminLog(env, user, `marked payment ${ref} for ${name} as not received`);
         if (dev) ctx.waitUntil(sendMail(env, dev.email, `We couldn't find your transfer for ${name}`,
-          `<p>Hello ${escHtml(dev.name || "")},</p><p>We haven't received a transfer with the narration <b>${ref}</b> yet. If you've paid, reply to this email with your transfer receipt and we'll sort it out. If not, here are the details again:</p>${bankBlock(ref, pay.amount)}`));
+          `<p>Hello ${escHtml(dev.name || "")},</p><p>We haven't received a transfer with the narration <b>${ref}</b> yet. If you've paid, reply to this email with your transfer receipt and we'll sort it out. If not, here are the details again:</p>${bankBlock(ref, pay.amount, (await getSettings(env)).bank)}`));
         return json({ ok: true });
       }
       return err(404, "Not found");
@@ -589,9 +787,10 @@ export async function onRequest(ctx) {
 
     // ---------- full backup download (admin only) ----------
     if (parts[0] === "admin" && parts[1] === "backup" && m === "GET") {
-      if (!isAdmin(env, user)) return err(403, "Not allowed");
+      const ar0 = await adminRole(env, user);
+      if (ar0 !== "owner" && ar0 !== "full") return err(403, "Not allowed");
       const out = { exported_at: new Date().toISOString() };
-      for (const t of ["users", "members", "invites", "docs", "deleted", "audit", "photo_meta", "leads", "billing", "payments"]) {
+      for (const t of ["users", "members", "invites", "docs", "deleted", "audit", "photo_meta", "leads", "billing", "payments", "admins", "suspensions", "pauses", "settings"]) {
         const r = await env.DB.prepare(`SELECT * FROM ${t}`).all();
         out[t] = (r.results || []).map((row) => { if (t === "users") { const { pass_hash, salt, ...rest } = row; return rest; } return row; });
       }
@@ -690,8 +889,7 @@ export async function onRequest(ctx) {
 
       const pid = col === "projects" ? id : row ? row.pid : String(body.pid || "");
       if (!pid) return err(400, "Missing project");
-      const bl = await env.DB.prepare("SELECT * FROM billing WHERE pid = ?").bind(pid).first();
-      if (billingState(bl) === "locked") return err(402, "This project is read-only because its subscription isn't paid. The developer can renew it from the dashboard.");
+      { const why = await projectLock(env, pid); if (why) return err(402, why); }
       const role = await roleOn(env, user.id, pid);
       if (!role || !(WRITE[role] || []).includes(col)) return err(403, "You don't have access to change this.");
       if (m === "PATCH" && !row) return err(404, "Not found");
@@ -745,8 +943,7 @@ export async function onRequest(ctx) {
       const pid = url.searchParams.get("pid") || "";
       const role = await roleOn(env, user.id, pid);
       if (role !== "developer" && role !== "engineer") return err(403, "You can't upload to this project.");
-      const blU = await env.DB.prepare("SELECT * FROM billing WHERE pid = ?").bind(pid).first();
-      if (billingState(blU) === "locked") return err(402, "This project is read-only because its subscription isn't paid. The developer can renew it from the dashboard.");
+      { const why = await projectLock(env, pid); if (why) return err(402, why); }
       const type = (req.headers.get("content-type") || "").split(";")[0];
       if (!["image/jpeg", "image/png", "image/webp"].includes(type)) return err(415, "Upload a JPEG, PNG or WebP photo.");
       const len = parseInt(req.headers.get("content-length") || "", 10);
@@ -844,7 +1041,7 @@ export async function onRequest(ctx) {
       const { pid = "", role = "", name = "", email = "" } = await readBody(req);
       if (!ROLES.includes(role)) return err(400, "Choose a role.");
       if ((await roleOn(env, user.id, pid)) !== "developer") return err(403, "Only the developer can invite people.");
-      if (billingState(await env.DB.prepare("SELECT * FROM billing WHERE pid = ?").bind(pid).first()) === "locked") return err(402, "This project is read-only until its subscription is paid.");
+      { const why = await projectLock(env, pid); if (why) return err(402, why); }
       const code = randCode(12);
       await env.DB.prepare("INSERT INTO invites (code, project_id, role, name, email, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
         .bind(code, pid, role, String(name).slice(0, 120), String(email).slice(0, 200), user.id, Date.now()).run();
