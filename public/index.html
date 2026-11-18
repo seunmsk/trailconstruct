@@ -409,10 +409,11 @@ main .stats>.stat:nth-child(4):not([class*=" t"]){background:var(--rose)}
 .plan-wrap{position:absolute;right:clamp(-120px,-4vw,0px);top:20px;width:min(560px,70vw);color:var(--steel);opacity:.09;pointer-events:none}
 .chip{cursor:pointer;font-weight:600}
 .chip[aria-pressed="true"]{box-shadow:0 0 0 2px var(--ink)}
-.phase-detail{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;display:grid;gap:6px;max-width:640px;position:relative}
+.phase-detail{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;display:grid;gap:6px;position:relative}
 .phase-detail b{font-family:var(--display);font-size:1.4rem}
 .phase-detail ul{margin:6px 0 0;padding-left:18px;columns:2;column-gap:24px}
 @media (max-width:560px){.phase-detail ul{columns:1}}
+@media (min-width:900px){.phase-detail ul{columns:3}}
 /* pricing */
 .pricing{background:none}
 .billing{display:inline-flex;padding:4px;border-radius:999px;background:var(--surface);border:1px solid var(--line);gap:4px;margin-top:10px}
