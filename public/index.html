@@ -113,6 +113,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .pager{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding-top:6px}.pager .btn[disabled]{opacity:.45;cursor:default}
 .adm-main{max-width:1180px}.adm-stats{grid-template-columns:repeat(2,minmax(0,1fr))}@media (min-width:760px){.adm-stats{grid-template-columns:repeat(4,minmax(0,1fr))}}.stat b{font-size:1.5rem}main .stats.adm-stats>.stat.stat:nth-child(n){background:var(--sunk)}main .stats.adm-stats>.stat.stat.ok:nth-child(n){background:var(--ok-soft)}main .stats.adm-stats>.stat.stat.warn:nth-child(n){background:var(--amber-soft)}main .stats.adm-stats>.stat.stat.crit:nth-child(n){background:var(--crit-soft)}
 .lead{border-top:1px solid var(--line);padding:10px 0}.lead:first-of-type{border-top:0}.chk{display:flex;gap:8px;align-items:center;font-size:.92rem}
+.corr{border-left:3px solid var(--amber);padding-left:8px}.crq{border-top:1px solid var(--line);padding:10px 0}.crq:first-of-type{border-top:0}
+.mixbox{display:grid;gap:8px;padding:10px;border:1px dashed var(--line);border-radius:10px}.mixrow{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1.2fr) auto;gap:8px;align-items:end}@media (max-width:520px){.mixrow{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.mixrow label:first-child{grid-column:1/-1}}
+[hidden]{display:none!important}
 .auth-h{font-family:var(--display);font-size:1.6rem;margin:0}
 .pick{display:grid;gap:10px}
 .pick button{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;align-items:center;text-align:left;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--sunk);cursor:pointer}
@@ -730,9 +733,39 @@ function phaseStrip(pr){let ci=-1;pr.phases.forEach((x,i)=>{if(x.status==="activ
   return `<div style="display:grid;gap:6px"><div class="phases" aria-hidden="true">${pr.phases.map(x=>`<i class="${x.status}" title="${esc(x.name)}"></i>`).join("")}</div>
   <div class="ph-cap"><span>${cur?`Phase ${ci+1} of ${pr.phases.length}: <b style="color:var(--ink)">${esc(cur.name)}</b>`:"All phases complete"}</span><span class="num">${Math.round(pr.overall*100)}% overall</span></div></div>`;}
 const photoGrid=(list,lg)=>list&&list.length?`<div class="photos ${lg?"lg":""}">${list.map(p=>`<button type="button" class="ph" data-act="photo" data-src="${esc(src(p))}" data-cap="${esc(p.cap||"")}"><img src="${esc(src(p))}" alt="Site photo" loading="lazy">${vBadge(p)}</button>`).join("")}</div>`:"";
+/* ---------- change requests for locked records ---------- */
+function changesFor(pid){S.changes=S.changes||{};if(S.mode!=="cf"||!S.me)return [];const c=S.changes[pid];
+  if(!c){S.changes[pid]={items:[],loading:true};cfApi("GET","/api/changes?pid="+encodeURIComponent(pid)).then(d=>{S.changes[pid]=d;render();}).catch(()=>{S.changes[pid]={items:[]};});return [];}
+  return c.items||[];}
+const pendingFor=(pid,col,id)=>changesFor(pid).find(x=>x.col===col&&x.docId===id&&x.status==="pending");
+const CR_LABEL={work:"Work done",workers:"Workers on site",weather:"Weather",issues:"Issues",stage:"Stage",summary:"Summary",next:"Next week"};
+function crControls(p,col,r){
+  if(S.mode!=="cf"||roleFor(p.id)!=="engineer"||!r._locked)return "";
+  return pendingFor(p.id,col,r.id)?`<p class="small"><span class="pill active">Change requested · waiting for the developer</span></p>`:`<div><button class="btn sm ghost" data-act="cr-open" data-col="${col}" data-id="${esc(r.id)}">Request a change</button></div>`;
+}
+function correctedNote(r){const c=r.corrections||[];if(!c.length)return "";const last=c[c.length-1];
+  const dev=S.mode==="cf"&&S.pid&&roleFor(S.pid)==="developer";
+  return `<p class="small muted corr">Corrected on ${esc(fmtS(new Date(last.at).toISOString().slice(0,10)))}, approved by ${esc(last.approvedBy||"the developer")}${dev?`. Original: ${Object.entries(last.changes||{}).map(([k,v])=>`${esc(CR_LABEL[k]||k)} "${esc(String(v.from))}"`).join(", ")}`:""}</p>`;}
+function crModal(p,col,id){
+  const r=(col==="logs"?S.logs:S.reports).find(x=>x.id===id);if(!r)return;
+  const fld=col==="logs"?`<label class="f" for="cr-work">Work done<textarea id="cr-work">${esc(r.work||"")}</textarea></label>
+      <div class="row"><label class="f" for="cr-workers">Workers on site<input type="number" id="cr-workers" min="0" value="${esc(r.workers||0)}"></label><label class="f" for="cr-weather">Weather<input type="text" id="cr-weather" value="${esc(r.weather||"")}"></label></div>
+      <label class="f" for="cr-issues">Issues<textarea id="cr-issues" style="min-height:60px">${esc(r.issues||"")}</textarea></label>`
+    :`<label class="f" for="cr-summary">Summary<textarea id="cr-summary">${esc(r.summary||"")}</textarea></label><label class="f" for="cr-next">Next week<textarea id="cr-next" style="min-height:60px">${esc(r.next||"")}</textarea></label>`;
+  modal(`<h2>Request a change</h2><p class="small muted">This ${col==="logs"?"daily update":"weekly report"} is locked. Edit what's wrong below and say why. The developer gets an email and decides. If they approve, it's marked as a correction and the original is kept.</p>
+    <form id="cr-form" data-col="${col}" data-id="${esc(id)}">${fld}<label class="f" for="cr-reason">Why does it need changing?<input type="text" id="cr-reason" required maxlength="500" placeholder="e.g. Typed 41 instead of 14"></label>
+    <div class="actions"><button class="btn pri" type="submit">Send request</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);}
+function crReviewModal(p){
+  const items=changesFor(p.id).filter(x=>x.status==="pending");
+  modal(`<h2>Change requests</h2>${items.length?items.map(x=>`<div class="crq"><p><b>${esc(x.by||"Site engineer")}</b> asks to ${x.col==="checks"?`untick <b>${esc(x.changes.label)}</b>`:x.col==="logs"?"correct a daily update":"correct a weekly report"} <span class="small muted">· ${esc(fmtS(new Date(x.createdAt).toISOString().slice(0,10)))}</span></p>
+      ${x.col==="checks"?"":`<ul class="small">${Object.entries(x.changes).map(([k,v])=>`<li><b>${esc(CR_LABEL[k]||k)}:</b> "${esc(String(v.from))}" → "${esc(String(v.to))}"</li>`).join("")}</ul>`}
+      <p class="small">Reason: ${esc(x.reason||"")}</p>
+      <div class="actions"><button class="btn sm pri" data-act="cr-approve" data-id="${esc(x.id)}">Approve</button><button class="btn sm ghost" data-act="cr-decline" data-id="${esc(x.id)}">Decline</button></div></div>`).join(""):`<div class="empty">Nothing waiting.</div>`}
+    <div><button class="btn" data-act="close">Close</button></div>`);}
+async function refreshChanges(pid){try{S.changes[pid]=await cfApi("GET","/api/changes?pid="+encodeURIComponent(pid));}catch(e){}}
 function logHTML(p,l){
   return `<article class="log"><div class="log-h"><b>${esc(fmtD(l.date))}</b><span class="pill">${esc(stageName(p,l.stage))}</span>${l.weather?`<span class="pill">${esc(l.weather)}</span>`:""}${+l.workers?`<span class="pill num">${esc(l.workers)} workers</span>`:""}</div>
-  <p>${esc(l.work)}</p>${l.issues?`<div class="issue"><b>Issue:</b> ${esc(l.issues)}</div>`:""}${photoGrid(l.photos)}<p class="small muted">By ${esc(l.by||"Site engineer")}</p></article>`;
+  <p>${esc(l.work)}</p>${l.issues?`<div class="issue"><b>Issue:</b> ${esc(l.issues)}</div>`:""}${photoGrid(l.photos)}<p class="small muted">By ${esc(l.by||"Site engineer")}</p>${correctedNote(l)}${crControls(p,"logs",l)}</article>`;
 }
 function stageList(p){
   const pr=progress(p);let g="";
@@ -741,7 +774,7 @@ function stageList(p){
     const open=S.open[s.id]??(pr.current&&pr.current.id===s.id);
     const pill=s.status==="done"?`<span class="pill ok">Done</span>`:s.status==="active"?`<span class="pill active">In progress</span>`:`<span class="pill">Not started</span>`;
     return head+`<div class="stage ${s.status}"><button type="button" class="stage-h" data-act="toggle-stage" data-id="${s.id}" aria-expanded="${open?"true":"false"}"><span><b>${esc(s.name)}</b> <span class="small muted num">${s.done}/${s.items.length}</span></span>${pill}${bar(s.pct)}</button>
-    ${open?`<ul class="checks">${s.items.map(i=>{const on=!!(p.checks||{})[i.id],lk=on&&tickLocked(p,i.id);return `<li><label${lk?` title="Ticked more than 24 hours ago. Only the developer can untick it."`:""}><input type="checkbox" data-act="check" data-id="${i.id}" ${on?"checked":""} ${S.canWrite&&!lk?"":"disabled"}><span class="${on?"done-t":""}">${esc(i.label)}</span>${lk?`<span class="small muted" aria-label="locked"> 🔒</span>`:""}</label></li>`;}).join("")}</ul>`:""}</div>`;}).join("")}</div>`;
+    ${open?`<ul class="checks">${s.items.map(i=>{const on=!!(p.checks||{})[i.id],lk=on&&tickLocked(p,i.id);return `<li><label${lk?` title="Ticked more than 24 hours ago. Only the developer can untick it."`:""}><input type="checkbox" data-act="check" data-id="${i.id}" ${on?"checked":""} ${S.canWrite&&!lk?"":"disabled"}><span class="${on?"done-t":""}">${esc(i.label)}</span>${lk?`<span class="small muted" aria-label="locked"> 🔒</span>`:""}</label>${lk?(pendingFor(p.id,"checks",p.id+":"+i.id)||changesFor(p.id).find(x=>x.col==="checks"&&x.status==="pending"&&x.changes.untick===i.id)?` <span class="small muted">Untick requested</span>`:` <button type="button" class="link small" data-act="cr-untick" data-id="${i.id}" data-label="${esc(i.label)}">Ask to untick</button>`):""}</li>`;}).join("")}</ul>`:""}</div>`;}).join("")}</div>`;
 }
 function engReportHTML(p,r,forDev){
   return `<div class="rep"><div class="card-h"><b>Week of ${esc(fmtS(r.weekStart))} – ${esc(fmtS(r.weekEnd))}</b>${r.status==="used"?`<span class="pill ok">Sent to investor</span>`:`<span class="pill active">New</span>`}</div>
@@ -749,6 +782,7 @@ function engReportHTML(p,r,forDev){
   ${r.summary?`<p>${esc(r.summary)}</p>`:""}${r.next?`<p class="small"><b>Next week:</b> ${esc(r.next)}</p>`:""}
   ${r.issues&&r.issues.length?`<div class="small"><b>Issues:</b><ul>${r.issues.map(i=>`<li>${esc(i)}</li>`).join("")}</ul></div>`:""}
   ${photoGrid(r.photos)}
+  ${correctedNote(r)}${crControls(p,"reports",r)}
   ${forDev&&S.canWrite?`<div><button class="btn sm pri" data-act="use-report" data-id="${r.id}">Turn into investor update</button></div>`:""}</div>`;
 }
 
@@ -914,22 +948,38 @@ const PTYPES=[
   {k:"other",l:"Other",n:"unit",np:"units",fl:1}
 ];
 const ptype=k=>PTYPES.find(t=>t.k===k);
+const MIX_TYPES=PTYPES.filter(t=>!["estate","mixed","commercial"].includes(t.k));
+const cleanMix=m=>(m||[]).filter(x=>x&&x.t&&+x.n>0).map(x=>({t:x.t,n:+x.n,b:x.b||""}));
 function unitsText(p){
   const t=ptype(p.propType);
   if(!t)return p.units||"";
+  if(t.k==="estate"&&cleanMix(p.mix).length){const m=cleanMix(p.mix),tot=m.reduce((a,x)=>a+x.n,0),b=+p.blockCount||0;
+    return `${tot} ${tot===1?"home":"homes"}: `+m.map(x=>{const q=ptype(x.t);return `${x.n} ${x.n===1?q.n:q.np}${x.b?` (${x.b==="studio"?"studio":x.b+"-bed"})`:""}`;}).join(", ")+(b>1?` in ${b} blocks`:"");}
   const n=+p.unitCount||0,b=+p.blockCount||0,bd=p.beds;
   const head=n?`${n} ${n===1?t.n:t.np}`:t.l;
   return head+(b>1?` in ${b} blocks`:b===1&&n>1&&t.k!=="flats"?" in 1 block":"")+(bd?` · ${bd==="studio"?"studio":bd+"-bed"}`:"");
 }
 const BEDS=[["","Bedrooms (optional)"],["studio","Studio"],["1","1 bedroom"],["2","2 bedrooms"],["3","3 bedrooms"],["4","4 bedrooms"],["5","5 bedrooms"],["6","6+ bedrooms"]];
+// Estate: list each house type with how many and bedrooms. Stays one project with one checklist.
+function mixRows(prefix){S.mix=S.mix||{};const m=S.mix[prefix]||(S.mix[prefix]=[{t:"",n:"",b:""}]);
+  return m.map((x,i)=>`<div class="mixrow"><label class="f">House type<select data-mx="${prefix}|${i}|t"><option value="">Choose</option>${MIX_TYPES.map(t=>`<option value="${t.k}" ${x.t===t.k?"selected":""}>${t.l}</option>`).join("")}</select></label>
+    <label class="f">How many<input type="number" min="1" max="5000" inputmode="numeric" data-mx="${prefix}|${i}|n" value="${esc(x.n||"")}" placeholder="e.g. 6"></label>
+    <label class="f">Bedrooms<select data-mx="${prefix}|${i}|b">${BEDS.map(([k,l])=>`<option value="${k}" ${String(x.b||"")===k?"selected":""}>${k?l:"Optional"}</option>`).join("")}</select></label>
+    ${m.length>1?`<button type="button" class="btn sm ghost mx-rm" data-act="mx-rm" data-p="${prefix}" data-i="${i}" aria-label="Remove this house type">Remove</button>`:"<span></span>"}</div>`).join("")+`<div><button type="button" class="btn sm" data-act="mx-add" data-p="${prefix}">Add a house type</button></div>`;}
+function mixSync(prefix){const box=document.getElementById(prefix+"-mixrows");if(box)box.innerHTML=mixRows(prefix);mixSum(prefix);}
+function mixSum(prefix){const g=id=>(document.getElementById(id)||{}).value||"";const el=document.getElementById(prefix+"-psum");if(!el)return;
+  const v=prefix==="o"?{...S.onb.d,propType:S.onb.d.ptype,blockCount:S.onb.d.blocks,mix:S.mix.o}:{propType:g("pf-ptype"),blockCount:g("pf-blocks"),unitCount:g("pf-unitn"),beds:g("pf-beds"),mix:S.mix.pf};
+  el.innerHTML=`Shows as: <b style="color:var(--ink)">${esc(unitsText(v))}</b>`;}
 function propFields(prefix,v,attr){
   // attr(k) returns the attribute that ties a control to its state (data-onb for sign-up, plain id for the edit form)
   return `<div class="propbox">
     <label class="f" for="${prefix}-ptype">Type of property<select id="${prefix}-ptype" ${attr("ptype")} required><option value="">Choose a type</option>${PTYPES.map(t=>`<option value="${t.k}" ${v.propType===t.k?"selected":""}>${t.l}</option>`).join("")}</select></label>
-    <div class="row"><label class="f" for="${prefix}-unitn">Number of units<input type="number" id="${prefix}-unitn" ${attr("unitn")} min="1" max="5000" inputmode="numeric" value="${esc(v.unitCount||"")}" placeholder="e.g. 4"></label>
+    ${(()=>{const est=v.propType==="estate";S.mix=S.mix||{};if(!S.mix[prefix])S.mix[prefix]=(v.mix&&v.mix.length?v.mix.map(x=>({...x})):[{t:"",n:"",b:""}]);if(prefix==="o")S.onb.d.mix=S.mix.o;return `
+    <div id="${prefix}-mix" class="mixbox" ${est?"":"hidden"}><p class="small muted" style="margin:0">List each house type in the estate. It stays one project with one checklist.</p><div id="${prefix}-mixrows" style="display:grid;gap:8px">${mixRows(prefix)}</div></div>
+    <div class="row"><label class="f" for="${prefix}-unitn" ${est?"hidden":""}>Number of units<input type="number" id="${prefix}-unitn" ${attr("unitn")} min="1" max="5000" inputmode="numeric" value="${esc(v.unitCount||"")}" placeholder="e.g. 4"></label>
     <label class="f" for="${prefix}-blocks">Blocks / buildings<input type="number" id="${prefix}-blocks" ${attr("blocks")} min="1" max="500" inputmode="numeric" value="${esc(v.blockCount||"")}" placeholder="e.g. 2"></label>
-    <label class="f" for="${prefix}-beds">Bedrooms per unit<select id="${prefix}-beds" ${attr("beds")}>${BEDS.map(([k,l])=>`<option value="${k}" ${String(v.beds||"")===k?"selected":""}>${l}</option>`).join("")}</select></label></div>
-    ${v.propType?`<p class="small muted" id="${prefix}-psum">Shows as: <b style="color:var(--ink)">${esc(unitsText(v))}</b></p>`:""}</div>`;
+    <label class="f" for="${prefix}-beds" ${est?"hidden":""}>Bedrooms per unit<select id="${prefix}-beds" ${attr("beds")}>${BEDS.map(([k,l])=>`<option value="${k}" ${String(v.beds||"")===k?"selected":""}>${l}</option>`).join("")}</select></label></div>`;})()}
+    ${v.propType?`<p class="small muted" id="${prefix}-psum">Shows as: <b style="color:var(--ink)">${esc(unitsText({...v,mix:S.mix[prefix]}))}</b></p>`:""}</div>`;
 }
 
 /* ---------- start date + duration -> target completion ---------- */
@@ -1218,6 +1268,7 @@ function devView(p){
     reps.filter(r=>r.status!=="used").slice(0,3).forEach(r=>todo.push(["",`New weekly report from ${esc(r.by||"site")} (week of ${esc(fmtS(r.weekStart))})`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="site">Review</button>`]));
     S.requests.filter(r=>r.pid===p.id&&!r.resolved).slice(0,1).forEach(r=>todo.push(["crit",`Your investor asked for an update on ${esc(fmtS(r.createdAt))}`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="investor">Send update</button>`]));
     if(upAgo==null||upAgo>7)todo.push(["",upAgo==null?"Your investor hasn't had an update yet":`Last investor update was ${upAgo} days ago`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="investor">Create update</button>`]);
+    {const crs=S.mode==="cf"?changesFor(p.id).filter(x=>x.status==="pending"):[];if(crs.length)todo.push(["crit",`${crs.length} change request${crs.length>1?"s":""} from site`,`<button class="btn sm pri" data-act="cr-review">Review</button>`]);}
     {const pr2=reqOf(p.id).filter(r=>r.status==="pending");if(pr2.length)todo.push(["",`${pr2.length} material request${pr2.length>1?"s":""} waiting for approval`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="materials">Review</button>`]);}
     if(stockRows(p.id).some(r=>r.flag==="crit"))todo.push(["crit","Store log shows materials used beyond what was delivered",`<button class="btn sm" data-act="tab" data-role="developer" data-tab="materials">Check store</button>`]);
     if(payOn(p))msOf(p.id).forEach(m=>{if(m.status==="pending"&&phasePct(p,m.phase)>=.999)todo.push(["ok",`"${esc(m.name)}" is ready. Request release of ${naira(m.amount)}`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="payments">Open</button>`]);if(m.status==="requested")todo.push(["",`Record verification for "${esc(m.name)}"`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="payments">Open</button>`]);if(m.status==="approved")todo.push(["ok",`Investor approved "${esc(m.name)}". Confirm when the money arrives`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="payments">Open</button>`]);if(m.status==="disputed")todo.push(["crit",`Investor disputed "${esc(m.name)}"`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="payments">Open</button>`]);});
@@ -1677,7 +1728,7 @@ function stageModal(p){const names=phaseNames(p),cur=progress(p).phases.findInde
     <label class="chk"><input type="checkbox" id="sg-untick"> Also untick items in this phase and the ones after it</label>
     <p class="small muted">The change shows in the activity log.</p>
     <div class="actions"><button class="btn pri" type="submit">Save stage</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);}
-function projectForm(p){p=p||{};
+function projectForm(p){p=p||{};S.mix=S.mix||{};delete S.mix.pf;
   modal(`<h2>${p.id?"Edit project":"New project"}</h2><form id="proj-form" data-id="${esc(p.id||"")}">
     <label class="f" for="pf-name">Project name<input type="text" id="pf-name" required value="${esc(p.name||"")}"></label>
     ${locBlock("pf",p.location,p.siteLat,p.siteLng,`<input type="text" id="pf-loc" value="${esc(p.location||"")}" placeholder="Street, area, Lagos" aria-label="Site address">`)}
@@ -1794,6 +1845,13 @@ document.addEventListener("click",async e=>{
   if(act==="adm-refresh"){S.adm={};render();return;}
   if(act==="adm-confirm"||act==="adm-reject"){const ok=act==="adm-confirm";if(!confirm(ok?`Confirm you've received payment ${t.dataset.ref}? The developer gets a receipt.`:`Mark ${t.dataset.ref} as not received? The developer gets an email asking them to check.`))return;
     try{await cfApi("POST","/api/admin/payments/"+encodeURIComponent(t.dataset.ref)+"/"+(ok?"confirm":"reject"));toast(ok?"Payment confirmed. Receipt sent.":"Developer has been told.");S.adm={};if(S.billing)S.billing={};render();}catch(e){toast(e.message||"Couldn't update.");}return;}
+  if(act==="mx-add"){S.mix[t.dataset.p].push({t:"",n:"",b:""});mixSync(t.dataset.p);return;}
+  if(act==="mx-rm"){S.mix[t.dataset.p].splice(+t.dataset.i,1);mixSync(t.dataset.p);return;}
+  if(act==="cr-open"){if(p)crModal(p,t.dataset.col,t.dataset.id);return;}
+  if(act==="cr-untick"){modal(`<h2>Ask to untick this?</h2><p><b>${esc(t.dataset.label)}</b> was ticked more than 24 hours ago, so only the developer can untick it. They'll get an email.</p><form id="cr-untick-form" data-id="${esc(t.dataset.id)}" data-label="${esc(t.dataset.label)}"><label class="f" for="cu-reason">Why?<input type="text" id="cu-reason" required maxlength="500" placeholder="e.g. Ticked by mistake, plastering not finished"></label><div class="actions"><button class="btn pri" type="submit">Send request</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);return;}
+  if(act==="cr-review"){if(p){await refreshChanges(p.id);crReviewModal(p);}return;}
+  if(act==="cr-approve"){try{await cfApi("POST","/api/changes/"+encodeURIComponent(t.dataset.id)+"/approve",{});toast("Approved. The record is marked as corrected.");await refreshChanges(p.id);await S.db.pull();crReviewModal(p);render();}catch(e){toast(e.message||"Couldn't approve.");}return;}
+  if(act==="cr-decline"){modal(`<h2>Decline this request?</h2><form id="cr-decline-form" data-id="${esc(t.dataset.id)}"><label class="f" for="cd-reason">Reason (sent to the engineer)<input type="text" id="cd-reason" maxlength="300"></label><div class="actions"><button class="btn danger" type="submit">Decline</button><button class="btn" type="button" data-act="cr-review">Back</button></div></form>`);return;}
   if(act==="act-refresh"){delete S.activity[S.pid];render();return;}
   if(act==="act-more"){S.activityMore=true;render();return;}
   if(act==="pw-eye"){const i=t.parentNode.querySelector("input"),show=i.type==="password";i.type=show?"text":"password";t.innerHTML=show?EYE_OFF:EYE;t.setAttribute("aria-label",show?"Hide password":"Show password");t.setAttribute("aria-pressed",String(show));i.focus();return;}
@@ -1851,6 +1909,7 @@ document.addEventListener("click",async e=>{
 });
 function saveDraftFields(){const g=id=>document.getElementById(id);if(g("up-title"))S.draft.title=g("up-title").value;if(g("up-brief"))S.draft.briefing=g("up-brief").value;if(g("up-next"))S.draft.next=g("up-next").value;if(g("up-budget"))S.draft.budget=g("up-budget").checked;}
 document.addEventListener("change",async e=>{
+  if(e.target.dataset&&e.target.dataset.mx){const [pf,i,k]=e.target.dataset.mx.split("|");if(S.mix&&S.mix[pf]&&S.mix[pf][+i]){S.mix[pf][+i][k]=e.target.value;mixSum(pf);}return;}
   if(e.target.id==="tab-sel"){S.tab[e.target.dataset.role]=e.target.value;render();window.scrollTo(0,0);return;}
   if(e.target.id==="adm-f"){S.admF=e.target.value;S.admPg={};render();return;}
   if(e.target.id==="adm-sel"){S.admTab=e.target.value;S.admQ="";S.admF="all";if(S.adm)delete S.adm[e.target.value];render();window.scrollTo(0,0);return;}
@@ -1862,7 +1921,8 @@ document.addEventListener("change",async e=>{
   if(e.target.id==="lg-cam"){const f=e.target.files&&e.target.files[0];e.target.value="";const p=P();if(!f||!p)return;if(S.shots.length>=8){toast("8 photos per update. Post this one first.");return;}
     toast("Checking photo…");try{const r=await checkShot(p,f);if(!r.ok){modal(`<h2>Photo not accepted</h2><p>${esc(r.why)}</p><div><button class="btn pri" data-act="close">OK</button></div>`);return;}S.shots.push(r);renderShots();toast(r.v==="onsite"?"Location checked: on site.":"Photo added.");}catch(err){toast("Couldn't read that photo. Try again.");}return;}
   if(["pf-start","pf-dur","pf-target"].includes(e.target.id)){const g=id=>(document.getElementById(id)||{}).value||"";const dur=g("pf-dur");const tl=document.getElementById("pf-tlabel");if(tl)tl.hidden=dur!=="custom";const n=document.getElementById("pf-dnote");if(n)n.innerHTML=durNote(g("pf-start"),dur,g("pf-target"));return;}
-  if(["pf-ptype","pf-unitn","pf-blocks","pf-beds"].includes(e.target.id)){const g=id=>(document.getElementById(id)||{}).value||"";const txt=unitsText({propType:g("pf-ptype"),unitCount:g("pf-unitn"),blockCount:g("pf-blocks"),beds:g("pf-beds")});let s=document.getElementById("pf-psum");if(!s){s=document.createElement("p");s.id="pf-psum";s.className="small muted";document.querySelector(".propbox").appendChild(s);}s.innerHTML=`Shows as: <b style="color:var(--ink)">${esc(txt)}</b>`;return;}
+  if(e.target.id==="pf-ptype"){const est=e.target.value==="estate";const mx=document.getElementById("pf-mix");if(mx)mx.hidden=!est;["pf-unitn","pf-beds"].forEach(id=>{const l=document.querySelector(`label[for="${id}"]`);if(l)l.hidden=est;});}
+  if(["pf-ptype","pf-unitn","pf-blocks","pf-beds"].includes(e.target.id)){const g=id=>(document.getElementById(id)||{}).value||"";const txt=unitsText({propType:g("pf-ptype"),unitCount:g("pf-unitn"),blockCount:g("pf-blocks"),beds:g("pf-beds"),mix:S.mix&&S.mix.pf});let s=document.getElementById("pf-psum");if(!s){s=document.createElement("p");s.id="pf-psum";s.className="small muted";document.querySelector(".propbox").appendChild(s);}s.innerHTML=`Shows as: <b style="color:var(--ink)">${esc(txt)}</b>`;return;}
   if(e.target.id==="proj"){S.pid=e.target.value;ls.set("st.pid",S.pid);render();return;}
   if(e.target.id==="up-files"){
     const files=[...e.target.files].slice(0,10);if(!files.length)return;saveDraftFields();
@@ -1876,15 +1936,16 @@ document.addEventListener("submit",async e=>{
     const o=S.onb,d=o.d;
     if(o.step===0&&S.mode==="cf"&&!S.me){const pw=(document.getElementById("o-pass")||{}).value||"";S.busy="Creating account";render();
       try{const r=await cfApi("POST","/api/auth/signup",{name:d.name,email:d.email,password:pw});S.me=r.user;S.memberships=[];}catch(e){S.busy=false;render();showErr("Couldn't create your account",e.code==="conflict"?"That email already has an account. Sign in first, then start your project.":e.message||"Please try again.");return;}S.busy=false;}
+    if(o.step===1&&d.ptype==="estate"&&!cleanMix(d.mix).length){toast("Add at least one house type with how many.");return;}
     if(o.step<4){o.step++;render();window.scrollTo(0,0);return;}
     if(S.busy)return;S.busy="Creating";render();
     const p0={floors:+d.floors||0,checks:{}},pr0=progress(p0),done=new Set(pr0.phases.slice(0,d.phase).map(x=>x.name));
     stagesFor(p0).forEach(s=>{if(done.has(s.group))s.items.forEach(i=>p0.checks[i.id]=true);});
     const nid="p-"+Date.now().toString(36);
-    try{await store.set("projects",nid,{name:(d.pname||"New project").trim(),location:(d.loc||"").trim(),propType:d.ptype||"",sewageType:d.sew||"septic",foundationType:d.fdn||"",unitCount:+d.unitn||0,blockCount:+d.blocks||0,beds:d.beds||"",units:unitsText({propType:d.ptype,unitCount:d.unitn,blockCount:d.blocks,beds:d.beds}),client:(d.company||"").trim(),owner:(d.name||"").trim(),floors:+d.floors||0,budget:Math.max(0,+d.budget||0),startDate:d.start||"",durationMonths:d.dur&&d.dur!=="custom"?+d.dur:0,targetDate:finalTarget(d.start,d.dur,d.target),payMode:!PAY_SOON&&d.payMode==="milestone"?"milestone":"upfront",...(()=>{const g=parseLatLng(d.gps);return g?{siteLat:g.lat,siteLng:g.lng,siteRadius:200}:{};})(),contractSum:Math.max(0,+d.contract||0),checks:p0.checks,team:d.team,plan:{name:"Single site",billing:d.annual?"yearly":"monthly"},createdAt:new Date().toISOString()});
+    try{await store.set("projects",nid,{name:(d.pname||"New project").trim(),location:(d.loc||"").trim(),propType:d.ptype||"",sewageType:d.sew||"septic",foundationType:d.fdn||"",unitCount:d.ptype==="estate"?cleanMix(d.mix).reduce((x,y)=>x+y.n,0):(+d.unitn||0),mix:d.ptype==="estate"?cleanMix(d.mix):[],blockCount:+d.blocks||0,beds:d.beds||"",units:unitsText({propType:d.ptype,unitCount:d.unitn,blockCount:d.blocks,beds:d.ptype==="estate"?"":d.beds,mix:d.mix}),client:(d.company||"").trim(),owner:(d.name||"").trim(),floors:+d.floors||0,budget:Math.max(0,+d.budget||0),startDate:d.start||"",durationMonths:d.dur&&d.dur!=="custom"?+d.dur:0,targetDate:finalTarget(d.start,d.dur,d.target),payMode:!PAY_SOON&&d.payMode==="milestone"?"milestone":"upfront",...(()=>{const g=parseLatLng(d.gps);return g?{siteLat:g.lat,siteLng:g.lng,siteRadius:200}:{};})(),contractSum:Math.max(0,+d.contract||0),checks:p0.checks,team:d.team,plan:{name:"Single site",billing:d.annual?"yearly":"monthly"},createdAt:new Date().toISOString()});
       S.pid=nid;ls.set("st.pid",nid);ls.set("st.role","developer");S.tab.developer="overview";
       if(S.mode==="cf"){await S.db.pull();S.showPayAfterInvites=true;const links=[];for(const m of d.team){try{const r=await cfApi("POST","/api/invites",{pid:nid,role:m.role,name:m.name,email:m.email});links.push({...m,code:r.code,emailed:r.emailed});}catch(e){}}
-        S.payNext=!!links.length;if(links.length)setTimeout(()=>modal(`<h2>Your team is invited</h2><p class="small muted">${links.some(l=>l.emailed)?"We've emailed everyone who has an email address. You can also send the links on WhatsApp.":"Send each person their link on WhatsApp or copy it. They open it to join."}</p>${links.map(l=>`<div class="exp"><span>${esc(l.name)} · ${ROLE_LABEL[l.role]}${l.emailed?` · <span class="pill ok">Emailed</span>`:""}</span><span class="actions">${waLink(`You've been invited to follow ${d.pname} on TrailConstruct. Join here: ${location.origin}/?invite=${l.code}${l.role==="engineer"?`\n\nNew to it? 2-minute guide: ${location.origin}/#guide`:""}`,"WhatsApp")}<button class="btn sm" data-act="copy" data-text="${esc(location.origin+"/?invite="+l.code)}">Copy</button></span><span></span><span></span></div>`).join("")}<div><button class="btn pri" data-act="close">Done</button></div>`),400);}if(S.mode==="cf"&&S.showPayAfterInvites){S.showPayAfterInvites=false;refreshBilling().then(()=>{if(!S.payNext)payModal();});}S.onb={step:0,d:{floors:2,phase:0,team:[],annual:false}};S.busy=false;toast("Project created. Welcome to TrailConstruct.");go("developer");}
+        S.payNext=!!links.length;if(links.length)setTimeout(()=>modal(`<h2>Your team is invited</h2><p class="small muted">${links.some(l=>l.emailed)?"We've emailed everyone who has an email address. You can also send the links on WhatsApp.":"Send each person their link on WhatsApp or copy it. They open it to join."}</p>${links.map(l=>`<div class="exp"><span>${esc(l.name)} · ${ROLE_LABEL[l.role]}${l.emailed?` · <span class="pill ok">Emailed</span>`:""}</span><span class="actions">${waLink(`You've been invited to follow ${d.pname} on TrailConstruct. Join here: ${location.origin}/?invite=${l.code}${l.role==="engineer"?`\n\nNew to it? 2-minute guide: ${location.origin}/#guide`:""}`,"WhatsApp")}<button class="btn sm" data-act="copy" data-text="${esc(location.origin+"/?invite="+l.code)}">Copy</button></span><span></span><span></span></div>`).join("")}<div><button class="btn pri" data-act="close">Done</button></div>`),400);}if(S.mode==="cf"&&S.showPayAfterInvites){S.showPayAfterInvites=false;refreshBilling().then(()=>{if(!S.payNext)payModal();});}if(S.mix)delete S.mix.o;S.onb={step:0,d:{floors:2,phase:0,team:[],annual:false}};S.busy=false;toast("Project created. Welcome to TrailConstruct.");go("developer");}
     catch(err){S.busy=false;onErr(err);}
     return;
   }
@@ -1915,6 +1976,7 @@ document.addEventListener("submit",async e=>{
   if(f.id==="inv-form"){const p=P();if(!p)return;try{const em=v("iv-email").trim();const r=await cfApi("POST","/api/invites",{pid:p.id,role:v("iv-role"),name:v("iv-name").trim(),email:em});delete S.team[p.id];toast(r.emailed?`Invite emailed to ${em}. You can also send the link on WhatsApp.`:"Invite link created. Send it on WhatsApp or copy it.");render();}catch(err){toast(err.message||"Couldn't create the invite.");}return;}
   if(f.id==="proj-form"){
     const data={name:v("pf-name").trim(),location:(S.pfLoc||v("pf-loc")||(f.dataset.id&&P()?P().location||"":"")).trim(),propType:v("pf-ptype"),sewageType:v("pf-sew")||"septic",foundationType:v("pf-fdn")||"",unitCount:+v("pf-unitn")||0,blockCount:+v("pf-blocks")||0,beds:v("pf-beds"),client:v("pf-client").trim(),floors:Math.max(0,parseInt(v("pf-floors"),10)||0),budget:Math.max(0,+v("pf-budget")||0),startDate:v("pf-start"),durationMonths:v("pf-dur")&&v("pf-dur")!=="custom"?+v("pf-dur"):0,targetDate:finalTarget(v("pf-start"),v("pf-dur"),v("pf-target")),units:"",payMode:v("pf-pay")||"upfront",contractSum:Math.max(0,+v("pf-contract")||0),siteRadius:+v("pf-rad")||200,strictGps:!!(document.getElementById("pf-strict")||{}).checked};
+    if(data.propType==="estate"){data.mix=cleanMix(S.mix&&S.mix.pf);if(!data.mix.length){toast("Add at least one house type with how many.");return;}data.unitCount=data.mix.reduce((a,x)=>a+x.n,0);data.beds="";}else data.mix=[];
     data.units=data.propType?unitsText(data):((f.dataset.id&&P()?P().units:"")||"");
     {const g=parseLatLng(v("pf-gps"));if(v("pf-gps").trim()&&!g){toast("Couldn't read that location. Use \"6.4561, 3.4318\" or a Google Maps link.");return;}data.siteLat=g?g.lat:"";data.siteLng=g?g.lng:"";}
     if(f.dataset.id)await store.update("projects",f.dataset.id,data);
@@ -1922,6 +1984,11 @@ document.addEventListener("submit",async e=>{
     closeModal();toast("Project saved.");render();return;
   }
   if(!p)return;
+  if(f.id==="cr-form"){const col=f.dataset.col,changes={};
+    (col==="logs"?["work","workers","weather","issues"]:["summary","next"]).forEach(k=>{const el=document.getElementById("cr-"+k);if(el)changes[k]=el.value;});
+    try{await cfApi("POST","/api/changes",{col,docId:f.dataset.id,changes,reason:v("cr-reason").trim()});closeModal();toast("Request sent to the developer.");await refreshChanges(p.id);render();}catch(e){toast(e.message||"Couldn't send.");}return;}
+  if(f.id==="cr-untick-form"){try{await cfApi("POST","/api/changes",{col:"checks",docId:p.id,item:f.dataset.id,label:f.dataset.label,reason:v("cu-reason").trim()});closeModal();toast("Request sent to the developer.");await refreshChanges(p.id);render();}catch(e){toast(e.message||"Couldn't send.");}return;}
+  if(f.id==="cr-decline-form"){try{await cfApi("POST","/api/changes/"+encodeURIComponent(f.dataset.id)+"/decline",{reason:v("cd-reason").trim()});toast("Declined. The engineer has been told.");await refreshChanges(p.id);crReviewModal(p);render();}catch(e){toast(e.message||"Couldn't decline.");}return;}
   if(f.id==="stage-form"){const idx=+v("sg-phase");try{await store.update("projects",p.id,{checks:checksUpTo(p,idx,document.getElementById("sg-untick").checked)});closeModal();toast("Stage saved.");if(S.activity)delete S.activity[p.id];render();}catch(e){onErr(e);}return;}
   if(f.id==="req-form"){await store.add("matreqs",{pid:p.id,item:v("rq-item").trim(),qty:+v("rq-qty")||0,unit:v("rq-unit"),needBy:v("rq-need"),note:v("rq-note").trim(),by:ls.get("st.name")||"Site engineer",status:"pending",createdAt:new Date().toISOString()});toast("Request sent to the developer.");return;}
   if(f.id==="mv-form"){const type=(f.querySelector("input[name=mv-type]:checked")||{}).value||"in";await store.add("stock",{pid:p.id,item:v("mv-item").trim(),qty:+v("mv-qty")||0,unit:v("mv-unit"),type,note:v("mv-note").trim(),by:ls.get("st.name")||"Site",date:ymd(new Date()),createdAt:new Date().toISOString()});toast(type==="in"?"Delivery recorded.":"Usage recorded.");return;}
@@ -1964,6 +2031,7 @@ document.addEventListener("submit",async e=>{
   }
 });
 document.addEventListener("input",e=>{
+  if(e.target.dataset&&e.target.dataset.mx){const [pf,i,k]=e.target.dataset.mx.split("|");if(S.mix&&S.mix[pf]&&S.mix[pf][+i]){S.mix[pf][+i][k]=e.target.value;mixSum(pf);}return;}
   if(e.target.id==="adm-q"){S.admQ=e.target.value;S.admPg={};clearTimeout(S.admQT);S.admQT=setTimeout(()=>{const pos=e.target.selectionStart;render();const i=document.getElementById("adm-q");if(i){i.focus();try{i.setSelectionRange(pos,pos);}catch(x){}}},200);return;}
   if(["lg-work","lg-workers","lg-issues"].includes(e.target.id)){const d=logDraft();d[e.target.id.slice(3)]=e.target.value;ls.set("st.draft.log",JSON.stringify(d));return;}
   if(e.target.dataset&&e.target.dataset.onb){const k=e.target.dataset.onb;S.onb.d[k]=e.target.value;if(k==="floors")S.onb.d.floors=+e.target.value;return;}

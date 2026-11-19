@@ -23,6 +23,8 @@ const LOCK_MS = { logs: 24 * 3600 * 1000, stock: 24 * 3600 * 1000, reports: 7 * 
 const LOCKED_COLS = Object.keys(LOCK_MS);
 const INVITE_DAYS = 14;
 const CHECK_UNDO_MS = 24 * 3600 * 1000;
+// Fields an engineer may ask to correct on a locked record.
+const CHANGE_FIELDS = { logs: ["work", "workers", "weather", "issues", "stage"], reports: ["summary", "next"] };
 const LOGIN_WINDOW_MS = 15 * 60 * 1000, LOGIN_MAX_FAILS = 8;
 // Password reset links last 1 hour and work once. At most 3 per account and 10 per network address an hour.
 const RESET_MS = 60 * 60 * 1000, RESET_MAX_PER_USER = 3, RESET_MAX_PER_IP = 10;
@@ -209,6 +211,8 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS suspensions (user_id TEXT PRIMARY KEY, reason TEXT, by_email TEXT, at INTEGER NOT NULL)",
   "CREATE TABLE IF NOT EXISTS pauses (pid TEXT PRIMARY KEY, reason TEXT, by_email TEXT, at INTEGER NOT NULL)",
   "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS change_requests (id TEXT PRIMARY KEY, pid TEXT NOT NULL, col TEXT NOT NULL, doc_id TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT, changes TEXT NOT NULL, reason TEXT, status TEXT NOT NULL, created_at INTEGER NOT NULL, decided_by TEXT, decided_at INTEGER, decline_reason TEXT)",
+  "CREATE INDEX IF NOT EXISTS change_requests_pid ON change_requests(pid, status)",
   "CREATE TABLE IF NOT EXISTS alerts (kind TEXT PRIMARY KEY, at INTEGER NOT NULL)",
   "CREATE TABLE IF NOT EXISTS password_resets (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, used_at INTEGER)",
   "CREATE INDEX IF NOT EXISTS login_fails_email ON login_fails(email, at)",
@@ -784,6 +788,92 @@ export async function onRequest(ctx) {
       return err(404, "Not found");
     }
 
+    // ---------- change requests for locked records ----------
+    if (parts[0] === "changes") {
+      if (m === "GET") {
+        const pid = url.searchParams.get("pid") || "", role = await roleOn(env, user.id, pid);
+        if (!role || role === "investor") return err(403, "Not allowed");
+        const r = role === "developer"
+          ? await env.DB.prepare("SELECT * FROM change_requests WHERE pid = ? ORDER BY created_at DESC LIMIT 100").bind(pid).all()
+          : await env.DB.prepare("SELECT * FROM change_requests WHERE pid = ? AND user_id = ? ORDER BY created_at DESC LIMIT 100").bind(pid, user.id).all();
+        return json({ items: (r.results || []).map((x) => ({ id: x.id, col: x.col, docId: x.doc_id, by: x.user_name, changes: JSON.parse(x.changes), reason: x.reason, status: x.status, createdAt: x.created_at, decidedAt: x.decided_at, declineReason: x.decline_reason })) });
+      }
+      if (m === "POST" && !parts[1]) {
+        const b0 = await readBody(req), col = String(b0.col || ""), docId = String(b0.docId || ""), reason = String(b0.reason || "").trim().slice(0, 500);
+        if (!reason) return err(400, "Say why it needs changing.");
+        let pid, changes = {};
+        if (col === "checks") {
+          pid = docId;
+          const proj = await env.DB.prepare("SELECT data FROM docs WHERE col = 'projects' AND id = ?").bind(pid).first();
+          if (!proj) return err(404, "Project not found");
+          const item = String(b0.item || "");
+          if (!JSON.parse(proj.data).checks?.[item]) return err(400, "That item isn't ticked.");
+          changes = { untick: item, label: String(b0.label || item).slice(0, 200) };
+        } else {
+          if (!CHANGE_FIELDS[col]) return err(400, "That record can't be changed this way.");
+          const row = await env.DB.prepare("SELECT pid, data, created_at FROM docs WHERE col = ? AND id = ?").bind(col, docId).first();
+          if (!row) return err(404, "Record not found");
+          pid = row.pid;
+          const cur = JSON.parse(row.data);
+          for (const [k, v] of Object.entries(b0.changes || {})) {
+            if (!CHANGE_FIELDS[col].includes(k)) continue;
+            const nv = k === "workers" ? Math.max(0, parseInt(v, 10) || 0) : String(v).slice(0, 4000);
+            if (String(cur[k] ?? "") !== String(nv)) changes[k] = { from: cur[k] ?? "", to: nv };
+          }
+          if (!Object.keys(changes).length) return err(400, "Nothing would change.");
+        }
+        const role = await roleOn(env, user.id, pid);
+        if (role !== "engineer") return err(403, "Only site engineers can request changes to their records.");
+        { const why = await projectLock(env, pid); if (why) return err(402, why); }
+        const open = await env.DB.prepare("SELECT 1 FROM change_requests WHERE col = ? AND doc_id = ? AND user_id = ? AND status = 'pending'").bind(col, docId, user.id).first();
+        if (open) return err(409, "You've already asked for a change to this. Wait for the developer to answer.");
+        const id = randHex(10), now = Date.now();
+        await env.DB.prepare("INSERT INTO change_requests (id, pid, col, doc_id, user_id, user_name, changes, reason, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)")
+          .bind(id, pid, col, docId, user.id, user.name || user.email, JSON.stringify(changes), reason, now).run();
+        const name = await projectName(env, pid), what = col === "checks" ? `untick "${changes.label}"` : col === "logs" ? "correct a daily update" : "correct a weekly report";
+        await logActivity(env, { pid, user, role, action: `asked to ${what}` });
+        const devs = await developersOf(env, pid);
+        for (const d of devs) ctx.waitUntil(sendMail(env, d.email, `${user.name || "Your site engineer"} asked to ${what} on ${name}`,
+          `<p>Hello ${escHtml(d.name || "")},</p><p><b>${escHtml(user.name || user.email)}</b> asked to ${escHtml(what)} on <b>${escHtml(name)}</b>.</p>${col === "checks" ? "" : `<ul>${Object.entries(changes).map(([k, v]) => `<li><b>${escHtml(k)}</b>: "${escHtml(String(v.from))}" → "${escHtml(String(v.to))}"</li>`).join("")}</ul>`}<p>Reason: ${escHtml(reason)}</p>${btn((env.APP_URL || url.origin) + "/#developer", "Review in TrailConstruct")}`));
+        return json({ ok: true, id });
+      }
+      if (m === "POST" && parts[1] && ["approve", "decline"].includes(parts[2])) {
+        const cr = await env.DB.prepare("SELECT * FROM change_requests WHERE id = ?").bind(parts[1]).first();
+        if (!cr) return err(404, "Not found");
+        if ((await roleOn(env, user.id, cr.pid)) !== "developer") return err(403, "Only the developer can decide.");
+        if (cr.status !== "pending") return err(409, "This request has already been answered.");
+        { const why = await projectLock(env, cr.pid); if (why) return err(402, why); }
+        const now = Date.now(), changes = JSON.parse(cr.changes), b0 = await readBody(req), name = await projectName(env, cr.pid);
+        const asker = await env.DB.prepare("SELECT name, email FROM users WHERE id = ?").bind(cr.user_id).first();
+        const what = cr.col === "checks" ? `untick "${changes.label}"` : cr.col === "logs" ? "correct a daily update" : "correct a weekly report";
+        if (parts[2] === "decline") {
+          const dr = String(b0.reason || "").trim().slice(0, 300);
+          await env.DB.prepare("UPDATE change_requests SET status = 'declined', decided_by = ?, decided_at = ?, decline_reason = ? WHERE id = ?").bind(user.id, now, dr, cr.id).run();
+          await logActivity(env, { pid: cr.pid, user, role: "developer", action: `declined ${cr.user_name}'s request to ${what}` });
+          if (asker) ctx.waitUntil(sendMail(env, asker.email, `Your change request on ${name} was declined`, `<p>Hello ${escHtml(asker.name || "")},</p><p>${escHtml(user.name || "The developer")} declined your request to ${escHtml(what)}.${dr ? " Reason: " + escHtml(dr) : ""}</p>`));
+          return json({ ok: true });
+        }
+        if (cr.col === "checks") {
+          const row = await env.DB.prepare("SELECT data FROM docs WHERE col = 'projects' AND id = ?").bind(cr.pid).first();
+          const pd = JSON.parse(row.data); pd.checks = pd.checks || {}; pd.checks[changes.untick] = false; if (pd.checksMeta) delete pd.checksMeta[changes.untick];
+          await env.DB.prepare("UPDATE docs SET data = ?, updated_at = ? WHERE col = 'projects' AND id = ?").bind(JSON.stringify(pd), now, cr.pid).run();
+        } else {
+          const row = await env.DB.prepare("SELECT data FROM docs WHERE col = ? AND id = ?").bind(cr.col, cr.doc_id).first();
+          if (!row) return err(404, "The record no longer exists.");
+          const d = JSON.parse(row.data);
+          for (const [k, v] of Object.entries(changes)) d[k] = v.to;
+          // The correction stays visible: who asked, who approved, when, and the original values.
+          d.corrections = [...(d.corrections || []), { at: now, by: cr.user_name, approvedBy: user.name || user.email, reason: cr.reason, changes }];
+          await env.DB.prepare("UPDATE docs SET data = ?, updated_at = ? WHERE col = ? AND id = ?").bind(JSON.stringify(d), now, cr.col, cr.doc_id).run();
+        }
+        await env.DB.prepare("UPDATE change_requests SET status = 'approved', decided_by = ?, decided_at = ? WHERE id = ?").bind(user.id, now, cr.id).run();
+        await logActivity(env, { pid: cr.pid, user, role: "developer", action: `approved ${cr.user_name}'s request to ${what}` });
+        if (asker) ctx.waitUntil(sendMail(env, asker.email, `Your change on ${name} was approved`, `<p>Hello ${escHtml(asker.name || "")},</p><p>${escHtml(user.name || "The developer")} approved your request to ${escHtml(what)}. It's been updated, and marked as a correction.</p>`));
+        return json({ ok: true });
+      }
+      return err(404, "Not found");
+    }
+
     // ---------- activity log (developer only) ----------
     if (parts[0] === "audit" && m === "GET") {
       const pid = url.searchParams.get("pid") || "";
@@ -797,7 +887,7 @@ export async function onRequest(ctx) {
       const ar0 = await adminRole(env, user);
       if (ar0 !== "owner" && ar0 !== "full") return err(403, "Not allowed");
       const out = { exported_at: new Date().toISOString() };
-      for (const t of ["users", "members", "invites", "docs", "deleted", "audit", "photo_meta", "leads", "billing", "payments", "admins", "suspensions", "pauses", "settings"]) {
+      for (const t of ["users", "members", "invites", "docs", "deleted", "audit", "photo_meta", "leads", "billing", "payments", "admins", "suspensions", "pauses", "settings", "change_requests"]) {
         const r = await env.DB.prepare(`SELECT * FROM ${t}`).all();
         out[t] = (r.results || []).map((row) => { if (t === "users") { const { pass_hash, salt, ...rest } = row; return rest; } return row; });
       }
@@ -855,6 +945,7 @@ export async function onRequest(ctx) {
             env.DB.prepare("DELETE FROM audit WHERE pid = ?").bind(id),
             env.DB.prepare("DELETE FROM photo_meta WHERE pid = ?").bind(id),
             env.DB.prepare("DELETE FROM billing WHERE pid = ?").bind(id),
+            env.DB.prepare("DELETE FROM change_requests WHERE pid = ?").bind(id),
             env.DB.prepare("DELETE FROM payments WHERE pid = ? AND status <> 'confirmed'").bind(id),
           ]);
           if (env.PHOTOS) {
