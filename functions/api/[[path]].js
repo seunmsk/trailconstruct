@@ -22,6 +22,7 @@ const SESSION_DAYS = 30;
 const LOCK_MS = { logs: 24 * 3600 * 1000, stock: 24 * 3600 * 1000, reports: 7 * 24 * 3600 * 1000 };
 const LOCKED_COLS = Object.keys(LOCK_MS);
 const INVITE_DAYS = 14;
+const CHECK_UNDO_MS = 24 * 3600 * 1000;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000, LOGIN_MAX_FAILS = 8;
 // Password reset links last 1 hour and work once. At most 3 per account and 10 per network address an hour.
 const RESET_MS = 60 * 60 * 1000, RESET_MAX_PER_USER = 3, RESET_MAX_PER_IP = 10;
@@ -163,7 +164,12 @@ function allowedChange(role, col, existing, patch, isCreate, method) {
   // Only developers may replace a whole record; everyone else creates new records or makes small, allowed changes.
   if (!isCreate && method === "PUT" && col !== "reports") return false;
   if (role === "engineer") {
-    if (col === "projects") return !isCreate && method === "PATCH" && keys.every((k) => k === "checks") && patch.checks && typeof patch.checks === "object" && Object.values(patch.checks).every((v) => typeof v === "boolean");
+    if (col === "projects") {
+      if (!(!isCreate && method === "PATCH" && keys.every((k) => k === "checks") && patch.checks && typeof patch.checks === "object" && Object.values(patch.checks).every((v) => typeof v === "boolean"))) return false;
+      // Engineers can tick anything, but untick only what they ticked themselves in the last 24 hours.
+      const meta = (existing && existing.checksMeta) || {}, cur = (existing && existing.checks) || {};
+      return Object.entries(patch.checks).every(([id, v]) => v || !cur[id] || (meta[id] && meta[id].by === allowedChange.uid && Date.now() - meta[id].at < CHECK_UNDO_MS));
+    }
     if (col === "matreqs") return isCreate && patch.status === "pending";
     return true; // logs, reports, stock
   }
@@ -894,7 +900,8 @@ export async function onRequest(ctx) {
       const role = await roleOn(env, user.id, pid);
       if (!role || !(WRITE[role] || []).includes(col)) return err(403, "You don't have access to change this.");
       if (m === "PATCH" && !row) return err(404, "Not found");
-      if (!allowedChange(role, col, existing, body, !row, m)) return err(403, "You don't have access to change this.");
+      allowedChange.uid = user.id;
+      if (!allowedChange(role, col, existing, body, !row, m)) return err(403, col === "projects" && role === "engineer" ? "Only the developer can untick an item after 24 hours." : "You don't have access to change this.");
       if (locked) {
         // Once locked, a site record is fixed. The developer may only mark a weekly report as used.
         const onlyStatus = role === "developer" && col === "reports" && m === "PATCH" && Object.keys(body).every((k) => k === "status");
@@ -902,8 +909,14 @@ export async function onRequest(ctx) {
       }
       delete body._locked;
 
+      if (col === "projects") delete body.checksMeta; // kept by the server only
       let next = m === "PATCH" ? deepMerge(existing, body) : body;
       if (col !== "projects") next.pid = pid;
+      if (col === "projects") { // who ticked what, and when, for the 24-hour untick rule
+        const meta = { ...((existing && existing.checksMeta) || {}) }, prev = (existing && existing.checks) || {};
+        for (const [id, v] of Object.entries(body.checks || {})) { if (v && !prev[id]) meta[id] = { by: user.id, at: Date.now() }; else if (!v) delete meta[id]; }
+        next.checksMeta = meta;
+      }
       // Photo details come from the server's own record of each upload, not from what the phone says.
       if (Array.isArray(next.photos) && next.photos.length) {
         const keys = next.photos.map((ph) => ph && ph.id).filter((k) => typeof k === "string").slice(0, 60);

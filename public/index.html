@@ -741,7 +741,7 @@ function stageList(p){
     const open=S.open[s.id]??(pr.current&&pr.current.id===s.id);
     const pill=s.status==="done"?`<span class="pill ok">Done</span>`:s.status==="active"?`<span class="pill active">In progress</span>`:`<span class="pill">Not started</span>`;
     return head+`<div class="stage ${s.status}"><button type="button" class="stage-h" data-act="toggle-stage" data-id="${s.id}" aria-expanded="${open?"true":"false"}"><span><b>${esc(s.name)}</b> <span class="small muted num">${s.done}/${s.items.length}</span></span>${pill}${bar(s.pct)}</button>
-    ${open?`<ul class="checks">${s.items.map(i=>{const on=!!(p.checks||{})[i.id];return `<li><label><input type="checkbox" data-act="check" data-id="${i.id}" ${on?"checked":""} ${S.canWrite?"":"disabled"}><span class="${on?"done-t":""}">${esc(i.label)}</span></label></li>`;}).join("")}</ul>`:""}</div>`;}).join("")}</div>`;
+    ${open?`<ul class="checks">${s.items.map(i=>{const on=!!(p.checks||{})[i.id],lk=on&&tickLocked(p,i.id);return `<li><label${lk?` title="Ticked more than 24 hours ago. Only the developer can untick it."`:""}><input type="checkbox" data-act="check" data-id="${i.id}" ${on?"checked":""} ${S.canWrite&&!lk?"":"disabled"}><span class="${on?"done-t":""}">${esc(i.label)}</span>${lk?`<span class="small muted" aria-label="locked"> 🔒</span>`:""}</label></li>`;}).join("")}</ul>`:""}</div>`;}).join("")}</div>`;
 }
 function engReportHTML(p,r,forDev){
   return `<div class="rep"><div class="card-h"><b>Week of ${esc(fmtS(r.weekStart))} – ${esc(fmtS(r.weekEnd))}</b>${r.status==="used"?`<span class="pill ok">Sent to investor</span>`:`<span class="pill active">New</span>`}</div>
@@ -1210,7 +1210,7 @@ function devView(p){
   const pr=progress(p),logs=logsOf(p.id),reps=reportsOf(p.id),ups=updatesOf(p.id);
   const newReps=reps.filter(r=>r.status!=="used").length;
   const pendReq=reqOf(p.id).filter(r=>r.status==="pending").length,msAct=msOf(p.id).filter(m=>m.status==="requested"||m.status==="approved").length;
-  const tabs=[["overview","Overview"],["site","Site reports",newReps],["investor","Investor updates"],["materials","Materials",pendReq],...(payOn(p)?[["payments","Payments",msAct]]:[]),["stages","Stages"],["budget","Budget"],["project","Project"]];
+  const tabs=[["overview","Overview"],["stages","Stages"],["site","Site reports",newReps],["materials","Materials",pendReq],["investor","Investor updates"],["budget","Budget"],...(payOn(p)?[["payments","Payments",msAct]]:[]),["project","Project"]];
   const t=S.tab.developer;let body="";
   if(t==="overview"){
     const last=logs[0],ago=last?daysSince(last.date):null,lastUp=ups[0],upAgo=lastUp?daysSince(lastUp.date):null;
@@ -1286,7 +1286,7 @@ function composeView(p,pr,ups){
 /* ---------- ENGINEER ---------- */
 function engView(p){
   const pr=progress(p),ws=weekStatus(p.id),me=ls.get("st.name")||"",wlogs=logsOf(p.id).filter(l=>l.date>=ws.w.key);
-  const tabs=[["today","Today"],["weekly","Weekly report",ws.report?0:(ws.late?"!":0)],["materials","Materials"],["stages","Checklist"],["history","History"]];
+  const tabs=[["today","Today"],["stages","Checklist"],["weekly","Weekly report",ws.report?0:(ws.late?"!":0)],["materials","Materials"],["history","History"]];
   const t=S.tab.engineer;let body="";
   let ban;
   if(ws.report)ban=`<div class="banner done"><div><strong>Weekly report sent</strong><span class="small">Thanks. The developer has it.</span></div></div>`;
@@ -1668,6 +1668,8 @@ function closeModal(){document.getElementById("layer").innerHTML="";if(S.payNext
 // Ticks every checklist item in the phases before phase number idx. With untickLater, clears the rest.
 function checksUpTo(proj,idx,untickLater){const pr=progress(proj),done=new Set(pr.phases.slice(0,idx).map(x=>x.name)),out={};
   stagesFor(proj).forEach(st=>st.items.forEach(i=>{if(done.has(st.group))out[i.id]=true;else if(untickLater)out[i.id]=false;}));return out;}
+// A site engineer can only untick what they ticked themselves in the last 24 hours. Developers can always change ticks.
+function tickLocked(p,id){if(S.mode!=="cf"||!S.me||roleFor(p.id)!=="engineer")return false;const m=(p.checksMeta||{})[id];return !(m&&m.by===S.me.id&&Date.now()-m.at<864e5);}
 function phaseNames(proj){return progress(proj).phases.map(x=>x.name);}
 function stageModal(p){const names=phaseNames(p),cur=progress(p).phases.findIndex(x=>x.pct<.999);
   modal(`<h2>Set the current stage</h2><p class="small muted">Choose the phase work is on now. Everything before it is marked done, so the percentage is right. You can still tick single items in the checklist.</p>
