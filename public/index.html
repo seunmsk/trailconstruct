@@ -301,6 +301,7 @@ main .stats>.stat:nth-child(4):not([class*=" t"]){background:var(--rose)}
 .ms .active .ms-dot{background:var(--amber);border-color:var(--amber);box-shadow:0 0 0 4px var(--sand)}
 .ms .todo{color:var(--muted)}
 .ms .active span:nth-child(2){font-weight:600}
+.seg button{border:0;background:transparent;padding:7px 12px;border-radius:7px;font:inherit;font-weight:600;font-size:.88rem;color:var(--muted);min-height:40px;cursor:pointer}.seg button[aria-selected=true]{background:var(--steel);color:var(--steel-ink)}
 .card.hl{border-left:5px solid var(--amber)}
 .card.ask{background:linear-gradient(135deg,var(--sand),var(--surface));display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .banner.due{background:linear-gradient(135deg,var(--sand),var(--surface))}
@@ -521,7 +522,12 @@ main{max-width:1120px}
 .btn.wa{background:#25D366;border-color:#25D366;color:#06301a}
 .req,.ms-card{border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;gap:8px;margin-top:8px}
 .ms-card.active{border-left:4px solid var(--amber)}.ms-card.ok{border-left:4px solid var(--ok)}.ms-card.crit{border-left:4px solid var(--crit)}
-.req-act{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.req-act input{max-width:170px}
+.req-act{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}.req-act input{max-width:150px}.req-act .f{margin:0}
+.req.urgent{border-left:0;box-shadow:inset 0 0 0 1.5px var(--rose-ink,#b42318);border-radius:10px;padding:10px}
+details.send{margin-top:8px}details.send>summary{list-style:none;display:inline-flex;cursor:pointer}details.send>summary::-webkit-details-marker{display:none}details.send[open]>summary{margin-bottom:8px}details.send form{display:grid;gap:8px}
+details.trail{margin-top:6px}details.trail summary{cursor:pointer;color:var(--muted)}details.trail ol{margin:6px 0 0;padding-left:16px;display:grid;gap:4px}
+.receipt{display:inline-flex;align-items:center;gap:8px;margin-top:6px;text-decoration:none}.receipt img{width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.card.hl{box-shadow:inset 0 0 0 2px var(--amber,#f0a500)}
 .tbl-wrap{overflow-x:auto}
 .tbl{width:100%;border-collapse:collapse;font-size:.92rem}
 .tbl th{text-align:left;font-size:.76rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line)}
@@ -1260,7 +1266,7 @@ function noProject(role){
 function devView(p){
   const pr=progress(p),logs=logsOf(p.id),reps=reportsOf(p.id),ups=updatesOf(p.id);
   const newReps=reps.filter(r=>r.status!=="used").length;
-  const pendReq=reqOf(p.id).filter(r=>r.status==="pending").length,msAct=msOf(p.id).filter(m=>m.status==="requested"||m.status==="approved").length;
+  const pendReq=reqOf(p.id).filter(r=>["pending","approved","short"].includes(r.status)||(r.status==="petty"&&!r.notedAt)).length,msAct=msOf(p.id).filter(m=>m.status==="requested"||m.status==="approved").length;
   const tabs=[["overview","Overview"],["stages","Stages"],["site","Site reports",newReps],["materials","Materials",pendReq],["investor","Investor updates"],["budget","Budget"],...(payOn(p)?[["payments","Payments",msAct]]:[]),["project","Project"]];
   const t=S.tab.developer;let body="";
   if(t==="overview"){
@@ -1270,7 +1276,13 @@ function devView(p){
     S.requests.filter(r=>r.pid===p.id&&!r.resolved).slice(0,1).forEach(r=>todo.push(["crit",`Your investor asked for an update on ${esc(fmtS(r.createdAt))}`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="investor">Send update</button>`]));
     if(upAgo==null||upAgo>7)todo.push(["",upAgo==null?"Your investor hasn't had an update yet":`Last investor update was ${upAgo} days ago`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="investor">Create update</button>`]);
     {const crs=S.mode==="cf"?changesFor(p.id).filter(x=>x.status==="pending"):[];if(crs.length)todo.push(["crit",`${crs.length} change request${crs.length>1?"s":""} from site`,`<button class="btn sm pri" data-act="cr-review">Review</button>`]);}
-    {const pr2=reqOf(p.id).filter(r=>r.status==="pending");if(pr2.length)todo.push(["",`${pr2.length} material request${pr2.length>1?"s":""} waiting for approval`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="materials">Review</button>`]);}
+    {const rq=reqOf(p.id),go=`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="materials">Open</button>`,n=s=>rq.filter(r=>r.status===s),pl=(k,w)=>k+" "+w+(k>1?"s":"");
+      const pe=n("pending"),ap=n("approved"),sh=n("short"),pc=rq.filter(r=>r.status==="petty"&&!r.notedAt),urg=[...pe,...ap].filter(r=>matCadence(r.needBy).key==="urgent");
+      if(urg.length)todo.push(["crit",`${pl(urg.length,"urgent material request")} not sent yet`,go]);
+      if(pe.length)todo.push(["",`${pl(pe.length,"material request")} waiting for approval`,go]);
+      if(ap.length)todo.push(["",`${pl(ap.length,"approved item")} to buy and send to site`,go]);
+      if(sh.length)todo.push(["crit",`${sh.length>1?sh.length+" short deliveries":"1 short delivery"} to sort out`,go]);
+      if(pc.length)todo.push(["",`${pl(pc.length,"petty-cash purchase")} to note`,go]);}
     if(stockRows(p.id).some(r=>r.flag==="crit"))todo.push(["crit","Store log shows materials used beyond what was delivered",`<button class="btn sm" data-act="tab" data-role="developer" data-tab="materials">Check store</button>`]);
     if(payOn(p))msOf(p.id).forEach(m=>{if(m.status==="pending"&&phasePct(p,m.phase)>=.999)todo.push(["ok",`"${esc(m.name)}" is ready. Request release of ${naira(m.amount)}`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="payments">Open</button>`]);if(m.status==="requested")todo.push(["",`Record verification for "${esc(m.name)}"`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="payments">Open</button>`]);if(m.status==="approved")todo.push(["ok",`Investor approved "${esc(m.name)}". Confirm when the money arrives`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="payments">Open</button>`]);if(m.status==="disputed")todo.push(["crit",`Investor disputed "${esc(m.name)}"`,`<button class="btn sm pri" data-act="tab" data-role="developer" data-tab="payments">Open</button>`]);});
     if(p.siteLat==null||p.siteLat==="")todo.push(["","Add the site's GPS location so photos can be checked as taken on site",`<button class="btn sm" data-act="edit-project">Add location</button>`]);
@@ -1381,7 +1393,11 @@ const waLink=(text,label)=>`<a class="btn sm wa" href="https://wa.me/?text=${enc
 
 const reqOf=pid=>S.matreqs.filter(r=>r.pid===pid).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
 const movesOf=pid=>S.stock.filter(r=>r.pid===pid).sort(byDateDesc);
-const REQ_PILL={pending:["active","Waiting for approval"],approved:["ok","Approved"],rejected:["crit","Declined"],delivered:["ok","Delivered"]};
+const REQ_PILL={pending:["active","Waiting for approval"],approved:["active","Approved · to buy"],sent:["","On the way"],received:["ok","Received"],delivered:["ok","Delivered"],short:["crit","Short delivery"],closed:["","Closed"],rejected:["crit","Declined"],petty:["ok","Bought on site"]};
+// Same rule as the server: reminders get more frequent as the needed-by date gets close.
+function matCadence(needBy){const t=Date.parse(needBy||"");if(!isFinite(t))return {key:"week",label:"every 2 days"};const d=(t+864e5-Date.now())/864e5;
+  return d<=2?{key:"urgent",label:"every 3 hours"}:d<=3?{key:"soon",label:"twice a day"}:d<=7?{key:"week",label:"every 2 days"}:{key:"later",label:"weekly"};}
+const matOpen=r=>["pending","approved","sent","short"].includes(r.status)||(r.status==="petty"&&!r.notedAt);
 function stockRows(pid){
   const m=new Map();movesOf(pid).forEach(x=>{const k=(x.item||"").trim().toLowerCase();if(!k)return;if(!m.has(k))m.set(k,{item:x.item.trim(),unit:x.unit||"",inn:0,out:0});const r=m.get(k);if(x.type==="out")r.out+=+x.qty||0;else r.inn+=+x.qty||0;});
   return [...m.values()].map(r=>{const bal=r.inn-r.out;return {...r,bal,flag:bal<0?"crit":r.inn&&bal<=r.inn*.1?"low":""};}).sort((a,b)=>(a.flag==="crit"?-1:0)-(b.flag==="crit"?-1:0)||a.item.localeCompare(b.item));
@@ -1392,34 +1408,55 @@ function stockTable(pid){
   return `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Item</th><th class="r">In</th><th class="r">Used</th><th class="r">Balance</th><th></th></tr></thead><tbody>
   ${rows.map(r=>`<tr class="${r.flag}"><td>${esc(r.item)}</td><td class="r num">${r.inn} ${esc(r.unit)}</td><td class="r num">${r.out}</td><td class="r num"><b>${r.bal}</b></td><td>${r.flag==="crit"?`<span class="pill crit">Used more than delivered</span>`:r.flag==="low"?`<span class="pill active">Running low</span>`:""}</td></tr>`).join("")}</tbody></table></div>`;
 }
+const trailHtml=r=>Array.isArray(r.trail)&&r.trail.length?`<details class="trail"><summary class="small">History (${r.trail.length})</summary><ol>${r.trail.map(x=>`<li class="small"><span class="muted">${esc(fmtS(x.at))} ${esc(new Date(x.at).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}))} · ${esc(x.by||"")}</span><br>${esc(x.text)}</li>`).join("")}</ol></details>`:"";
 function reqCard(p,r,role){
-  const [c,l]=REQ_PILL[r.status]||["",r.status];
-  return `<div class="req"><div class="card-h"><b>${esc(r.qty)} ${esc(r.unit)} · ${esc(r.item)}</b><span class="pill ${c}">${l}</span></div>
-  <p class="small muted">${esc(r.by||"Site")} · ${esc(fmtS(r.createdAt))}${r.needBy?" · needed by "+esc(fmtS(r.needBy)):""}${r.cost?" · "+naira(r.cost):""}</p>${r.note?`<p class="small">${esc(r.note)}</p>`:""}
-  ${role==="developer"&&S.canWrite&&r.status==="pending"?`<div class="req-act"><label class="sr" for="cost-${r.id}">Cost</label><input type="number" id="cost-${r.id}" min="0" placeholder="Cost ₦ (optional)"><button class="btn sm pri" data-act="req-approve" data-id="${r.id}">Approve</button><button class="btn sm" data-act="req-reject" data-id="${r.id}">Decline</button></div>`:""}
-  ${role==="developer"&&S.canWrite&&r.status==="approved"?`<div class="actions"><button class="btn sm" data-act="req-delivered" data-id="${r.id}">Mark delivered to site</button></div>`:""}
-  ${role==="engineer"&&r.status==="pending"?`<div class="actions">${waLink(`Hi, I've raised a material request on TrailConstruct for ${p.name}: ${r.qty} ${r.unit} ${r.item}${r.needBy?", needed by "+fmtS(r.needBy):""}. Please approve.`,"Nudge on WhatsApp")}</div>`:""}</div>`;
+  const [c,l]=REQ_PILL[r.status]||["",r.status],dev=role==="developer"&&S.canWrite,eng=role==="engineer"&&S.canWrite,id=esc(r.id),u=esc(r.unit||"");
+  const cad=matCadence(r.needBy),urgent=cad.key==="urgent"&&["pending","approved"].includes(r.status);
+  const head=r.status==="petty"?`${esc(r.qty||"")} ${u} · ${esc(r.item)}`:`${esc(r.status==="approved"||r.status==="sent"?(r.approvedQty||r.qty):r.qty)} ${u} · ${esc(r.item)}`;
+  let body="",act="";
+  if(r.status==="petty"){body=`<p class="small"><b>${naira(r.amount)}</b> petty cash · ${esc(r.by||"Site")} · ${esc(fmtS(r.createdAt))}${r.note?" · "+esc(r.note):""}</p>${r.receipt&&r.receipt.url?`<a class="receipt" href="${esc(r.receipt.url)}" target="_blank" rel="noopener"><img src="${esc(r.receipt.url)}" alt="Receipt for ${esc(r.item)}" loading="lazy"><span class="small">View receipt</span></a>`:""}`;
+    if(dev&&!r.notedAt)act=`<div class="actions"><button class="btn sm pri" data-act="mat-noted" data-id="${id}">Noted, add to budget</button></div>`;}
+  else body=`<p class="small muted">${esc(r.by||"Site")} · ${esc(fmtS(r.createdAt))}${r.needBy?" · needed by "+esc(fmtS(r.needBy)):""}${r.cost?" · "+naira(r.cost):""}${r.nudgedAt&&["pending","approved"].includes(r.status)?` · <b style="color:var(--crit)">nudged</b>`:""}</p>${r.note?`<p class="small">${esc(r.note)}</p>`:""}
+    ${r.status==="sent"?`<p class="small">${esc(r.sentQty)} ${u} sent${r.supplier?" from "+esc(r.supplier):""}${r.eta?", expected "+esc(fmtS(r.eta)):""}.</p>`:""}
+    ${r.status==="short"?`<p class="small"><b>${esc(r.goodQty)} ${u}</b> usable received of ${esc(r.approvedQty)}${r.damaged?` (${esc(r.damaged)} damaged)`:""}. <b>${esc(r.shortBy)} ${u} short.</b></p>`:""}
+    ${["pending","approved"].includes(r.status)?`<p class="small muted">Developer reminded ${cad.label} until it's sent.</p>`:""}`;
+  if(dev&&r.status==="pending")act=`<form class="req-act" data-form="mat-approve" data-id="${id}"><label class="f sm" for="aq-${id}">Approve<input type="number" id="aq-${id}" min="1" step="any" value="${esc(r.qty)}" required></label><label class="f sm" for="cost-${id}">Cost ₦ (optional)<input type="number" id="cost-${id}" min="0"></label><button class="btn sm pri" type="submit">Approve</button><button class="btn sm" type="button" data-act="req-reject" data-id="${id}">Decline</button></form>`;
+  if(dev&&r.status==="approved")act=`<details class="send"><summary class="btn sm pri">Mark as sent</summary><form data-form="mat-sent" data-id="${id}"><div class="row"><label class="f" for="sq-${id}">Quantity sent<input type="number" id="sq-${id}" min="1" step="any" value="${esc(r.approvedQty||r.qty)}" required></label><label class="f" for="se-${id}">Expected on site<input type="date" id="se-${id}" value="${ymd(new Date())}" required></label></div><div class="row"><label class="f" for="ss-${id}">Supplier (optional)<input type="text" id="ss-${id}" placeholder="e.g. Dangote depot, Ajah"></label>${r.cost?"":`<label class="f" for="sc-${id}">Cost ₦ (optional)<input type="number" id="sc-${id}" min="0"></label>`}</div><button class="btn sm pri" type="submit">Save: sent to site</button></form></details>`;
+  if(r.status==="sent"&&(eng||dev))act=`<details class="send" ${eng?"open":""}><summary class="btn sm ${eng?"pri":""}">Confirm received</summary><form data-form="mat-recv" data-id="${id}"><div class="row"><label class="f" for="rv-${id}">How many arrived?<input type="number" id="rv-${id}" min="0" step="any" value="${esc(r.sentQty)}" required></label><label class="f" for="rd-${id}">How many damaged?<input type="number" id="rd-${id}" min="0" step="any" value="0"></label></div><label class="f" for="rn-${id}">Note (optional)<input type="text" id="rn-${id}" placeholder="e.g. Waybill no. 2231"></label><button class="btn sm pri" type="submit">Confirm and add to store</button></form></details>`;
+  if(dev&&r.status==="short")act=`<div class="actions"><button class="btn sm pri" data-act="mat-rest" data-id="${id}">Send the remaining ${esc(r.shortBy)} ${u}</button><button class="btn sm" data-act="mat-close" data-id="${id}">Close as is</button></div>`;
+  if(eng&&["pending","approved"].includes(r.status)){const fresh=r.nudgedAt&&Date.now()-Date.parse(r.nudgedAt)<20*3600e3;act=`<div class="actions"><button class="btn sm" data-act="mat-nudge" data-id="${id}" ${fresh?"disabled":""}>${fresh?"Nudged today":"Still waiting? Nudge"}</button></div>`;}
+  return `<div class="req${urgent?" urgent":""}"><div class="card-h"><b>${head}</b><span class="pill ${c}">${l}</span>${urgent?`<span class="pill crit">Urgent</span>`:""}</div>${body}${act}${trailHtml(r)}</div>`;
 }
-const UNITS=["bags","pcs","tonnes","trips","lengths","m²","m³","litres","rolls","sets"];
+const UNITS=["bags","pcs","tonnes","trips","lengths","m²","m³","litres","rolls","sets","kg"];
 function materialsView(p,role){
-  const reqs=reqOf(p.id),moves=movesOf(p.id),pend=reqs.filter(r=>r.status==="pending"),appr=reqs.filter(r=>r.status==="approved");
+  const reqs=reqOf(p.id),moves=movesOf(p.id),by=s=>reqs.filter(r=>r.status===s);
+  const pend=by("pending"),appr=by("approved"),sent=by("sent"),short=by("short"),petty=reqs.filter(r=>r.status==="petty"&&!r.notedAt);
   const items=[...new Set([...moves.map(m=>m.item),...reqs.map(r=>r.item)].filter(Boolean))];
+  const tmr=new Date(Date.now()+864e5);
   const reqForm=`<form id="req-form"><div class="row"><label class="f" for="rq-item">Material<input type="text" id="rq-item" list="mat-list" required placeholder="e.g. Cement (Dangote 42.5)"></label><label class="f" for="rq-qty">Quantity<input type="number" id="rq-qty" min="0" step="any" required></label><label class="f" for="rq-unit">Unit<select id="rq-unit">${UNITS.map(u=>`<option>${u}</option>`).join("")}</select></label></div>
-    <div class="row"><label class="f" for="rq-need">Needed by<input type="date" id="rq-need"></label><label class="f" for="rq-note">Note (optional)<input type="text" id="rq-note" placeholder="e.g. For Block B plastering"></label></div><div><button class="btn pri" type="submit">Send request</button></div></form>`;
+    <div class="row"><label class="f" for="rq-need">Needed by<input type="date" id="rq-need" required min="${ymd(new Date())}" value="${ymd(new Date(Date.now()+5*864e5))}"></label><label class="f" for="rq-note">What it's for (optional)<input type="text" id="rq-note" placeholder="e.g. Block B plastering"></label></div><p class="small muted" id="rq-cad">The developer will be reminded ${matCadence(ymd(new Date(Date.now()+5*864e5))).label} until it's sent.</p><div><button class="btn pri" type="submit">Send request</button></div></form>`;
+  const pettyForm=`<form id="petty-form"><p class="small muted">For small things you bought on site. The developer is told and sees your receipt; nothing to approve.</p><div class="row"><label class="f" for="pc-item">What you bought<input type="text" id="pc-item" list="mat-list" required placeholder="e.g. Binding wire"></label><label class="f" for="pc-qty">Quantity<input type="number" id="pc-qty" min="0" step="any" required></label><label class="f" for="pc-unit">Unit<select id="pc-unit">${UNITS.map(u=>`<option>${u}</option>`).join("")}</select></label></div>
+    <div class="row"><label class="f" for="pc-amt">Amount paid (₦)<input type="number" id="pc-amt" min="1" required></label><label class="f" for="pc-rcpt">Receipt photo<input type="file" id="pc-rcpt" accept="image/*" required></label></div><label class="f" for="pc-note">Note (optional)<input type="text" id="pc-note" placeholder="e.g. Ran out mid-pour"></label><label class="chk"><input type="checkbox" id="pc-stock" checked> Add to the site store log</label><div><button class="btn pri" type="submit">Log purchase</button></div></form>`;
   const moveForm=`<form id="mv-form"><div class="seg" role="group" aria-label="Movement type"><label><input type="radio" name="mv-type" value="in" checked><span>Delivered to site</span></label><label><input type="radio" name="mv-type" value="out"><span>Used today</span></label></div>
     <div class="row"><label class="f" for="mv-item">Material<input type="text" id="mv-item" list="mat-list" required></label><label class="f" for="mv-qty">Quantity<input type="number" id="mv-qty" min="0" step="any" required></label><label class="f" for="mv-unit">Unit<select id="mv-unit">${UNITS.map(u=>`<option>${u}</option>`).join("")}</select></label></div>
     <label class="f" for="mv-note">Note (optional)<input type="text" id="mv-note" placeholder="e.g. Waybill no. 2231, received by storekeeper"></label><div><button class="btn" type="submit">Save to store log</button></div></form>`;
   const dl=`<datalist id="mat-list">${items.map(i=>`<option value="${esc(i)}"></option>`).join("")}</datalist>`;
   const recent=moves.slice(0,10).map(m=>`<div class="exp"><span>${m.type==="out"?"Used":"Delivered"}: ${esc(m.qty)} ${esc(m.unit)} ${esc(m.item)}</span><span class="pill ${m.type==="out"?"":"ok"}">${m.type==="out"?"Out":"In"}</span><span class="small muted">${esc(fmtS(m.date))} · ${esc(m.by||"")}${m.note?" · "+esc(m.note):""}</span><span></span></div>`).join("");
-  if(role==="engineer")return `${dl}<div class="grid2"><section class="card"><h2>Request materials</h2><p class="small muted">The developer approves it, so you don't have to chase on the phone.</p>${S.canWrite?reqForm:""}</section>
-    <section class="card"><h2>Your requests</h2>${reqs.length?reqs.slice(0,12).map(r=>reqCard(p,r,role)).join(""):`<div class="empty">No requests yet.</div>`}</section></div>
+  const list=(arr,empty)=>arr.length?arr.map(r=>reqCard(p,r,role)).join(""):`<div class="empty">${empty}</div>`;
+  if(role==="engineer"){const mode=S.matMode||"req";const mine=reqs.filter(matOpen),done=reqs.filter(r=>!matOpen(r));
+    return `${dl}${sent.length?`<section class="card hl"><h2>Arriving on site</h2><p class="small muted">Count what arrives and confirm it, so the store log stays right.</p>${list(sent,"")}</section>`:""}
+    <div class="grid2"><section class="card"><div class="seg" role="tablist" aria-label="Materials form"><button type="button" role="tab" data-act="mat-mode" data-mode="req" aria-selected="${mode==="req"}">Request materials</button><button type="button" role="tab" data-act="mat-mode" data-mode="petty" aria-selected="${mode==="petty"}">I bought it on site</button></div>${S.canWrite?(mode==="petty"?pettyForm:reqForm):""}</section>
+    <section class="card"><h2>Open requests</h2>${list(mine.filter(r=>r.status!=="sent"),"Nothing open.")}</section></div>
     <div class="grid2"><section class="card"><h2>Site store log</h2><p class="small muted">Record every delivery and what was used. Gaps show up straight away.</p>${S.canWrite?moveForm:""}</section>
-    <section class="card"><h2>Store balance</h2>${stockTable(p.id)}</section></div>`;
-  return `${dl}<div class="grid2"><section class="card"><div class="card-h"><h2>Requests to approve</h2>${pend.length?`<span class="pill active">${pend.length} waiting</span>`:""}</div>${pend.length?pend.map(r=>reqCard(p,r,role)).join(""):`<div class="empty">Nothing waiting.</div>`}
-    ${appr.length?`<h3 style="margin-top:6px">Approved, awaiting delivery</h3>${appr.map(r=>reqCard(p,r,role)).join("")}`:""}</section>
-    <section class="card"><h2>Store balance</h2>${stockTable(p.id)}<p class="small muted">Balance = delivered − used, from the site store log. Red rows mean more was recorded as used than was ever delivered.</p></section></div>
-    <section class="card"><h2>Recent store movements</h2>${recent?`<div>${recent}</div>`:`<div class="empty">No movements yet.</div>`}</section>
-    <section class="card"><h2>Request history</h2>${reqs.filter(r=>r.status==="delivered"||r.status==="rejected").slice(0,10).map(r=>reqCard(p,r,role)).join("")||`<div class="empty">No completed requests yet.</div>`}</section>`;
+    <section class="card"><h2>Store balance</h2>${stockTable(p.id)}</section></div>
+    <section class="card"><h2>Past requests</h2>${list(done.slice(0,12),"None yet.")}</section>`;}
+  return `${dl}<div class="grid2"><section class="card"><div class="card-h"><h2>Needs you</h2>${pend.length+short.length+petty.length?`<span class="pill active">${pend.length+short.length+petty.length}</span>`:""}</div>
+      ${pend.length+short.length+petty.length?[...short,...pend,...petty].map(r=>reqCard(p,r,role)).join(""):`<div class="empty">Nothing waiting.</div>`}</section>
+    <section class="card"><div class="card-h"><h2>To buy</h2>${appr.length?`<span class="pill active">${appr.length}</span>`:""}</div><p class="small muted">Approved but not sent yet. You're reminded until each one is marked as sent.</p>${list(appr,"Nothing to buy.")}
+      ${sent.length?`<h3 style="margin-top:10px">On the way</h3><p class="small muted">Waiting for the site to confirm it arrived.</p>${list(sent,"")}`:""}</section></div>
+    <div class="grid2"><section class="card"><h2>Store balance</h2>${stockTable(p.id)}<p class="small muted">Balance = delivered − used, from the site store log. Red rows mean more was recorded as used than was ever delivered.</p></section>
+    <section class="card"><h2>Recent store movements</h2>${recent?`<div>${recent}</div>`:`<div class="empty">No movements yet.</div>`}</section></div>
+    <section class="card"><h2>Request history</h2>${list(reqs.filter(r=>!matOpen(r)).slice(0,12),"No completed requests yet.")}</section>`;
 }
 
 /* milestone payments */
@@ -1878,15 +1915,18 @@ document.addEventListener("click",async e=>{
   if(act==="new-project"){projectForm();return;}
   if(act==="edit-project"){projectForm(p);return;}
   if(act==="set-stage"){if(p)stageModal(p);return;}
+  if(act==="mat-mode"){S.matMode=t.dataset.mode;render();return;}
   if(act==="pick"){saveDraftFields();const id=t.dataset.id,s=S.draft.sel;const i=s.indexOf(id);if(i<0)s.push(id);else s.splice(i,1);render();return;}
   if(act==="clear-draft"){S.draft={sel:[],extra:[],title:"",briefing:"",next:"",budget:false,fromReport:null};render();return;}
   if(!S.canWrite||!p)return;
   if(act==="request"){try{await store.add("requests",{pid:p.id,createdAt:new Date().toISOString(),resolved:false});toast("Request sent to the developer.");}catch(err){toast("Couldn't send the request. Ask the developer for contributor access.");}return;}
   if(act==="shot-rm"){S.shots.splice(+t.dataset.i,1);renderShots();return;}
   if(act==="flush"){flushOutbox();return;}
-  if(act==="req-approve"){const r=S.matreqs.find(x=>x.id===t.dataset.id);if(!r)return;const cost=Math.max(0,+(document.getElementById("cost-"+r.id)||{}).value||0);await store.update("matreqs",r.id,{status:"approved",cost,approvedAt:new Date().toISOString()});if(cost){const pr=progress(p);await store.add("expenses",{pid:p.id,item:`${r.qty} ${r.unit} ${r.item}`,amount:cost,stage:pr.current?pr.current.id:"fin",date:ymd(new Date()),createdAt:new Date().toISOString(),fromRequest:r.id});}toast("Approved"+(cost?" and added to budget":"")+".");return;}
-  if(act==="req-reject"){await store.update("matreqs",t.dataset.id,{status:"rejected"});toast("Request declined.");return;}
-  if(act==="req-delivered"){const r=S.matreqs.find(x=>x.id===t.dataset.id);if(!r)return;await store.update("matreqs",r.id,{status:"delivered",deliveredAt:new Date().toISOString()});await store.add("stock",{pid:p.id,item:r.item,qty:+r.qty||0,unit:r.unit,type:"in",note:"From approved request",by:p.client||"Developer",date:ymd(new Date()),createdAt:new Date().toISOString()});toast("Marked delivered and added to the store.");return;}
+  if(act==="req-reject"){await store.update("matreqs",t.dataset.id,{status:"rejected"});toast("Declined. The engineer has been told.");return;}
+  if(act==="mat-nudge"){await store.update("matreqs",t.dataset.id,{nudgedAt:new Date().toISOString()});toast("Nudge sent to the developer.");return;}
+  if(act==="mat-rest"){const r=S.matreqs.find(x=>x.id===t.dataset.id);if(!r)return;await store.update("matreqs",r.id,{status:"approved",approvedQty:r.shortBy});toast("Moved back to To buy.");return;}
+  if(act==="mat-close"){await store.update("matreqs",t.dataset.id,{status:"closed"});toast("Closed.");return;}
+  if(act==="mat-noted"){const r=S.matreqs.find(x=>x.id===t.dataset.id);if(!r)return;await store.update("matreqs",r.id,{status:"noted"});const pr=progress(p);await store.add("expenses",{pid:p.id,item:`${r.qty} ${r.unit} ${r.item} (petty cash)`,amount:+r.amount||0,stage:pr.current?pr.current.id:"fin",date:ymd(new Date()),createdAt:new Date().toISOString(),fromRequest:r.id});toast("Noted and added to the budget.");return;}
   if(act==="ms-template"){const base=+p.contractSum||0;if(!base){toast("Set the contract sum in the Project tab first.");return;}for(let i=0;i<MS_TEMPLATE.length;i++){const [n,ph,f]=MS_TEMPLATE[i];await store.add("milestones",{pid:p.id,name:n,phase:ph,amount:Math.round(base*f),order:i,status:"pending",createdAt:new Date().toISOString()});}toast("Payment schedule created.");return;}
   if(act==="ms-del"){store.del("milestones",t.dataset.id);return;}
   if(act==="ms-request"){const m=S.milestones.find(x=>x.id===t.dataset.id);if(!m)return;const sids=new Set(stagesFor(p).filter(s=>s.group===m.phase).map(s=>s.id));const ev=[];logsOf(p.id).forEach(l=>{if(sids.has(l.stage))(l.photos||[]).forEach(ph=>{if(ev.length<6)ev.push({id:ph.id,url:ph.url||"",cap:fmtS(l.date)});});});await store.update("milestones",m.id,{status:"requested",requestedAt:new Date().toISOString(),evidence:ev});toast("Release requested. Next: independent verification.");return;}
@@ -1931,6 +1971,7 @@ document.addEventListener("change",async e=>{
     catch(err){onErr(err);}S.busy=false;render();
   }
 });
+document.addEventListener("input",e=>{if(e.target&&e.target.id==="rq-need"){const el=document.getElementById("rq-cad");if(el)el.textContent="The developer will be reminded "+matCadence(e.target.value).label+" until it's sent.";}});
 document.addEventListener("submit",async e=>{
   e.preventDefault();const f=e.target,p=P(),v=id=>(document.getElementById(id)||{}).value||"";
   if(f.id==="onb-form"){
@@ -1991,7 +2032,25 @@ document.addEventListener("submit",async e=>{
   if(f.id==="cr-untick-form"){try{await cfApi("POST","/api/changes",{col:"checks",docId:p.id,item:f.dataset.id,label:f.dataset.label,reason:v("cu-reason").trim()});closeModal();toast("Request sent to the developer.");await refreshChanges(p.id);render();}catch(e){toast(e.message||"Couldn't send.");}return;}
   if(f.id==="cr-decline-form"){try{await cfApi("POST","/api/changes/"+encodeURIComponent(f.dataset.id)+"/decline",{reason:v("cd-reason").trim()});toast("Declined. The engineer has been told.");await refreshChanges(p.id);crReviewModal(p);render();}catch(e){toast(e.message||"Couldn't decline.");}return;}
   if(f.id==="stage-form"){const idx=+v("sg-phase");try{await store.update("projects",p.id,{checks:checksUpTo(p,idx,document.getElementById("sg-untick").checked)});closeModal();toast("Stage saved.");if(S.activity)delete S.activity[p.id];render();}catch(e){onErr(e);}return;}
-  if(f.id==="req-form"){await store.add("matreqs",{pid:p.id,item:v("rq-item").trim(),qty:+v("rq-qty")||0,unit:v("rq-unit"),needBy:v("rq-need"),note:v("rq-note").trim(),by:ls.get("st.name")||"Site engineer",status:"pending",createdAt:new Date().toISOString()});toast("Request sent to the developer.");return;}
+  if(f.id==="req-form"){await store.add("matreqs",{pid:p.id,item:v("rq-item").trim(),qty:+v("rq-qty")||0,unit:v("rq-unit"),needBy:v("rq-need"),note:v("rq-note").trim(),by:ls.get("st.name")||"Site engineer",status:"pending",createdAt:new Date().toISOString()});toast("Request sent. The developer will be reminded "+matCadence(v("rq-need")).label+" until it's sent.");return;}
+  if(f.id==="petty-form"){const file=(document.getElementById("pc-rcpt").files||[])[0];if(!file){toast("Add a photo of the receipt.");return;}
+    const btn=f.querySelector("button[type=submit]");btn.disabled=true;btn.textContent="Uploading receipt…";
+    try{const up=await uploadFile(file,p.id,{kind:"receipt"});const qty=+v("pc-qty")||0,unit=v("pc-unit"),item=v("pc-item").trim();
+      await store.add("matreqs",{pid:p.id,item,qty,unit,amount:+v("pc-amt")||0,note:v("pc-note").trim(),receipt:{id:up.id,url:up.url},by:ls.get("st.name")||"Site engineer",status:"petty",createdAt:new Date().toISOString()});
+      if(document.getElementById("pc-stock").checked&&qty)await store.add("stock",{pid:p.id,item,qty,unit,type:"in",note:"Bought on site (petty cash)",by:ls.get("st.name")||"Site",date:ymd(new Date()),createdAt:new Date().toISOString()});
+      toast("Logged. The developer has been told.");S.matMode="req";render();}
+    catch(e){btn.disabled=false;btn.textContent="Log purchase";toast(e.message||"Couldn't upload the receipt. Try again.");}return;}
+  if(f.dataset.form==="mat-approve"){const r=S.matreqs.find(x=>x.id===f.dataset.id);if(!r)return;const q=Math.min(+r.qty||0,+v("aq-"+r.id)||0)||+r.qty||0,cost=Math.max(0,+v("cost-"+r.id)||0);
+    await store.update("matreqs",r.id,{status:"approved",approvedQty:q,cost});if(cost){const pr=progress(p);await store.add("expenses",{pid:p.id,item:`${q} ${r.unit} ${r.item}`,amount:cost,stage:pr.current?pr.current.id:"fin",date:ymd(new Date()),createdAt:new Date().toISOString(),fromRequest:r.id});}
+    toast(`Approved${q<(+r.qty||0)?" (part)":""}. It's on your To buy list until you mark it as sent.`);return;}
+  if(f.dataset.form==="mat-sent"){const r=S.matreqs.find(x=>x.id===f.dataset.id);if(!r)return;const c=Math.max(0,+v("sc-"+r.id)||0);
+    await store.update("matreqs",r.id,{status:"sent",sentQty:+v("sq-"+r.id)||0,eta:v("se-"+r.id),supplier:v("ss-"+r.id).trim(),...(c?{cost:c}:{})});
+    if(c){const pr=progress(p);await store.add("expenses",{pid:p.id,item:`${v("sq-"+r.id)} ${r.unit} ${r.item}`,amount:c,stage:pr.current?pr.current.id:"fin",date:ymd(new Date()),createdAt:new Date().toISOString(),fromRequest:r.id});}
+    toast("Marked as sent. The site will confirm when it arrives.");return;}
+  if(f.dataset.form==="mat-recv"){const r=S.matreqs.find(x=>x.id===f.dataset.id);if(!r)return;const got=+v("rv-"+r.id)||0,bad=Math.min(got,+v("rd-"+r.id)||0),good=got-bad,target=+r.approvedQty||+r.sentQty||+r.qty||0;
+    await store.update("matreqs",r.id,{status:"received",recvQty:got,damaged:bad,recvNote:v("rn-"+r.id).trim()});
+    if(good)await store.add("stock",{pid:p.id,item:r.item,qty:good,unit:r.unit,type:"in",note:"From request"+(r.supplier?" · "+r.supplier:"")+(bad?` · ${bad} damaged`:""),by:ls.get("st.name")||"Site",date:ymd(new Date()),createdAt:new Date().toISOString()});
+    toast(good<target?`Recorded. The developer has been told it's ${target-good} ${r.unit} short.`:"Received in full and added to the store log.");return;}
   if(f.id==="mv-form"){const type=(f.querySelector("input[name=mv-type]:checked")||{}).value||"in";await store.add("stock",{pid:p.id,item:v("mv-item").trim(),qty:+v("mv-qty")||0,unit:v("mv-unit"),type,note:v("mv-note").trim(),by:ls.get("st.name")||"Site",date:ymd(new Date()),createdAt:new Date().toISOString()});toast(type==="in"?"Delivery recorded.":"Usage recorded.");return;}
   if(f.id==="ms-form"){const n=msOf(p.id).length;await store.add("milestones",{pid:p.id,name:v("ms-name").trim(),phase:v("ms-phase"),amount:Math.max(0,+v("ms-amt")||0),order:n,status:"pending",createdAt:new Date().toISOString()});toast("Milestone added.");return;}
   if(f.id==="ver-form"){await store.update("milestones",f.dataset.id,{status:"verified",verification:{by:v("vf-by").trim(),org:v("vf-org").trim(),date:v("vf-date"),note:v("vf-note").trim()},verifiedAt:new Date().toISOString()});closeModal();toast("Verified. The investor can now approve.");return;}
@@ -2092,7 +2151,7 @@ function makeCfDb(){
     onSnapshot(next){(subs[col]=subs[col]||[]).push(rows=>next({docs:rows.map(x=>({id:x.id,exists:true,data:()=>x.data})),size:rows.length,empty:!rows.length,metadata:{fromCache:false,hasPendingWrites:false}}));return ()=>{};}});
   return {collection:coll,doc:p=>{const [c,i]=p.split("/");return docRef(c,i);},pull,reset(){since=0;memSig="";for(const c in cache)delete cache[c];}};
 }
-const cfAssets={async upload(file,pid,meta){const m=meta||{},h={};if(m.takenAt)h["x-taken-at"]=m.takenAt;if(m.gps){h["x-lat"]=String(m.gps.lat);h["x-lng"]=String(m.gps.lng);}if(m.orig)h["x-orig-hash"]=m.orig;
+const cfAssets={async upload(file,pid,meta){const m=meta||{},h={};if(m.takenAt)h["x-taken-at"]=m.takenAt;if(m.gps){h["x-lat"]=String(m.gps.lat);h["x-lng"]=String(m.gps.lng);}if(m.orig)h["x-orig-hash"]=m.orig;if(m.kind)h["x-kind"]=m.kind;
   const d=await cfApi("POST","/api/upload?pid="+encodeURIComponent(pid||S.pid||""),null,file,h);return d;}};
 const cfDownloads={async save({filename,data}){const b=data instanceof Blob?data:new Blob([data]);const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);return {status:"saved"};}};
 const roleFor=pid=>((S.memberships||[]).find(m=>m.pid===pid)||{}).role||null;

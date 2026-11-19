@@ -1,0 +1,18 @@
+# Calls the app once an hour so material reminders and the daily summary go out on time.
+# Needs a repository secret CRON_SECRET with the same value as CRON_SECRET in Cloudflare Pages.
+name: Hourly reminders
+on:
+  schedule:
+    - cron: "5 * * * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Run reminders
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then echo "CRON_SECRET not set"; exit 0; fi
+          curl -sS --fail-with-body -X POST -H "x-cron-key: $CRON_SECRET" https://trailconstruct.com/api/cron

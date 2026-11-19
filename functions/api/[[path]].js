@@ -172,7 +172,7 @@ function allowedChange(role, col, existing, patch, isCreate, method) {
       const meta = (existing && existing.checksMeta) || {}, cur = (existing && existing.checks) || {};
       return Object.entries(patch.checks).every(([id, v]) => v || !cur[id] || (meta[id] && meta[id].by === allowedChange.uid && Date.now() - meta[id].at < CHECK_UNDO_MS));
     }
-    if (col === "matreqs") return isCreate && patch.status === "pending";
+    if (col === "matreqs") return engineerMatChange(existing, patch, isCreate, method);
     return true; // logs, reports, stock
   }
   if (role === "investor") {
@@ -214,6 +214,7 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS change_requests (id TEXT PRIMARY KEY, pid TEXT NOT NULL, col TEXT NOT NULL, doc_id TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT, changes TEXT NOT NULL, reason TEXT, status TEXT NOT NULL, created_at INTEGER NOT NULL, decided_by TEXT, decided_at INTEGER, decline_reason TEXT)",
   "CREATE INDEX IF NOT EXISTS change_requests_pid ON change_requests(pid, status)",
   "CREATE TABLE IF NOT EXISTS alerts (kind TEXT PRIMARY KEY, at INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS reminders (key TEXT PRIMARY KEY, at INTEGER NOT NULL)",
   "CREATE TABLE IF NOT EXISTS password_resets (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, used_at INTEGER)",
   "CREATE INDEX IF NOT EXISTS login_fails_email ON login_fails(email, at)",
   "CREATE TABLE IF NOT EXISTS leads (id TEXT PRIMARY KEY, name TEXT, company TEXT, email TEXT, phone TEXT, sites TEXT, message TEXT, created_at INTEGER NOT NULL)",
@@ -367,6 +368,165 @@ async function sendResetEmail(env, { to, name, link }) {
   } catch (e) { console.error("reset email error", e); return false; }
 }
 
+// ---------- material requests: the journey and its reminders ----------
+// pending → approved → sent → received (or short → approved again / closed). Engineers can also log
+// small petty-cash purchases ("petty"), which the developer only has to note.
+const MAT_ENGINEER_RECV = ["status", "recvQty", "damaged", "recvNote"];
+const lagosParts = (t = Date.now()) => { const d = new Date(t + 3600e3); return { hour: d.getUTCHours(), day: d.toISOString().slice(0, 10) }; };
+const qtyText = (n, u) => `${n} ${u || ""}`.trim();
+// How often to remind, from how soon it's needed. Overdue counts as urgent.
+function matCadence(needBy, now = Date.now()) {
+  const t = Date.parse(needBy || "");
+  if (!isFinite(t)) return { key: "week", hours: 48, label: "every 2 days" };
+  const days = (t + DAY - now) / DAY; // to the end of the needed-by day
+  if (days <= 2) return { key: "urgent", hours: 3, label: "every 3 hours" };
+  if (days <= 3) return { key: "soon", hours: 6, label: "twice a day" };
+  if (days <= 7) return { key: "week", hours: 48, label: "every 2 days" };
+  return { key: "later", hours: 168, label: "weekly" };
+}
+const needText = (needBy) => { const t = Date.parse(needBy || ""); return isFinite(t) ? new Date(t).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) : "no date given"; };
+// Engineers may only make these changes to a material request.
+function engineerMatChange(existing, patch, isCreate, method) {
+  const keys = Object.keys(patch);
+  if (isCreate) {
+    if (patch.status === "pending") return true;
+    return patch.status === "petty" && +patch.amount > 0 && patch.receipt && typeof patch.receipt.id === "string";
+  }
+  if (method !== "PATCH" || !existing) return false;
+  if (keys.length === 1 && keys[0] === "nudgedAt") return ["pending", "approved"].includes(existing.status) && (!existing.nudgedAt || Date.now() - Date.parse(existing.nudgedAt) > 20 * 3600e3);
+  if (existing.status === "sent") return keys.every((k) => MAT_ENGINEER_RECV.includes(k)) && patch.status === "received";
+  return false;
+}
+// The server keeps the history, totals and status itself so they can be trusted.
+function matNormalize(role, user, prev, next, isCreate) {
+  const who = user.name || user.email, at = new Date().toISOString();
+  next.trail = Array.isArray(prev && prev.trail) ? prev.trail.slice(-40) : [];
+  const add = (text) => next.trail.push({ at, by: who, text });
+  if (isCreate) {
+    next.byId = user.id; next.createdAt = next.createdAt || at;
+    if (next.status === "petty") { next.amount = Math.round(+next.amount || 0); add(`Bought on site with petty cash, ${naira(next.amount)}`); }
+    else { next.status = "pending"; add(`Requested ${qtyText(next.qty, next.unit)}`); }
+    return next;
+  }
+  if (prev.byId) next.byId = prev.byId;
+  const was = prev.status, now = next.status;
+  if (next.nudgedAt && next.nudgedAt !== prev.nudgedAt) { next.nudgedAt = at; add("Nudged: still waiting"); }
+  if (was === now) return next;
+  if (now === "approved") {
+    const q = +next.approvedQty > 0 ? +next.approvedQty : +next.qty || 0;
+    next.approvedQty = q; next.approvedAt = at; next.nudgedAt = null;
+    ["sentQty", "supplier", "eta", "sentAt", "recvQty", "damaged", "recvAt"].forEach((k) => delete next[k]);
+    add(was === "short" ? `Sending the remaining ${qtyText(q, next.unit)}` : `Approved ${qtyText(q, next.unit)}${q < (+next.qty || 0) ? " (part)" : ""}`);
+  } else if (now === "rejected") add("Declined");
+  else if (now === "sent") {
+    next.sentQty = +next.sentQty > 0 ? +next.sentQty : next.approvedQty || +next.qty || 0; next.sentAt = at;
+    add(`Sent ${qtyText(next.sentQty, next.unit)}${next.supplier ? " from " + String(next.supplier).slice(0, 80) : ""}${next.eta ? ", expected " + needText(next.eta) : ""}`);
+  } else if (now === "received") {
+    const got = Math.max(0, +next.recvQty || 0), bad = Math.min(got, Math.max(0, +next.damaged || 0)), good = got - bad;
+    const target = next.approvedQty || next.sentQty || +next.qty || 0;
+    next.recvQty = got; next.damaged = bad; next.recvAt = at; next.goodQty = good;
+    add(`Received ${qtyText(got, next.unit)}${bad ? `, ${bad} damaged` : ""}`);
+    if (good < target) { next.status = "short"; next.shortBy = target - good; }
+    else next.shortBy = 0;
+  } else if (now === "closed") add(was === "short" ? `Closed ${next.shortBy} ${next.unit || ""} short` : "Closed");
+  else if (now === "noted") { next.status = "petty"; next.notedAt = at; add("Noted by the developer"); }
+  return next;
+}
+async function engineersOf(env, pid) {
+  const r = await env.DB.prepare("SELECT u.id, u.name, u.email FROM members m JOIN users u ON u.id = m.user_id WHERE m.project_id = ? AND m.role = 'engineer'").bind(pid).all();
+  return r.results || [];
+}
+async function requesterOf(env, pid, d) {
+  if (d.byId) { const u = await env.DB.prepare("SELECT id, name, email FROM users WHERE id = ?").bind(d.byId).first(); if (u) return [u]; }
+  return engineersOf(env, pid);
+}
+// Emails when something happens on a request. Reminders are sent separately, on a schedule.
+async function matNotify(env, origin, pid, user, prev, next) {
+  try {
+    const name = await projectName(env, pid), what = `${qtyText(next.qty, next.unit)} ${next.item || ""}`.trim();
+    const open = (role) => btn(origin + "/#" + role, "Open in TrailConstruct");
+    const who = escHtml(user.name || user.email);
+    const toDevs = async (subject, body) => { for (const d of await developersOf(env, pid)) await sendMail(env, d.email, subject, `<p>Hello ${escHtml(d.name || "")},</p>${body}${open("developer")}`); };
+    const toEng = async (subject, body) => { for (const e of await requesterOf(env, pid, next)) await sendMail(env, e.email, subject, `<p>Hello ${escHtml(e.name || "")},</p>${body}${open("engineer")}`); };
+    if (!prev) {
+      if (next.status === "petty") return toDevs(`Bought on site: ${next.item} · ${naira(next.amount)} (${name})`, `<p>${who} bought <b>${escHtml(qtyText(next.qty, next.unit))} ${escHtml(next.item)}</b> for <b>${naira(next.amount)}</b> with petty cash on <b>${escHtml(name)}</b>. The receipt is in the app.</p><p>Nothing to approve. Tap Noted once you've seen it.</p>`);
+      const c = matCadence(next.needBy);
+      return toDevs(`${c.key === "urgent" ? "URGENT: " : ""}Material request: ${what} (${name})`, `<p>${who} requested <b>${escHtml(what)}</b> for <b>${escHtml(name)}</b>, needed by <b>${escHtml(needText(next.needBy))}</b>.${next.note ? " Note: " + escHtml(next.note) : ""}</p><p>Until it's sent, you'll be reminded ${c.label}.</p>`);
+    }
+    if (next.nudgedAt && next.nudgedAt !== prev.nudgedAt) return toDevs(`Still waiting: ${what} (${name})`, `<p>${who} is still waiting for <b>${escHtml(what)}</b> on <b>${escHtml(name)}</b>, needed by <b>${escHtml(needText(next.needBy))}</b>.</p>`);
+    if (prev.status === next.status) return;
+    if (next.status === "approved") return toEng(`Approved: ${qtyText(next.approvedQty, next.unit)} ${next.item} (${name})`, `<p>${who} approved <b>${escHtml(qtyText(next.approvedQty, next.unit))} ${escHtml(next.item)}</b>${next.approvedQty < next.qty && prev.status === "pending" ? ` of the ${escHtml(qtyText(next.qty, next.unit))} you asked for` : ""}. You'll be told when it's sent.</p>`);
+    if (next.status === "rejected") return toEng(`Declined: ${what} (${name})`, `<p>${who} declined your request for <b>${escHtml(what)}</b>.${next.rejectReason ? " Reason: " + escHtml(next.rejectReason) : ""}</p>`);
+    if (next.status === "sent") return toEng(`On the way: ${qtyText(next.sentQty, next.unit)} ${next.item} (${name})`, `<p><b>${escHtml(qtyText(next.sentQty, next.unit))} ${escHtml(next.item)}</b> ${next.supplier ? "from " + escHtml(next.supplier) + " " : ""}has been sent to site${next.eta ? ", expected <b>" + escHtml(needText(next.eta)) + "</b>" : ""}.</p><p>When it arrives, count it and tap <b>Confirm received</b>, so the store log stays right.</p>`);
+    if (next.status === "short") return toDevs(`Short delivery: ${next.item}, ${qtyText(next.shortBy, next.unit)} short (${name})`, `<p>${who} confirmed <b>${escHtml(qtyText(next.recvQty, next.unit))}</b> received${next.damaged ? `, <b>${next.damaged} damaged</b>` : ""}, against <b>${escHtml(qtyText(next.approvedQty, next.unit))}</b> approved. That's <b>${escHtml(qtyText(next.shortBy, next.unit))} short</b>.</p><p>Send the rest, or close it as is.</p>`);
+  } catch (e) { console.error("matNotify", e); }
+}
+// Runs at most every 50 minutes: from the hourly scheduler, or when someone uses the app.
+async function runReminders(env, origin, force = false) {
+  const now = Date.now(), { hour, day } = lagosParts(now);
+  // Claim this run first, so two requests at the same moment can't both send.
+  const claim = await env.DB.prepare("INSERT INTO alerts (kind, at) VALUES ('sweep', ?) ON CONFLICT(kind) DO UPDATE SET at = excluded.at WHERE alerts.at < ?").bind(now, force ? now : now - 50 * 60 * 1000).run();
+  if (!force && !(claim.meta && claim.meta.changes)) return { skipped: true };
+  if (hour < 7 || hour >= 19) return { quiet: true }; // no reminders 7pm to 7am
+  const rows = (await env.DB.prepare("SELECT id, pid, data, created_at FROM docs WHERE col = 'matreqs' AND json_extract(data, '$.status') IN ('pending','approved','sent','short','petty')").all()).results || [];
+  if (!rows.length) return { sent: 0 };
+  const last = new Map(((await env.DB.prepare("SELECT key, at FROM reminders").all()).results || []).map((r) => [r.key, r.at]));
+  const due = new Map(); // email → { name, role, items: [] }
+  const marks = [], pcache = new Map();
+  const pinfo = async (pid) => {
+    if (!pcache.has(pid)) pcache.set(pid, { lock: await projectLock(env, pid), name: await projectName(env, pid), devs: await developersOf(env, pid) });
+    return pcache.get(pid);
+  };
+  const push = (u, role, pname, text, key) => { const k = u.email.toLowerCase(); if (!due.has(k)) due.set(k, { u, role, items: [] }); due.get(k).items.push({ pname, text }); marks.push(key); };
+  const isDue = (key, since, hours) => now - Math.max(since, last.get(key) || 0) >= hours * 3600e3;
+  for (const r of rows) {
+    const d = JSON.parse(r.data), st = d.status;
+    if (st === "petty" || st === "short") continue; // these go in the daily summary only
+    const P = await pinfo(r.pid); if (P.lock) continue;
+    const c = matCadence(d.needBy, now), what = `${qtyText(st === "pending" ? d.qty : d.approvedQty || d.qty, d.unit)} ${d.item || ""}`.trim();
+    if (st === "pending" || st === "approved") {
+      const since = Date.parse(st === "pending" ? d.createdAt : d.approvedAt) || r.created_at, key = `${r.id}:${st}`;
+      if (isDue(key, since, c.hours)) for (const u of P.devs) push(u, "developer", P.name, `${st === "pending" ? "Waiting for your approval" : "Approved, not sent yet"}: <b>${escHtml(what)}</b>, needed by ${escHtml(needText(d.needBy))}${c.key === "urgent" ? " <b style=\"color:#b42318\">(urgent)</b>" : ""}${d.nudgedAt ? " · the engineer nudged" : ""}`, key);
+    } else if (st === "sent") {
+      const eta = Date.parse(d.eta || "") || Date.parse(d.sentAt) || r.created_at;
+      if (now >= eta) {
+        const key = `${r.id}:sent:eng`;
+        if (isDue(key, eta, 24)) for (const u of await requesterOf(env, r.pid, d)) push(u, "engineer", P.name, `Has this arrived? <b>${escHtml(qtyText(d.sentQty, d.unit))} ${escHtml(d.item)}</b> was sent ${escHtml(needText(d.sentAt))}. Tap Confirm received.`, key);
+      }
+      if (now >= eta + DAY) {
+        const key = `${r.id}:sent:dev`;
+        if (isDue(key, eta + DAY, 24)) for (const u of P.devs) push(u, "developer", P.name, `Not confirmed yet: <b>${escHtml(qtyText(d.sentQty, d.unit))} ${escHtml(d.item)}</b>, sent ${escHtml(needText(d.sentAt))}. The site hasn't confirmed it arrived.`, key);
+      }
+    }
+  }
+  let sent = 0;
+  for (const { u, role, items } of due.values()) {
+    const ok = await sendMail(env, u.email, items.length === 1 ? "Reminder: " + items[0].text.replace(/<[^>]+>/g, "").slice(0, 90) : `Reminder: ${items.length} material requests need you`,
+      `<p>Hello ${escHtml(u.name || "")},</p><ul style="padding-left:18px">${items.map((i) => `<li style="margin-bottom:8px">${i.text} <span style="color:#5b6570">· ${escHtml(i.pname)}</span></li>`).join("")}</ul>${btn((env.APP_URL || origin) + "/#" + role, "Open in TrailConstruct")}<p style="font-size:12px;color:#5b6570">Reminders go out between 7am and 7pm, more often as the needed-by date gets close.</p>`);
+    if (ok) sent++;
+  }
+  if (marks.length) await env.DB.batch([...new Set(marks)].map((k) => env.DB.prepare("INSERT INTO reminders (key, at) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET at = excluded.at").bind(k, now)));
+  // One summary a day, after 6pm, for each developer with anything still open.
+  if (hour >= 18) {
+    const byDev = new Map();
+    for (const r of rows) {
+      const d = JSON.parse(r.data), P = await pinfo(r.pid); if (P.lock) continue;
+      const line = d.status === "pending" ? `Waiting for approval: ${qtyText(d.qty, d.unit)} ${d.item}` : d.status === "approved" ? `To buy: ${qtyText(d.approvedQty, d.unit)} ${d.item}` : d.status === "sent" ? `On the way: ${qtyText(d.sentQty, d.unit)} ${d.item}` : d.status === "short" ? `Short delivery: ${qtyText(d.shortBy, d.unit)} ${d.item} still owed` : d.status === "petty" && !d.notedAt ? `Bought on site, to note: ${d.item} · ${naira(d.amount)}` : null;
+      if (!line) continue;
+      for (const u of P.devs) { if (!byDev.has(u.id)) byDev.set(u.id, { u, list: [] }); byDev.get(u.id).list.push([P.name, line]); }
+    }
+    for (const { u, list } of byDev.values()) {
+      const key = `digest:${u.id}:${day}`;
+      if (last.get(key)) continue;
+      const groups = {}; list.forEach(([p, l]) => (groups[p] = groups[p] || []).push(l));
+      await sendMail(env, u.email, `Today on TrailConstruct: ${list.length} open material item${list.length > 1 ? "s" : ""}`,
+        `<p>Hello ${escHtml(u.name || "")}, here's what's still open.</p>${Object.entries(groups).map(([p, ls]) => `<p style="margin:14px 0 4px"><b>${escHtml(p)}</b></p><ul style="padding-left:18px;margin:0">${ls.map((l) => `<li>${escHtml(l)}</li>`).join("")}</ul>`).join("")}${btn((env.APP_URL || origin) + "/#developer", "Open in TrailConstruct")}`);
+      await env.DB.prepare("INSERT INTO reminders (key, at) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET at = excluded.at").bind(key, now).run();
+    }
+  }
+  return { sent, items: marks.length };
+}
+
 export async function onRequest(ctx) {
   const { request: req, env } = ctx;
   const url = new URL(req.url);
@@ -378,6 +538,12 @@ export async function onRequest(ctx) {
     await ensureSchema(env);
     // ---------- public settings for the web app ----------
     if (parts[0] === "config" && m === "GET") { const st = await getSettings(env); return json({ mapsKey: env.GOOGLE_MAPS_KEY || "", email: !!env.RESEND_API_KEY, announcement: st.announcement || "", whatsapp: st.whatsapp || "" }); }
+
+    // ---------- scheduled reminders (called hourly by the scheduler) ----------
+    if (parts[0] === "cron" && m === "POST") {
+      if (!env.CRON_SECRET || req.headers.get("x-cron-key") !== env.CRON_SECRET) return err(403, "Not allowed");
+      return json(await runReminders(env, env.APP_URL || url.origin, true));
+    }
 
     // ---------- enterprise / contact enquiries (no login needed) ----------
     if (parts[0] === "contact" && m === "POST") {
@@ -898,6 +1064,7 @@ export async function onRequest(ctx) {
     // Full load the first time (since=0); after that only what changed since the last pull.
     if (parts[0] === "data" && m === "GET") {
       const now = Date.now();
+      ctx.waitUntil(runReminders(env, env.APP_URL || url.origin).catch((e) => console.error("reminders", e)));
       const since = Math.max(0, parseInt(url.searchParams.get("since") || "0", 10) || 0);
       const ms = await memberships(env, user.id);
       const docs = {}, deleted = [];
@@ -1022,6 +1189,7 @@ export async function onRequest(ctx) {
           });
         }
       }
+      if (col === "matreqs") next = matNormalize(role, user, existing, next, !row);
       const isCheckTick = col === "projects" && m === "PATCH" && Object.keys(body).every((k) => k === "checks");
       const text = JSON.stringify(next);
       if (text.length > MAX_DOC) return err(413, "Too large");
@@ -1030,7 +1198,8 @@ export async function onRequest(ctx) {
         "INSERT INTO docs (col, id, pid, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) " +
         "ON CONFLICT(col, id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at"
       ).bind(col, id, pid, text, now, now).run();
-      if (ACTIONS[col]) await logActivity(env, { pid, user, role, action: isCheckTick ? "ticked off checklist items" : ACTIONS[col][row ? 1 : 0], col, doc: id });
+      if (ACTIONS[col]) await logActivity(env, { pid, user, role, action: isCheckTick ? "ticked off checklist items" : col === "matreqs" && next.trail && next.trail.length ? "materials: " + next.trail[next.trail.length - 1].text.toLowerCase() : ACTIONS[col][row ? 1 : 0], col, doc: id });
+      if (col === "matreqs") ctx.waitUntil(matNotify(env, env.APP_URL || url.origin, pid, user, row ? existing : null, next));
       return json({ ok: true });
     }
 
@@ -1059,10 +1228,18 @@ export async function onRequest(ctx) {
       // What the phone says about the photo. The server checks it against the site pin and its own clock.
       const now = Date.now(), h = (n) => req.headers.get(n) || "";
       const origHash = /^[a-f0-9]{64}$/.test(h("x-orig-hash")) ? h("x-orig-hash") : null;
+      const isReceipt = h("x-kind") === "receipt";
       let takenAt = Date.parse(h("x-taken-at")); if (!isFinite(takenAt)) takenAt = null;
       let lat = parseFloat(h("x-lat")), lng = parseFloat(h("x-lng"));
       const hasGps = isFinite(lat) && isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
       if (!hasGps) { lat = null; lng = null; }
+      if (isReceipt) {
+        const bytes = await req.arrayBuffer();
+        if (bytes.byteLength > MAX_PHOTO) return err(413, "Photo is too large.");
+        await env.PHOTOS.put(key, bytes, { httpMetadata: { contentType: type }, customMetadata: { by: user.id, kind: "receipt" } });
+        await env.DB.prepare("INSERT INTO photo_meta (key, pid, user_id, uploaded_at, orig_hash, taken_at, lat, lng, dist, verdict, late) VALUES (?, ?, ?, ?, NULL, ?, NULL, NULL, NULL, 'receipt', 0)").bind(key, pid, user.id, now, takenAt).run();
+        return json({ id: key, url: "/api/photo/" + key.split("/").map(encodeURIComponent).join("/"), v: "receipt", uploadedAt: new Date(now).toISOString(), checked: true });
+      }
       if (takenAt && takenAt > now + 10 * 60 * 1000) return err(422, "This photo's time is in the future. Check the date and time on your phone, then take it again.");
       if (takenAt && now - takenAt > PHOTO_MAX_AGE_MS) return err(422, "This photo was taken more than 3 days ago. Take a new photo on site.");
       if (origHash) {
