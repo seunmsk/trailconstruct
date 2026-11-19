@@ -745,7 +745,7 @@ function crControls(p,col,r){
 }
 function correctedNote(r){const c=r.corrections||[];if(!c.length)return "";const last=c[c.length-1];
   const dev=S.mode==="cf"&&S.pid&&roleFor(S.pid)==="developer";
-  return `<p class="small muted corr">Corrected on ${esc(fmtS(new Date(last.at).toISOString().slice(0,10)))}, approved by ${esc(last.approvedBy||"the developer")}${dev?`. Original: ${Object.entries(last.changes||{}).map(([k,v])=>`${esc(CR_LABEL[k]||k)} "${esc(String(v.from))}"`).join(", ")}`:""}</p>`;}
+  return `<p class="small muted corr">Corrected on ${esc(fmtS(new Date(last.at).toISOString().slice(0,10)))}${last.by?` at ${esc(last.by)}'s request`:""}, approved by ${esc(last.approvedBy||"the developer")}${dev?`. Original: ${Object.entries(last.changes||{}).map(([k,v])=>`${esc(CR_LABEL[k]||k)} "${esc(String(v.from))}"`).join(", ")}`:""}</p>`;}
 function crModal(p,col,id){
   const r=(col==="logs"?S.logs:S.reports).find(x=>x.id===id);if(!r)return;
   const fld=col==="logs"?`<label class="f" for="cr-work">Work done<textarea id="cr-work">${esc(r.work||"")}</textarea></label>

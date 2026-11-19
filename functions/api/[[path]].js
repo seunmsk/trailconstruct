@@ -831,7 +831,6 @@ export async function onRequest(ctx) {
         await env.DB.prepare("INSERT INTO change_requests (id, pid, col, doc_id, user_id, user_name, changes, reason, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)")
           .bind(id, pid, col, docId, user.id, user.name || user.email, JSON.stringify(changes), reason, now).run();
         const name = await projectName(env, pid), what = col === "checks" ? `untick "${changes.label}"` : col === "logs" ? "correct a daily update" : "correct a weekly report";
-        await logActivity(env, { pid, user, role, action: `asked to ${what}` });
         const devs = await developersOf(env, pid);
         for (const d of devs) ctx.waitUntil(sendMail(env, d.email, `${user.name || "Your site engineer"} asked to ${what} on ${name}`,
           `<p>Hello ${escHtml(d.name || "")},</p><p><b>${escHtml(user.name || user.email)}</b> asked to ${escHtml(what)} on <b>${escHtml(name)}</b>.</p>${col === "checks" ? "" : `<ul>${Object.entries(changes).map(([k, v]) => `<li><b>${escHtml(k)}</b>: "${escHtml(String(v.from))}" → "${escHtml(String(v.to))}"</li>`).join("")}</ul>`}<p>Reason: ${escHtml(reason)}</p>${btn((env.APP_URL || url.origin) + "/#developer", "Review in TrailConstruct")}`));
@@ -849,7 +848,7 @@ export async function onRequest(ctx) {
         if (parts[2] === "decline") {
           const dr = String(b0.reason || "").trim().slice(0, 300);
           await env.DB.prepare("UPDATE change_requests SET status = 'declined', decided_by = ?, decided_at = ?, decline_reason = ? WHERE id = ?").bind(user.id, now, dr, cr.id).run();
-          await logActivity(env, { pid: cr.pid, user, role: "developer", action: `declined ${cr.user_name}'s request to ${what}` });
+          await logActivity(env, { pid: cr.pid, user, role: "developer", action: `declined ${cr.user_name}'s request to ${what}${dr ? ": " + dr : ""}` });
           if (asker) ctx.waitUntil(sendMail(env, asker.email, `Your change request on ${name} was declined`, `<p>Hello ${escHtml(asker.name || "")},</p><p>${escHtml(user.name || "The developer")} declined your request to ${escHtml(what)}.${dr ? " Reason: " + escHtml(dr) : ""}</p>`));
           return json({ ok: true });
         }
@@ -867,7 +866,8 @@ export async function onRequest(ctx) {
           await env.DB.prepare("UPDATE docs SET data = ?, updated_at = ? WHERE col = ? AND id = ?").bind(JSON.stringify(d), now, cr.col, cr.doc_id).run();
         }
         await env.DB.prepare("UPDATE change_requests SET status = 'approved', decided_by = ?, decided_at = ? WHERE id = ?").bind(user.id, now, cr.id).run();
-        await logActivity(env, { pid: cr.pid, user, role: "developer", action: `approved ${cr.user_name}'s request to ${what}` });
+        const detail = cr.col === "checks" ? "" : " (" + Object.entries(changes).map(([k, v]) => `${k} ${String(v.from).slice(0, 40)} → ${String(v.to).slice(0, 40)}`).join("; ") + ")";
+        await logActivity(env, { pid: cr.pid, user, role: "developer", action: `approved ${cr.user_name}'s request to ${what}${detail}` });
         if (asker) ctx.waitUntil(sendMail(env, asker.email, `Your change on ${name} was approved`, `<p>Hello ${escHtml(asker.name || "")},</p><p>${escHtml(user.name || "The developer")} approved your request to ${escHtml(what)}. It's been updated, and marked as a correction.</p>`));
         return json({ ok: true });
       }
