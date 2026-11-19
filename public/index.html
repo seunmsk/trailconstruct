@@ -393,14 +393,14 @@ main .stats>.stat:nth-child(4):not([class*=" t"]){background:var(--rose)}
 .mk-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(70px,1fr));gap:8px}
 .mk-ph,.mk-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .mk-grid{grid-template-columns:repeat(3,1fr)}
-.mk-ph i,.mk-grid i{aspect-ratio:1;border-radius:8px;background:linear-gradient(160deg,#9bb7c9,#56788f 60%,#c99a3c);display:grid;place-items:center;color:#fff;font-style:normal;font-weight:700}
-.mk-ph i:nth-child(2),.mk-grid i:nth-child(2n){background:linear-gradient(160deg,#c8b58f,#8a6d3b 60%,#3f5a6d)}
-.mk-ph i:nth-child(3),.mk-grid i:nth-child(3n){background:linear-gradient(160deg,#a7c4a9,#52745a 55%,#c7c0ad)}
+.mk-ph i,.mk-grid i{aspect-ratio:1;border-radius:8px;background:#56788f center/cover no-repeat;display:grid;place-items:center;color:#fff;font-style:normal;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.mk-ph i:nth-child(1){background-image:url(/img/site-plaster.jpg)}.mk-ph i:nth-child(2){background-image:url(/img/site-kitchen.jpg)}.mk-ph i:nth-child(3){background-image:url(/img/site-scaffold.jpg)}
+.mk-grid i:nth-child(1){background-image:url(/img/site-formwork.jpg)}.mk-grid i:nth-child(2){background-image:url(/img/site-blocks.jpg)}.mk-grid i:nth-child(3){background-image:url(/img/site-props.jpg)}.mk-grid i:nth-child(4){background-image:url(/img/site-plaster.jpg)}.mk-grid i:nth-child(5){background-image:url(/img/site-kitchen.jpg)}.mk-grid i:nth-child(6){background-image:url(/img/site-interior.jpg)}
 .mk-ph i.add{background:var(--sunk);color:var(--muted);border:1px dashed var(--line);font-size:1.2rem}
 .mk-grid i.on{box-shadow:0 0 0 3px var(--amber)}
 .mk-chip{display:inline-block;padding:3px 9px;border-radius:999px;background:var(--sand);color:var(--warn);font-weight:600;font-size:.74rem}
 .mk-btn{padding:9px;border-radius:9px;background:var(--steel);color:var(--steel-ink);text-align:center;font-weight:600}
-.mk-cover{border-radius:14px;padding:30px 12px 10px;display:grid;gap:2px;color:#fff;background:linear-gradient(180deg,transparent,rgba(10,18,26,.8)),linear-gradient(160deg,#9bb7c9,#56788f 60%,#c99a3c)}
+.mk-cover{border-radius:14px;padding:30px 12px 10px;display:grid;gap:2px;color:#fff;background:linear-gradient(180deg,rgba(10,18,26,.1),rgba(10,18,26,.85)),url(/img/cover-finished.jpg) center/cover no-repeat,#56788f}
 .mk-cover span{font-size:.72rem;opacity:.85}
 .mk-ringrow{display:flex;gap:12px;align-items:center}
 .mk-ringrow div{display:grid;line-height:1.25}
