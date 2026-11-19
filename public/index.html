@@ -945,6 +945,7 @@ const PTYPES=[
   {k:"mixed",l:"Mixed-use (shops + homes)",n:"unit",np:"units",fl:3},
   {k:"commercial",l:"Commercial / office building",n:"office unit",np:"office units",fl:3},
   {k:"estate",l:"Estate (mixed house types)",n:"home",np:"homes",fl:1},
+  {k:"penthouse",l:"Penthouse",n:"penthouse",np:"penthouses",fl:1,mixOnly:true},
   {k:"other",l:"Other",n:"unit",np:"units",fl:1}
 ];
 const ptype=k=>PTYPES.find(t=>t.k===k);
@@ -973,7 +974,7 @@ function mixSum(prefix){const g=id=>(document.getElementById(id)||{}).value||"";
 function propFields(prefix,v,attr){
   // attr(k) returns the attribute that ties a control to its state (data-onb for sign-up, plain id for the edit form)
   return `<div class="propbox">
-    <label class="f" for="${prefix}-ptype">Type of property<select id="${prefix}-ptype" ${attr("ptype")} required><option value="">Choose a type</option>${PTYPES.map(t=>`<option value="${t.k}" ${v.propType===t.k?"selected":""}>${t.l}</option>`).join("")}</select></label>
+    <label class="f" for="${prefix}-ptype">Type of property<select id="${prefix}-ptype" ${attr("ptype")} required><option value="">Choose a type</option>${PTYPES.filter(t=>!t.mixOnly||v.propType===t.k).map(t=>`<option value="${t.k}" ${v.propType===t.k?"selected":""}>${t.l}</option>`).join("")}</select></label>
     ${(()=>{const est=v.propType==="estate";S.mix=S.mix||{};if(!S.mix[prefix])S.mix[prefix]=(v.mix&&v.mix.length?v.mix.map(x=>({...x})):[{t:"",n:"",b:""}]);if(prefix==="o")S.onb.d.mix=S.mix.o;return `
     <div id="${prefix}-mix" class="mixbox" ${est?"":"hidden"}><p class="small muted" style="margin:0">List each house type in the estate. It stays one project with one checklist.</p><div id="${prefix}-mixrows" style="display:grid;gap:8px">${mixRows(prefix)}</div></div>
     <div class="row"><label class="f" for="${prefix}-unitn" ${est?"hidden":""}>Number of units<input type="number" id="${prefix}-unitn" ${attr("unitn")} min="1" max="5000" inputmode="numeric" value="${esc(v.unitCount||"")}" placeholder="e.g. 4"></label>
