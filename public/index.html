@@ -621,6 +621,9 @@ const levelName=k=>k===0?"Ground floor":ordinal(k)+" floor";
 function weekOf(date){const d=new Date(date);d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));const fri=new Date(d);fri.setDate(d.getDate()+4);fri.setHours(18,0,0,0);return {mon:d,fri,key:ymd(d)};}
 function daysSince(s){const d=parseD(s);if(!d)return null;const t=new Date();t.setHours(0,0,0,0);const x=new Date(d);x.setHours(0,0,0,0);return Math.round((t-x)/864e5);}
 const ls={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const VGUIDES={developer:{src:"/videos/guide-developer.mp4",poster:"/videos/guide-developer.jpg",title:"Developer guide",blurb:"A 1-minute video on running your project."},engineer:{src:"/videos/guide-engineer.mp4",poster:"/videos/guide-engineer.jpg",title:"Site engineer guide",blurb:"A 1-minute video on posting from site."},investor:{src:"/videos/guide-investor.mp4",poster:"/videos/guide-investor.jpg",title:"Investor guide",blurb:"A 1-minute video on following your build."}};
+function vguideBanner(role){const g=VGUIDES[role];if(!g||role==="engineer"||ls.get("st.vguide."+role+".hide"))return "";return `<div class="banner done guide-ban"><div><b>New here? Watch the ${esc(g.title.toLowerCase())}</b><p class="small" style="margin:4px 0 0">${esc(g.blurb)}</p></div><span class="actions"><button class="btn sm pri" data-act="vguide" data-role="${role}">&#9654; Watch</button><button class="btn sm ghost" data-act="vguide-hide" data-role="${role}">Hide</button></span></div>`;}
+function vguideModal(role){const g=VGUIDES[role];if(!g)return;modal(`<h2>${esc(g.title)}</h2><video src="${g.src}" poster="${g.poster}" controls autoplay playsinline preload="metadata" style="display:block;width:100%;max-height:68vh;border-radius:12px;background:#0f2347;margin:8px 0 14px"></video><div><button class="btn pri" data-act="close">Close</button></div>`);}
 const src=p=>p.url||("/_blob/"+p.id);
 
 /* ---------- foundation types ---------- */
@@ -1163,7 +1166,7 @@ function shell(role,tabs,body,narrow){
     ${S.projects.length>1?`<label class="sr" for="proj">Project</label><select id="proj" class="proj">${S.projects.map(p=>`<option value="${esc(p.id)}" ${p.id===S.pid?"selected":""}>${esc(p.name)}</option>`).join("")}</select>`:""}
     ${S.mode==="cf"&&S.me&&S.admin?`<button class="btn sm ghost" data-act="go-admin">Admin</button>`:""}${S.mode==="cf"&&S.me?`<button class="btn sm ghost" data-act="account">Account</button>`:`<button class="btn sm ghost" data-act="signout">Sign out</button>`}</div>
     ${tabs?`<nav class="tabs${tabs.length>3?" many":""}" role="tablist">${tabs.map(([k,l,n])=>`<button role="tab" data-act="tab" data-role="${role}" data-tab="${k}" aria-selected="${cur===k}">${l}${n?`<span class="count">${n}</span>`:""}</button>`).join("")}</nav>${tabs.length>3?`<div class="adm-pick tab-pick"><label class="sr" for="tab-sel">Section</label><select id="tab-sel" data-role="${role}">${tabs.map(([k,l,n])=>`<option value="${k}" ${cur===k?"selected":""}>${esc(l)}${n?` (${n==="!"?"due":n})`:""}</option>`).join("")}</select></div>`:""}`:""}
-  </header><main class="${narrow?"narrow":""}">${S.mode==="memory"?`<p class="note">Preview mode: changes aren't saved here. Open the published page to save.</p>`:""}${!S.canWrite&&role!=="investor"?`<p class="note">You have view access only.</p>`:""}${S.mode==="cf"&&S.pid&&tabs?billingBanner(role):""}${role==="engineer"&&tabs&&!ls.get("st.guide.hide")?`<div class="banner done guide-ban"><div><b>New to TrailConstruct?</b><p class="small" style="margin:4px 0 0">A 2-minute guide to posting from site.</p></div><span class="actions"><a class="btn sm pri" href="#guide">Open the guide</a><button class="btn sm ghost" data-act="guide-hide">Hide</button></span></div>`:""}${body}</main>`;
+  </header><main class="${narrow?"narrow":""}">${S.mode==="memory"?`<p class="note">Preview mode: changes aren't saved here. Open the published page to save.</p>`:""}${!S.canWrite&&role!=="investor"?`<p class="note">You have view access only.</p>`:""}${S.mode==="cf"&&S.pid&&tabs?billingBanner(role):""}${tabs?vguideBanner(role):""}${role==="engineer"&&tabs&&!ls.get("st.guide.hide")?`<div class="banner done guide-ban"><div><b>New to TrailConstruct?</b><p class="small" style="margin:4px 0 0">A 1-minute video, or a 2-minute step-by-step guide to posting from site.</p></div><span class="actions"><button class="btn sm pri" data-act="vguide" data-role="engineer">&#9654; Watch video</button><a class="btn sm" href="#guide">Open the guide</a><button class="btn sm ghost" data-act="guide-hide">Hide</button></span></div>`:""}${body}</main>`;
 }
 /* ---------- billing (bank transfer) ---------- */
 const fmtDay=t=>new Date(t).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
@@ -1634,9 +1637,13 @@ let MARK_W=null;markImg("#ffffff","#f0a500",120).then(im=>MARK_W=im);
 function stampPhoto(file,lines){
   return new Promise((res,rej)=>{const u=URL.createObjectURL(file),im=new Image();
     im.onload=()=>{try{const max=1600,s=Math.min(1,max/Math.max(im.width,im.height)),w=Math.round(im.width*s),h=Math.round(im.height*s),c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");x.drawImage(im,0,0,w,h);
-      const fs=Math.max(16,Math.round(w/48)),bh=Math.round(fs*1.5*lines.length+fs);x.fillStyle="rgba(10,18,26,.72)";x.fillRect(0,h-bh,w,bh);x.fillStyle="#f0a500";x.fillRect(0,h-bh,Math.round(fs/3),bh);
-      const lh=MARK_W?Math.round(bh*.62):0,lx=MARK_W?fs+lh*1.2+Math.round(fs*.7):fs;if(MARK_W)x.drawImage(MARK_W,fs,h-bh+(bh-lh)/2,lh*1.2,lh);
-      x.fillStyle="#ffffff";x.font=`600 ${fs}px "IBM Plex Sans",Arial,sans-serif`;lines.forEach((l,i)=>x.fillText(l,lx,h-bh+fs*1.35*(i+1)));
+      const lay=f=>{const bh=Math.round(f*1.5*lines.length+f),lh=MARK_W?Math.round(bh*.62):0;return {bh,lh,lx:MARK_W?f+lh*1.2+Math.round(f*.7):f};};
+      let fs=Math.max(16,Math.round(w/48)),L=lay(fs);x.font=`600 ${fs}px "IBM Plex Sans",Arial,sans-serif`;
+      const widest=Math.max(...lines.map(l=>x.measureText(l).width)),room=w-L.lx-fs;
+      if(widest>room){fs=Math.max(9,Math.floor(fs*(w-fs)/(widest+L.lx)));L=lay(fs);x.font=`600 ${fs}px "IBM Plex Sans",Arial,sans-serif`;}
+      const {bh,lh,lx}=L;x.fillStyle="rgba(10,18,26,.72)";x.fillRect(0,h-bh,w,bh);x.fillStyle="#f0a500";x.fillRect(0,h-bh,Math.round(fs/3),bh);
+      if(MARK_W)x.drawImage(MARK_W,fs,h-bh+(bh-lh)/2,lh*1.2,lh);
+      x.fillStyle="#ffffff";lines.forEach((l,i)=>x.fillText(l,lx,h-bh+fs*1.35*(i+1)));
       c.toBlob(b=>{URL.revokeObjectURL(u);b?res(b):rej(new Error("stamp"));},"image/jpeg",.82);}catch(e){rej(e);}};
     im.onerror=()=>{URL.revokeObjectURL(u);rej(new Error("load"));};im.src=u;});
 }
@@ -1802,13 +1809,25 @@ async function makePDF(p,u){
   let tx=M;try{const mi=await markImg("#ffffff","#f0a500",200);if(mi){const c=document.createElement("canvas");c.width=mi.width;c.height=mi.height;c.getContext("2d").drawImage(mi,0,0);doc.addImage(c.toDataURL("image/png"),"PNG",M,7,16.8,14);tx=M+21;}}catch(e){}
   doc.setFont("helvetica","bold");doc.setFontSize(20);doc.setTextColor(255,255,255);doc.text("Trail",tx,15);const tw=doc.getTextWidth("Trail");doc.setTextColor(240,165,0);doc.text("Construct",tx+tw,15);
   doc.setTextColor(255,255,255);doc.setFont("helvetica","normal");doc.setFontSize(10);doc.text("Investor progress report · Every stage, on record.",tx,22);doc.text(fmtD(u.date),W-M,22,{align:"right"});
-  y=44;txt(p.name,18,"bold");y+=1;txt([p.location,unitsText(p),floorsLabel(p.floors)].filter(Boolean).join("  ·  "),10,"normal",[91,101,112]);y+=4;
+  y=44;txt(p.name,18,"bold");y+=1;txt([p.location,unitsText(p),floorsLabel(p.floors)].filter(Boolean).join("  ·  "),10,"normal",[91,101,112]);
+  {const by=p.client||"",forN=S.view==="investor"&&S.me&&S.me.name?S.me.name:"";if(by||forN){y+=1;txt([by?"Prepared by "+by:"",forN?(by?"for ":"For ")+forN:""].filter(Boolean).join(" "),10,"italic",[91,101,112]);}}
+  y+=4;
   txt(u.title,13,"bold");y+=2;
   need(26);doc.setFillColor(246,247,243);doc.roundedRect(M,y,CW,24,3,3,"F");
   doc.setFont("helvetica","bold");doc.setFontSize(24);doc.setTextColor(43,74,94);doc.text(Math.round(snap.overall*100)+"%",M+6,y+15);
   doc.setFontSize(9);doc.setFont("helvetica","normal");doc.setTextColor(91,101,112);doc.text("complete",M+6,y+20);
   doc.setTextColor(21,32,42);doc.setFontSize(10);doc.setFont("helvetica","bold");doc.text("Now:",M+42,y+10);doc.text("Next:",M+42,y+17);
-  doc.setFont("helvetica","normal");doc.text(doc.splitTextToSize(snap.current,CW-58)[0],M+54,y+10);doc.text(doc.splitTextToSize(snap.next,CW-58)[0],M+54,y+17);y+=32;
+  doc.setFont("helvetica","normal");doc.text(doc.splitTextToSize(snap.current,CW-58)[0],M+54,y+10);doc.text(doc.splitTextToSize(snap.next,CW-58)[0],M+54,y+17);y+=30;
+  {const sch=scheduleInfo(p,progress(p)),bw=(CW-8)/3,bh=21,cards=[];
+    if(sch)cards.push(["Schedule",sch.status[1],`Work ${Math.round(sch.work*100)}% · time ${Math.round(sch.time*100)}%`,sch.status[0]==="ok"?[44,122,75]:sch.status[0]==="active"?[196,127,10]:[190,50,40]]);
+    if(p.targetDate)cards.push(["Target completion",fmtD(p.targetDate),sch&&sch.daysLeft>0?sch.daysLeft+" days to go":"",[21,32,42]]);
+    if(payOn(p)){const ms=msSummary(p),ng=v=>naira(v).replace("₦","NGN ");cards.push(["Funding",ms.contract?ng(ms.paid)+" released":"Milestone payments",ms.contract?"of "+ng(ms.contract):"",[21,32,42]]);}
+    else cards.push(["Funding","Paid up front","Fully funded",[44,122,75]]);
+    if(cards.length){need(bh+4);cards.forEach((c,i)=>{const x=M+i*(bw+4);doc.setDrawColor(223,226,219);doc.setLineWidth(.3);doc.roundedRect(x,y,bw,bh,2.5,2.5,"S");
+      doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(91,101,112);doc.text(c[0].toUpperCase(),x+4,y+6);
+      doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(...c[3]);doc.text(doc.splitTextToSize(c[1],bw-8)[0],x+4,y+12.5);
+      if(c[2]){doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(91,101,112);doc.text(doc.splitTextToSize(c[2],bw-8)[0],x+4,y+17.5);}});
+      y+=bh+8;}}
   txt("Briefing",12,"bold");y+=1;txt(u.briefing,10.5);y+=3;
   if(u.next){txt("What's next",12,"bold");y+=1;txt(u.next,10.5);y+=3;}
   txt("Progress by phase",12,"bold");y+=2;
@@ -1819,7 +1838,7 @@ async function makePDF(p,u){
   y+=3;
   if(u.budget){txt("Budget",12,"bold");y+=1;txt(`${naira(u.budget.spent).replace("₦","NGN ")} spent of ${naira(u.budget.budget).replace("₦","NGN ")} (${u.budget.budget?Math.round(u.budget.spent/u.budget.budget*100):0}%)`,10.5);y+=3;}
   const ph=u.photos||[];
-  if(ph.length){need(12);txt("Site photos",12,"bold");y+=2;const cw=(CW-6)/2,chh=cw*0.72;let col=0;
+  if(ph.length){const cw=(CW-6)/2,chh=cw*0.72;let col=0;need(12+chh+8);txt("Site photos",12,"bold");y+=2;
     for(const x of ph){const im=await loadImg(src(x));if(!im)continue;if(col===0)need(chh+8);
       const r=Math.min(cw/im.w,chh/im.h),w=im.w*r,h=im.h*r,xx=M+col*(cw+6)+(cw-w)/2;
       doc.addImage(im.data,"JPEG",xx,y+(chh-h)/2,w,h);if(x.cap){doc.setFontSize(8);doc.setTextColor(91,101,112);doc.text(x.cap,M+col*(cw+6),y+chh+4);}
@@ -1864,6 +1883,8 @@ document.addEventListener("click",async e=>{
   if(act==="signin"){ls.set("st.role",t.dataset.role);go(t.dataset.role);return;}
   if(act==="signout"){closeModal();ls.set("st.role","");if(S.mode==="cf"){try{await cfApi("POST","/api/auth/logout");}catch(e){}S.me=null;S.memberships=[];S.projects=[];S.pid=null;}go("home");return;}
   if(act==="authmode"){S.authMode=t.value;render();return;}
+  if(act==="vguide"){vguideModal(t.dataset.role);return;}
+  if(act==="vguide-hide"){ls.set("st.vguide."+t.dataset.role+".hide","1");render();toast("You can watch the guide again from Account.");return;}
   if(act==="guide-hide"){ls.set("st.guide.hide","1");render();toast("You can open the guide again from Account.");return;}
   if(act==="go-admin"){closeModal();S.adm={};go("admin");return;}
   if(act==="pay-open"){payModal();return;}
@@ -1898,7 +1919,7 @@ document.addEventListener("click",async e=>{
   if(act==="rm-member-ok"){const p=P();if(!p)return;try{await cfApi("DELETE","/api/members?pid="+encodeURIComponent(p.id)+"&user="+encodeURIComponent(t.dataset.id));closeModal();delete S.team[p.id];toast("Removed from the project.");render();}catch(e){closeModal();showErr("Couldn't remove them",e.message||"Please try again.");}return;}
   if(act==="rm-invite"){const p=P();if(!p)return;try{await cfApi("DELETE","/api/invites/"+encodeURIComponent(t.dataset.id));delete S.team[p.id];toast("Invite cancelled. That link no longer works.");render();}catch(e){showErr("Couldn't cancel the invite",e.message||"Please try again.");}return;}
   if(act==="del-project"){const p=P();if(!p)return;modal(`<h2>Delete ${esc(p.name)}?</h2><p>This removes the project for everyone, with all its updates, reports, photos and materials. It can't be undone.</p><form id="delp-form"><label class="f" for="dp-name">Type the project name to confirm<input type="text" id="dp-name" required autocomplete="off" placeholder="${esc(p.name)}"></label><div class="actions"><button class="btn danger" type="submit">Delete project</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);return;}
-  if(act==="account"){modal(`<h2>Your account</h2><dl class="kv"><dt>Name</dt><dd>${esc(S.me&&S.me.name||"—")}</dd><dt>Email</dt><dd>${esc(S.me&&S.me.email||"")}</dd></dl><p class="small muted"><a href="#guide" data-act="close">Engineer guide</a> · <a href="#demo" data-act="close">Product tour</a> · <a href="#privacy" target="_blank">Privacy policy</a> · <a href="#terms" target="_blank">Terms</a></p>
+  if(act==="account"){modal(`<h2>Your account</h2><dl class="kv"><dt>Name</dt><dd>${esc(S.me&&S.me.name||"—")}</dd><dt>Email</dt><dd>${esc(S.me&&S.me.email||"")}</dd></dl><p class="small muted">${VGUIDES[S.view]?`<a class="link" role="button" tabindex="0" style="cursor:pointer" data-act="vguide" data-role="${S.view}">Video guide</a> · `:""}<a href="#guide" data-act="close">Engineer guide</a> · <a href="#demo" data-act="close">Product tour</a> · <a href="#privacy" target="_blank">Privacy policy</a> · <a href="#terms" target="_blank">Terms</a></p>
     <details><summary>Change password</summary><form id="pw-form"><label class="f" for="pw-cur">Current password<input type="password" id="pw-cur" required autocomplete="current-password"></label><label class="f" for="pw-new">New password<input type="password" id="pw-new" required minlength="8" autocomplete="new-password"></label><p class="small muted">At least 8 characters. You'll stay signed in here and be signed out on your other devices.</p><div><button class="btn pri" type="submit">Change password</button></div></form></details>
     ${S.admin?`<p><button class="btn" data-act="go-admin">Open admin page</button></p>`:""}
     
