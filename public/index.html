@@ -1637,9 +1637,13 @@ let MARK_W=null;markImg("#ffffff","#f0a500",120).then(im=>MARK_W=im);
 function stampPhoto(file,lines){
   return new Promise((res,rej)=>{const u=URL.createObjectURL(file),im=new Image();
     im.onload=()=>{try{const max=1600,s=Math.min(1,max/Math.max(im.width,im.height)),w=Math.round(im.width*s),h=Math.round(im.height*s),c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");x.drawImage(im,0,0,w,h);
-      const fs=Math.max(16,Math.round(w/48)),bh=Math.round(fs*1.5*lines.length+fs);x.fillStyle="rgba(10,18,26,.72)";x.fillRect(0,h-bh,w,bh);x.fillStyle="#f0a500";x.fillRect(0,h-bh,Math.round(fs/3),bh);
-      const lh=MARK_W?Math.round(bh*.62):0,lx=MARK_W?fs+lh*1.2+Math.round(fs*.7):fs;if(MARK_W)x.drawImage(MARK_W,fs,h-bh+(bh-lh)/2,lh*1.2,lh);
-      x.fillStyle="#ffffff";x.font=`600 ${fs}px "IBM Plex Sans",Arial,sans-serif`;lines.forEach((l,i)=>x.fillText(l,lx,h-bh+fs*1.35*(i+1)));
+      const lay=f=>{const bh=Math.round(f*1.5*lines.length+f),lh=MARK_W?Math.round(bh*.62):0;return {bh,lh,lx:MARK_W?f+lh*1.2+Math.round(f*.7):f};};
+      let fs=Math.max(16,Math.round(w/48)),L=lay(fs);x.font=`600 ${fs}px "IBM Plex Sans",Arial,sans-serif`;
+      const widest=Math.max(...lines.map(l=>x.measureText(l).width)),room=w-L.lx-fs;
+      if(widest>room){fs=Math.max(9,Math.floor(fs*(w-fs)/(widest+L.lx)));L=lay(fs);x.font=`600 ${fs}px "IBM Plex Sans",Arial,sans-serif`;}
+      const {bh,lh,lx}=L;x.fillStyle="rgba(10,18,26,.72)";x.fillRect(0,h-bh,w,bh);x.fillStyle="#f0a500";x.fillRect(0,h-bh,Math.round(fs/3),bh);
+      if(MARK_W)x.drawImage(MARK_W,fs,h-bh+(bh-lh)/2,lh*1.2,lh);
+      x.fillStyle="#ffffff";lines.forEach((l,i)=>x.fillText(l,lx,h-bh+fs*1.35*(i+1)));
       c.toBlob(b=>{URL.revokeObjectURL(u);b?res(b):rej(new Error("stamp"));},"image/jpeg",.82);}catch(e){rej(e);}};
     im.onerror=()=>{URL.revokeObjectURL(u);rej(new Error("load"));};im.src=u;});
 }
@@ -1805,13 +1809,25 @@ async function makePDF(p,u){
   let tx=M;try{const mi=await markImg("#ffffff","#f0a500",200);if(mi){const c=document.createElement("canvas");c.width=mi.width;c.height=mi.height;c.getContext("2d").drawImage(mi,0,0);doc.addImage(c.toDataURL("image/png"),"PNG",M,7,16.8,14);tx=M+21;}}catch(e){}
   doc.setFont("helvetica","bold");doc.setFontSize(20);doc.setTextColor(255,255,255);doc.text("Trail",tx,15);const tw=doc.getTextWidth("Trail");doc.setTextColor(240,165,0);doc.text("Construct",tx+tw,15);
   doc.setTextColor(255,255,255);doc.setFont("helvetica","normal");doc.setFontSize(10);doc.text("Investor progress report · Every stage, on record.",tx,22);doc.text(fmtD(u.date),W-M,22,{align:"right"});
-  y=44;txt(p.name,18,"bold");y+=1;txt([p.location,unitsText(p),floorsLabel(p.floors)].filter(Boolean).join("  ·  "),10,"normal",[91,101,112]);y+=4;
+  y=44;txt(p.name,18,"bold");y+=1;txt([p.location,unitsText(p),floorsLabel(p.floors)].filter(Boolean).join("  ·  "),10,"normal",[91,101,112]);
+  {const by=p.client||"",forN=S.view==="investor"&&S.me&&S.me.name?S.me.name:"";if(by||forN){y+=1;txt([by?"Prepared by "+by:"",forN?(by?"for ":"For ")+forN:""].filter(Boolean).join(" "),10,"italic",[91,101,112]);}}
+  y+=4;
   txt(u.title,13,"bold");y+=2;
   need(26);doc.setFillColor(246,247,243);doc.roundedRect(M,y,CW,24,3,3,"F");
   doc.setFont("helvetica","bold");doc.setFontSize(24);doc.setTextColor(43,74,94);doc.text(Math.round(snap.overall*100)+"%",M+6,y+15);
   doc.setFontSize(9);doc.setFont("helvetica","normal");doc.setTextColor(91,101,112);doc.text("complete",M+6,y+20);
   doc.setTextColor(21,32,42);doc.setFontSize(10);doc.setFont("helvetica","bold");doc.text("Now:",M+42,y+10);doc.text("Next:",M+42,y+17);
-  doc.setFont("helvetica","normal");doc.text(doc.splitTextToSize(snap.current,CW-58)[0],M+54,y+10);doc.text(doc.splitTextToSize(snap.next,CW-58)[0],M+54,y+17);y+=32;
+  doc.setFont("helvetica","normal");doc.text(doc.splitTextToSize(snap.current,CW-58)[0],M+54,y+10);doc.text(doc.splitTextToSize(snap.next,CW-58)[0],M+54,y+17);y+=30;
+  {const sch=scheduleInfo(p,progress(p)),bw=(CW-8)/3,bh=21,cards=[];
+    if(sch)cards.push(["Schedule",sch.status[1],`Work ${Math.round(sch.work*100)}% · time ${Math.round(sch.time*100)}%`,sch.status[0]==="ok"?[44,122,75]:sch.status[0]==="active"?[196,127,10]:[190,50,40]]);
+    if(p.targetDate)cards.push(["Target completion",fmtD(p.targetDate),sch&&sch.daysLeft>0?sch.daysLeft+" days to go":"",[21,32,42]]);
+    if(payOn(p)){const ms=msSummary(p),ng=v=>naira(v).replace("₦","NGN ");cards.push(["Funding",ms.contract?ng(ms.paid)+" released":"Milestone payments",ms.contract?"of "+ng(ms.contract):"",[21,32,42]]);}
+    else cards.push(["Funding","Paid up front","Fully funded",[44,122,75]]);
+    if(cards.length){need(bh+4);cards.forEach((c,i)=>{const x=M+i*(bw+4);doc.setDrawColor(223,226,219);doc.setLineWidth(.3);doc.roundedRect(x,y,bw,bh,2.5,2.5,"S");
+      doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(91,101,112);doc.text(c[0].toUpperCase(),x+4,y+6);
+      doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(...c[3]);doc.text(doc.splitTextToSize(c[1],bw-8)[0],x+4,y+12.5);
+      if(c[2]){doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(91,101,112);doc.text(doc.splitTextToSize(c[2],bw-8)[0],x+4,y+17.5);}});
+      y+=bh+8;}}
   txt("Briefing",12,"bold");y+=1;txt(u.briefing,10.5);y+=3;
   if(u.next){txt("What's next",12,"bold");y+=1;txt(u.next,10.5);y+=3;}
   txt("Progress by phase",12,"bold");y+=2;
@@ -1822,7 +1838,7 @@ async function makePDF(p,u){
   y+=3;
   if(u.budget){txt("Budget",12,"bold");y+=1;txt(`${naira(u.budget.spent).replace("₦","NGN ")} spent of ${naira(u.budget.budget).replace("₦","NGN ")} (${u.budget.budget?Math.round(u.budget.spent/u.budget.budget*100):0}%)`,10.5);y+=3;}
   const ph=u.photos||[];
-  if(ph.length){need(12);txt("Site photos",12,"bold");y+=2;const cw=(CW-6)/2,chh=cw*0.72;let col=0;
+  if(ph.length){const cw=(CW-6)/2,chh=cw*0.72;let col=0;need(12+chh+8);txt("Site photos",12,"bold");y+=2;
     for(const x of ph){const im=await loadImg(src(x));if(!im)continue;if(col===0)need(chh+8);
       const r=Math.min(cw/im.w,chh/im.h),w=im.w*r,h=im.h*r,xx=M+col*(cw+6)+(cw-w)/2;
       doc.addImage(im.data,"JPEG",xx,y+(chh-h)/2,w,h);if(x.cap){doc.setFontSize(8);doc.setTextColor(91,101,112);doc.text(x.cap,M+col*(cw+6),y+chh+4);}
