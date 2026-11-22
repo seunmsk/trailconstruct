@@ -718,7 +718,7 @@ async function uploadFile(file,pid,meta){
   return {id:"local-"+Math.random().toString(36).slice(2),url:URL.createObjectURL(file)};
 }
 function subscribe(col,q){
-  q.onSnapshot(snap=>{S[col]=snap.docs.map(d=>({id:d.id,...d.data()}));if(!snap.metadata.fromCache)S.loaded[col]=true;pickProject();render();},
+  q.onSnapshot(snap=>{S[col]=snap.docs.map(d=>({id:d.id,...d.data()}));if(!snap.metadata.fromCache)S.loaded[col]=true;pickProject();renderKeep();},
     err=>{S.loaded[col]=true;if(err&&err.code!=="revoked")toast("Couldn't load "+col+".");render();});
 }
 function pickProject(){if(!S.projects.length){S.pid=null;return;}if(!S.projects.find(p=>p.id===S.pid)){const s=ls.get("st.pid");S.pid=(S.projects.find(p=>p.id===s)||S.projects[0]).id;}}
@@ -1738,6 +1738,18 @@ function invView(p){
 
 /* ---------- render ---------- */
 function render(){renderInner();afterRender();renderShots();if(S.view==="home")S.ringDone=true;}
+/* Re-render after a background data refresh without losing what the user is typing:
+   remember the values, focus and cursor of form fields, render, then put them back. */
+function renderKeep(){
+  const app=document.getElementById("app"),view=S.view,tab=JSON.stringify(S.tab),ae=document.activeElement;
+  const keep=[...app.querySelectorAll("input[id],textarea[id],select[id]")].filter(el=>el.type!=="file").map(el=>({id:el.id,v:el.value,c:el.checked}));
+  const focus=ae&&ae.id&&app.contains(ae)?{id:ae.id,a:ae.selectionStart,b:ae.selectionEnd}:null,y=window.scrollY;
+  render();
+  if(S.view!==view||JSON.stringify(S.tab)!==tab)return;
+  keep.forEach(k=>{const el=document.getElementById(k.id);if(!el)return;if(el.type==="checkbox"||el.type==="radio")el.checked=k.c;else if(el.value!==k.v)el.value=k.v;});
+  if(focus){const el=document.getElementById(focus.id);if(el){el.focus({preventScroll:true});try{if(focus.a!=null)el.setSelectionRange(focus.a,focus.b);}catch(e){}}}
+  window.scrollTo(0,y);
+}
 function renderInner(){
   const app=document.getElementById("app"),v=S.view;
   if(v==="home"){app.innerHTML=homeView();return;}
@@ -2156,7 +2168,8 @@ function makeCfDb(){
       for(const col in (d.docs||{})){const m=cache[col]=cache[col]||new Map();for(const x of d.docs[col])m.set(x.id,x);}
       for(const x of (d.deleted||[]))if(cache[x.col])cache[x.col].delete(x.id);
       since=d.now||0;
-      for(const col in subs){const rows=[...((cache[col]||new Map()).values())];subs[col].forEach(cb=>cb(rows));}}
+      const changed=new Set([...Object.keys(d.docs||{}).filter(c=>(d.docs[c]||[]).length),...(d.deleted||[]).map(x=>x.col)]);
+      for(const col in subs){if(!d.full&&!changed.has(col)&&S.loaded[col])continue;const rows=[...((cache[col]||new Map()).values())];subs[col].forEach(cb=>cb(rows));}}
       catch(e){if(e.code==="unauthenticated"){since=0;render();}} finally{pulling=null;}})();
     return pulling;
   }
