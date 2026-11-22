@@ -208,7 +208,7 @@ main.narrow{max-width:680px}
 
 /* forms */
 form{display:grid;gap:12px}
-.row{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.row{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.row>*{min-width:0}input[type=file]{max-width:100%;min-width:0;width:100%;font-size:14px}
 label.f{display:grid;gap:4px;font-size:.84rem;font-weight:600;color:var(--muted)}
 input[type=text],input[type=number],input[type=date],input[type=email],input[type=password],input[type=tel],select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--sunk);font-weight:400}
 textarea{min-height:90px;resize:vertical}
@@ -700,7 +700,7 @@ function progress(p){
 /* ---------- data layer ---------- */
 const queues={};
 function queue(key,fn){queues[key]=(queues[key]||Promise.resolve()).then(fn).catch(onErr);return queues[key];}
-function onErr(e){
+function onErr(e){S.errCount=(S.errCount||0)+1;
   if(e&&e.code==="forbidden"){toast(e.message||"You can't change this.");render();return;}
   if(e&&e.code==="invalid_argument"){S.canWrite=false;toast("You can view this project but not change it.");}
   else if(e&&e.code==="quota_exceeded")toast("Storage is full. Delete old entries to add more.");
@@ -1415,7 +1415,7 @@ function engView(p){
       <p class="small muted">This week's daily updates, photos and issues are attached automatically.</p><div><button class="btn pri" type="submit">Send to developer</button></div></form>`:""}</section>`);
   }
   if(t==="materials")body=materialsView(p,"engineer");
-  if(t==="stages")body=outstandingCard(p,50)+`<section class="card"><div class="card-h"><h2>Stage checklist</h2><span class="small muted">Tick items as they're finished</span></div>${stageList(p)}</section>`;
+  if(t==="stages")body=outstandingCard(p,50)+`<section class="card"><div class="card-h"><h2>Stage checklist</h2><span class="small muted">Tick items as they're finished. Each tick saves straight away.</span></div>${stageList(p)}</section>`;
   if(t==="history"){const logs=logsOf(p.id);body=`<section class="card"><h2>All updates</h2>${logs.length?`<div class="list">${logs.slice(0,30).map(l=>logHTML(p,l)).join("")}</div>`:`<div class="empty">No updates yet.</div>`}</section>`;}
   return shell("engineer",tabs,body,true);
 }
@@ -2006,7 +2006,7 @@ document.addEventListener("click",async e=>{
       S.reminded=S.reminded||{};const key=p.id+":"+(pr.stages[si]||{}).id;
       if(earlier.length&&!S.reminded[key]){S.reminded[key]=1;earlier.sort((a,b)=>(b.ap?1:0)-(a.ap?1:0));
         setTimeout(()=>modal(`<h2>Before you move on</h2><p>You're ticking work in <b>${esc(pr.stages[si].name)}</b>, but ${earlier.length} item${earlier.length>1?"s":""} from earlier stages ${earlier.length>1?"are":"is"} not done yet:</p><ul class="outlist">${earlier.slice(0,8).map(x=>`<li><span>${esc(x.it.label)}</span><span class="small muted">${esc(x.s.name)}</span>${x.ap?`<span class="pill active">Approval pending</span>`:"<span></span>"}</li>`).join("")}</ul>${earlier.length>8?`<p class="small muted">+ ${earlier.length-8} more</p>`:""}<p class="small muted">You can carry on. We'll keep reminding you until they're ticked off.</p><div><button class="btn pri" data-act="close">OK, continue</button></div>`),150);}}
-    store.update("projects",p.id,{checks:{[id]:on}});return;}
+    const errs=S.errCount||0;await store.update("projects",p.id,{checks:{[id]:on}});if((S.errCount||0)===errs)toast(on?"Ticked. Saved.":"Unticked. Saved.");return;}
   if(act==="del-exp"){store.del("expenses",t.dataset.id);return;}
   if(act==="del-update"){store.del("updates",t.dataset.id);toast("Update deleted.");return;}
   if(act==="use-report"){const r=S.reports.find(x=>x.id===t.dataset.id);if(!r)return;
