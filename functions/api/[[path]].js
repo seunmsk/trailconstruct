@@ -527,6 +527,86 @@ async function runReminders(env, origin, force = false) {
   return { sent, items: marks.length };
 }
 
+
+// ---------- demo kit ----------
+const DEMO_PROJECT_NAME = "Palm Court Residences";
+const DEMO_ACCOUNTS = [
+  { role: "developer", email: "demo.developer@trailconstruct.com", name: "Daniel Adeyemi" },
+  { role: "engineer", email: "demo.engineer@trailconstruct.com", name: "Engr. Sam Okoro" },
+  { role: "investor", email: "demo.investor@trailconstruct.com", name: "Mrs Grace Bello" },
+];
+async function putDoc(env, col, id, pid, data) {
+  const now = Date.now();
+  await env.DB.prepare("INSERT INTO docs (col, id, pid, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(col, id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at")
+    .bind(col, id, pid, JSON.stringify(data), now, now).run();
+}
+async function wipeDemo(env, pid) {
+  const now = Date.now();
+  const rows = (await env.DB.prepare("SELECT col, id FROM docs WHERE pid = ?").bind(pid).all()).results || [];
+  for (const r of rows) await env.DB.prepare("INSERT INTO deleted (col, id, pid, deleted_at) VALUES (?, ?, ?, ?) ON CONFLICT(col, id) DO UPDATE SET deleted_at = excluded.deleted_at").bind(r.col, r.id, pid, now).run();
+  for (const t of ["docs", "photo_meta", "audit", "change_requests"]) await env.DB.prepare(`DELETE FROM ${t} WHERE pid = ?`).bind(pid).run();
+  for (const t of ["members", "invites"]) await env.DB.prepare(`DELETE FROM ${t} WHERE project_id = ?`).bind(pid).run();
+  for (const t of ["billing", "payments", "pauses"]) await env.DB.prepare(`DELETE FROM ${t} WHERE pid = ?`).bind(pid).run();
+  let cursor;
+  do { const l = await env.PHOTOS.list({ prefix: pid + "/", cursor }); const keys = (l.objects || []).map((o) => o.key); if (keys.length) await env.PHOTOS.delete(keys); cursor = l.truncated ? l.cursor : null; } while (cursor);
+}
+// Dates for the demo, counted back from today (Lagos time) so the project always looks current.
+function demoDates(now) {
+  const lag = new Date(now + 3600 * 1000), day = (n) => new Date(Date.UTC(lag.getUTCFullYear(), lag.getUTCMonth(), lag.getUTCDate() - n));
+  const iso = (d) => d.toISOString().slice(0, 10), dow = lag.getUTCDay() || 7; // Mon=1..Sun=7
+  // the most recent finished work week: this week on Sat/Sun, otherwise last week
+  const lastMon = day(dow - 1 + (dow >= 6 ? 0 : 7)), lastFri = new Date(lastMon.getTime() + 4 * DAY);
+  const lab = (d) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  return { day, iso, lab, lastMon, lastFri, at: (d, hh, mm) => new Date(d.getTime() + (hh - 1) * 3600e3 + mm * 60e3).toISOString() };
+}
+function demoProject(now, lat, lng, ids) {
+  const D = demoDates(now), start = D.day(82), target = new Date(start); target.setUTCMonth(target.getUTCMonth() + 18);
+  const checks = {};
+  for (let i = 0; i < 8; i++) checks["pre." + i] = true;
+  for (let i = 0; i < 4; i++) checks["set." + i] = true;
+  for (let i = 0; i < 10; i++) checks["fdn." + i] = true;
+  checks["lv0.0"] = true; checks["lv0.1"] = true;
+  const meta = { "lv0.0": { by: ids.engineer, at: now - 6 * DAY }, "lv0.1": { by: ids.engineer, at: now - 4 * DAY } };
+  return { name: DEMO_PROJECT_NAME, location: "Admiralty Way, Lekki Phase 1, Lagos", propType: "semi-duplex", sewageType: "septic", foundationType: "raft",
+    unitCount: 4, mix: [], blockCount: 2, beds: "4", units: "4 semi-detached duplexes in 2 blocks · 4-bed", client: "Adeyemi Homes", owner: "Daniel Adeyemi",
+    floors: 1, budget: 450000000, startDate: D.iso(start), durationMonths: 18, targetDate: D.iso(target), payMode: "upfront",
+    siteLat: lat, siteLng: lng, siteRadius: 200, contractSum: 0, checks, checksMeta: meta,
+    team: DEMO_ACCOUNTS.filter((a) => a.role !== "developer").map((a) => ({ role: a.role, name: a.name, email: a.email })),
+    plan: { name: "Single site", billing: "monthly" }, createdAt: new Date(start.getTime() + 9 * 3600e3).toISOString(), demo: true };
+}
+// The site photos the admin page stamps and uploads, in this order, with the date/time each was "taken".
+function demoPhotoPlan(now) {
+  const D = demoDates(now), mon = D.lastMon, d = (n) => new Date(mon.getTime() + n * DAY);
+  return [
+    { key: "older", img: "site-scaffold.jpg", at: D.at(new Date(mon.getTime() - 7 * DAY), 10, 12) },
+    { key: "tue", img: "site-blocks.jpg", at: D.at(d(1), 9, 43) },
+    { key: "thu", img: "site-formwork.jpg", at: D.at(d(3), 11, 5) },
+    { key: "fri1", img: "site-props.jpg", at: D.at(d(4), 9, 44) },
+    { key: "fri2", img: "site-scaffold.jpg", at: D.at(d(4), 15, 20), mirror: true },
+  ];
+}
+function demoDocs(pid, P, now, engineerId) {
+  const D = demoDates(now), mon = D.lastMon, d = (n) => new Date(mon.getTime() + n * DAY), by = "Engr. Sam Okoro";
+  const ph = (k, cap) => (P[k] ? [{ ...P[k], ...(cap ? { cap } : {}) }] : []);
+  const older = new Date(mon.getTime() - 7 * DAY), yest = D.day(1);
+  const log = (id, date, stage, work, workers, weather, issues, photos, hh) => ["logs", pid + "-" + id, { pid, date: D.iso(date), stage, work, workers, weather, issues, by, createdAt: D.at(date, hh, 30), photos }];
+  const docs = [
+    log("l0", older, "fdn", "Raft foundation cured and damp-proof membrane laid on both blocks. Column starter bars set out for Block A.", 12, "Sunny", "", ph("older"), 10),
+    log("l1", d(1), "lv0", "Ground floor blockwork on Block A, 4th course to lintel level.", 14, "Sunny", "", ph("tue"), 9),
+    log("l2", d(3), "lv0", "Completed ground floor blockwork on Block A. Started formwork for 1st floor slab.", 15, "Cloudy", "", ph("thu"), 11),
+    log("l3", d(4), "lv0", "Props and formwork set for 1st floor slab, Block A. Rebar laid for beams.", 16, "Sunny", "Waiting on 2 trips of granite", [...ph("fri1"), ...ph("fri2")], 15),
+    log("l4", yest, "lv0", "Granite delivered. Slab reinforcement inspected and approved; casting planned for tomorrow.", 12, "Light rain", "", [], 16),
+  ];
+  const repPhotos = [...ph("tue", D.lab(d(1))), ...ph("thu", D.lab(d(3))), ...ph("fri1", D.lab(d(4))), ...ph("fri2", D.lab(d(4)))];
+  docs.push(["reports", pid + "_" + D.iso(mon), { pid, weekStart: D.iso(mon), weekEnd: D.iso(d(4)), by, summary: "Ground floor blockwork done on Block A. Formwork, props and beam rebar set for the 1st floor slab.",
+    next: "Cast 1st floor slab on Block A. Start ground floor blockwork on Block B.", logCount: 3, workersAvg: 15, issues: [`${D.lab(d(4))}: Waiting on 2 trips of granite`], photos: repPhotos, status: "new", createdAt: D.at(d(4), 17, 10) }]);
+  docs.push(["updates", pid + "-u1", { pid, title: "Progress update: foundation complete", briefing: "The raft foundation is complete and cured on both blocks. Damp-proofing is done and the column starter bars for Block A are in place.",
+    next: "Ground floor blockwork on Block A next week, then formwork for the 1st floor slab.", date: D.iso(new Date(older.getTime() + DAY)), photos: ph("older", D.lab(older) + " · " + by), createdAt: D.at(new Date(older.getTime() + DAY), 12, 0) }]);
+  docs.push(["matreqs", pid + "-m1", { pid, item: "Cement (Dangote 42.5)", qty: 120, unit: "bags", needBy: D.iso(D.day(-3)), note: "Block B ground floor blockwork", by, status: "pending",
+    createdAt: D.at(yest, 16, 40), trail: [{ at: D.at(yest, 16, 40), by: "Sam Okoro", text: "Requested 120 bags" }], byId: engineerId || "" }]);
+  return docs;
+}
+
 export async function onRequest(ctx) {
   const { request: req, env } = ctx;
   const url = new URL(req.url);
@@ -762,6 +842,69 @@ export async function onRequest(ctx) {
       return err(404, "Not found");
     }
     // ---------- admin console ----------
+    // ---------- demo kit (owner / full admins) ----------
+    // One tap in Admin → Demo creates a sample project with a developer, engineer and investor login
+    // for sales demos. Tapping again wipes the old demo and starts fresh.
+    if (parts[0] === "admin" && parts[1] === "demo") {
+      const arole = await adminRole(env, user);
+      if (arole !== "owner" && arole !== "full") return err(403, "Only full admins can manage the demo.");
+      const st = await env.DB.prepare("SELECT value FROM settings WHERE key = 'demo'").first();
+      const cur = st ? JSON.parse(st.value) : null;
+      if (m === "GET" && !parts[2]) return json({ demo: cur ? { ...cur, accounts: DEMO_ACCOUNTS.map(({ role, email, name }) => ({ role, email, name })) } : null });
+      if (m === "POST" && parts[2] === "start") {
+        const b0 = await readBody(req), now = Date.now();
+        if (cur && cur.pid) await wipeDemo(env, cur.pid);
+        for (const a of DEMO_ACCOUNTS) {
+          const u = await env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(a.email).first();
+          if (u) { await env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(u.id).run(); await env.DB.prepare("DELETE FROM members WHERE user_id = ?").bind(u.id).run(); await env.DB.prepare("DELETE FROM users WHERE id = ?").bind(u.id).run(); }
+        }
+        const password = "Demo" + String(1000 + (crypto.getRandomValues(new Uint16Array(1))[0] % 9000)) + "!";
+        const pid = "p-demo" + randHex(4), ids = {};
+        for (const a of DEMO_ACCOUNTS) {
+          const id = randHex(12), salt = randHex(16), hash = await hashPassword(password, salt, iterations);
+          await env.DB.prepare("INSERT INTO users (id, email, name, pass_hash, salt, iterations, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(id, a.email, a.name, hash, salt, iterations, now).run();
+          await env.DB.prepare("INSERT INTO members (project_id, user_id, role, created_at) VALUES (?, ?, ?, ?)").bind(pid, id, a.role, now).run();
+          ids[a.role] = id;
+        }
+        const lat = isFinite(+b0.lat) ? +b0.lat : 6.4474, lng = isFinite(+b0.lng) ? +b0.lng : 3.472;
+        await putDoc(env, "projects", pid, pid, demoProject(now, lat, lng, ids));
+        await env.DB.prepare("INSERT INTO billing (pid, plan_after, grace_until, paid_until, created_at) VALUES (?, 'monthly', ?, ?, ?)").bind(pid, now, now + 365 * DAY, now).run();
+        const info = { pid, password, lat, lng, at: now, by: user.email, ready: false };
+        await env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('demo', ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at").bind(JSON.stringify(info), now).run();
+        return json({ pid, lat, lng, name: DEMO_PROJECT_NAME, plan: demoPhotoPlan(now) });
+      }
+      if ((parts[2] === "photo" || parts[2] === "finish") && !cur) return err(400, "Start the demo first.");
+      if (parts[2] === "photo" && url.searchParams.get("pid") !== cur.pid) return err(400, "Start the demo first.");
+      if (m === "POST" && parts[2] === "photo") {
+        const type = (req.headers.get("content-type") || "").split(";")[0];
+        if (type !== "image/jpeg") return err(415, "JPEG only.");
+        const bytes = await req.arrayBuffer();
+        if (bytes.byteLength > MAX_PHOTO) return err(413, "Photo is too large.");
+        const takenAt = Date.parse(req.headers.get("x-taken-at") || "") || Date.now(), key = `${cur.pid}/${randHex(12)}.jpg`;
+        const dev = await env.DB.prepare("SELECT user_id FROM members WHERE project_id = ? AND role = 'engineer'").bind(cur.pid).first();
+        await env.PHOTOS.put(key, bytes, { httpMetadata: { contentType: type }, customMetadata: { by: dev ? dev.user_id : user.id, demo: "1" } });
+        await env.DB.prepare("INSERT INTO photo_meta (key, pid, user_id, uploaded_at, orig_hash, taken_at, lat, lng, dist, verdict, late) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, 0, 'onsite', 0)")
+          .bind(key, cur.pid, dev ? dev.user_id : user.id, takenAt + 5000, takenAt, cur.lat, cur.lng).run();
+        return json({ v: "onsite", dist: 0, gps: { lat: cur.lat, lng: cur.lng }, takenAt: new Date(takenAt).toISOString(), id: key,
+          url: "/api/photo/" + key.split("/").map(encodeURIComponent).join("/"), uploadedAt: new Date(takenAt + 5000).toISOString(), late: false, checked: true });
+      }
+      if (m === "POST" && parts[2] === "finish") {
+        const b0 = await readBody(req);
+        if (b0.pid !== cur.pid) return err(400, "Start the demo first.");
+        const engineer = await env.DB.prepare("SELECT user_id FROM members WHERE project_id = ? AND role = 'engineer'").bind(cur.pid).first();
+        for (const [col, id, data] of demoDocs(cur.pid, b0.photos || {}, Date.now(), engineer && engineer.user_id)) await putDoc(env, col, id, cur.pid, data);
+        await env.DB.prepare("UPDATE settings SET value = ?, updated_at = ? WHERE key = 'demo'").bind(JSON.stringify({ ...cur, ready: true }), Date.now()).run();
+        return json({ ok: true });
+      }
+      if (m === "DELETE" && !parts[2]) {
+        if (cur && cur.pid) await wipeDemo(env, cur.pid);
+        for (const a of DEMO_ACCOUNTS) { const u = await env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(a.email).first(); if (u) { await env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(u.id).run(); await env.DB.prepare("DELETE FROM users WHERE id = ?").bind(u.id).run(); } }
+        await env.DB.prepare("DELETE FROM settings WHERE key = 'demo'").run();
+        return json({ ok: true });
+      }
+      return err(404, "Not found");
+    }
+
     if (parts[0] === "admin" && ["overview", "projects", "users", "admins", "leads", "settings", "log"].includes(parts[1])) {
       const arole = await adminRole(env, user);
       if (!arole) return err(403, "Not allowed");
