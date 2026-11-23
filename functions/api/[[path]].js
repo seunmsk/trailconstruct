@@ -661,7 +661,7 @@ export async function onRequest(ctx) {
         out.missing_tables = ["users", "sessions", "members", "invites", "docs"].filter((t) => !out.tables.includes(t));
       }
       out.ok = out.database_connected && out.photo_storage_connected && !out.missing_tables.length && !out.database_error;
-      return json(out);
+      return json(out, out.ok ? 200 : 503); // 503 so uptime monitors raise an alert
     }
 
     // ---------- auth ----------

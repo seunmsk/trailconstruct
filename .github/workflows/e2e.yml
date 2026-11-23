@@ -1,0 +1,61 @@
+# Clicks through the developer, site engineer and investor sides of the app.
+# Runs on every pull request, on every push to main, and every night at midnight Lagos time.
+# If anything breaks, the run fails and GitHub emails you, with screenshots attached to the run.
+name: App check
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 23 * * *" # 23:00 UTC = midnight in Lagos
+  workflow_dispatch:
+
+jobs:
+  click-through:
+    name: Click through all three sides
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          npm install --no-audit --no-fund
+          pip install playwright pytest requests
+          python -m playwright install --with-deps chromium
+      - name: Start a local copy of the app (fresh test database, no real emails)
+        run: |
+          printf 'APP_URL=http://localhost:8788\nADMIN_EMAILS=admin@example.com\n' > .dev.vars
+          npx wrangler pages dev public --port 8788 > wrangler.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:8788/api/health && break; sleep 2; done
+      - name: Click through developer, engineer and investor
+        run: E2E_OUT=e2e-output python -m pytest tests/test_e2e.py -v
+      - name: Keep screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-check-screens
+          path: |
+            e2e-output
+            wrangler.log
+          retention-days: 7
+
+  live-site:
+    name: Check the live site (read-only)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          pip install playwright pytest requests
+          python -m playwright install --with-deps chromium
+      - run: python -m pytest tests/test_live.py -v
