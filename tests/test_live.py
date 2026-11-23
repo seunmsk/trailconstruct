@@ -20,7 +20,8 @@ def test_homepage_and_guide_render():
         for path, text in [("/", "TrailConstruct"), ("/#guide", "TrailConstruct")]:
             r = page.goto(SITE + path)
             assert r and r.status == 200, f"{path} returned {r and r.status}"
-            page.wait_for_load_state("networkidle")
+            page.wait_for_load_state("load")
+            page.wait_for_timeout(2000)  # the app keeps polling, so the network never goes idle
             assert text in page.inner_text("body"), f"{path} didn't render"
         b.close()
     assert not errors, "\n".join(errors)
