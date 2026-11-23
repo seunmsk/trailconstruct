@@ -15,9 +15,9 @@ def test_homepage_and_guide_render():
     errors = []
     with sync_playwright() as p:
         b = p.chromium.launch()
-        page = b.new_page()
-        page.on("pageerror", lambda e: errors.append(f"JS error: {e}"))
         for path, text in [("/", "TrailConstruct"), ("/#guide", "TrailConstruct")]:
+            page = b.new_page()  # a fresh page each time: a change after "#" alone isn't a new page load
+            page.on("pageerror", lambda e: errors.append(f"JS error: {e}"))
             r = page.goto(SITE + path)
             assert r and r.status == 200, f"{path} returned {r and r.status}"
             page.wait_for_load_state("load")
